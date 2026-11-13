@@ -281,7 +281,7 @@
     if (!sum.length) h += '<div class="card muted">Este trimestre aún no tiene horas.</div>';
     const offNow = new Set(C.disabledOn(S, today()).map((x) => x.name)), offRows = sum.filter((x) => offNow.has(x.name));
     sum.filter((x) => !offNow.has(x.name)).sort((a, b) => a.margin - b.margin).forEach((x, n) => {
-      h += '<div' + rise(n) + '><div class="card"><div class="row">' + avatar(S, x.name) + '<div class="grow"><div class="name">' + esc(x.name) + '</div><div class="muted">Llevas ' + fmt(x.absent) + ' de ' + fmt(x.limit) + ' h</div></div><div class="right"><span class="tag big ' + x.status + '">' + (x.margin < 0 ? 'te pasas ' + fmt(-x.margin) + ' h' : 'te quedan ' + fmt(x.margin) + ' h') + '</span><div class="pct">' + cnt(x.pct) + '% de ' + lim + '%</div></div></div>' + meter(x.pct, null, lim, x.status) +
+      h += '<div' + rise(n) + '><div class="card"><div class="row">' + avatar(S, x.name) + '<div class="grow"><div class="name">' + esc(x.name) + '</div><div class="muted">Llevas ' + fmt(x.absent) + ' de ' + fmt(x.limit) + '&nbsp;h</div></div><div class="right"><span class="tag big ' + x.status + '">' + (x.margin < 0 ? 'te pasas ' + fmt(-x.margin) + ' h' : 'te quedan ' + fmt(x.margin) + ' h') + '</span><div class="pct">' + cnt(x.pct) + '% de ' + lim + '%</div></div></div>' + meter(x.pct, null, lim, x.status) +
         lastLine(x, rem[x.name] || 0) + '</div></div>';
     });
     const nc = (S.nocount || []).filter((k) => C.allSubjects(S).indexOf(k) >= 0);
