@@ -78,6 +78,13 @@
     for (let d = parse(t.from); ymd(d) <= t.to; d.setDate(d.getDate() + 1)) {
       dayClasses(state, ymd(d), true).forEach((c) => { const k = c.canon; out[k] = r2((out[k] || 0) + c.hours); });
     }
+    const p = state.project;
+    if (p && p.name && +p.weeks > 0 && projectWeekHours(p) > 0) {
+      // no se sabe qué semanas serán: total del curso = semanas × horas por semana, repartido según los días lectivos del trimestre
+      const days = (a, b) => { let n = 0; for (let d = parse(a); ymd(d) <= b; d.setDate(d.getDate() + 1)) { const k = ymd(d), w = d.getDay(); if (w > 0 && w < 6 && !(state.holidays || []).some((h) => k >= h.from && k <= (h.to || h.from))) n++; } return n; };
+      const all = (state.terms || []).reduce((n, x) => n + days(x.from, x.to), 0), mine = days(t.from, t.to);
+      if (all) out[canon(state, p.name)] = r1(+p.weeks * projectWeekHours(p) * mine / all);
+    }
     return out;
   }
   /** Resumen por asignatura: total, faltadas, %, límite, margen, estado. */
@@ -99,15 +106,38 @@
     const x = (state.disabled || {})[subject];
     return !!(x && x.cover && !(x.on && date >= x.on));
   }
-  /** Clases de un día. Si una asignatura está desactivada, su franja cuenta para la que la cubre. `raw`: sin sustituir. */
+  /** ¿Semana de proyecto activa ese día? (se activa y se termina a mano; cada vez queda un rango). */
+  function projectOn(state, date) {
+    const p = state.project;
+    return !!(p && p.name && (p.ranges || []).some((r) => r.from && date >= r.from && (!r.to || date <= r.to)));
+  }
+  const mn = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
+  /**
+   * Clases de un día.
+   * - Si una asignatura está desactivada, su franja cuenta para la que la cubre.
+   * - En semana de proyecto, las franjas marcadas como proyecto pasan a ser del proyecto (hora a hora).
+   * `raw`: sin sustituir nada (la dueña de cada franja en la rejilla).
+   */
   function dayClasses(state, date, raw) {
     if ((state.holidays || []).some((h) => date >= h.from && date <= (h.to || h.from))) return [];
-    return (scheduleOn(state, date)[weekday(date)] || []).map((b0) => {
+    let out = (scheduleOn(state, date)[weekday(date)] || []).map((b0) => {
       const b = Object.assign({}, b0);
       if (!raw && offOn(state, b.subject, date)) { b.covers = b.subject; b.subject = state.disabled[b.subject].cover; }
-      b.canon = canon(state, b.subject); return b;
+      return b;
     });
+    if (!raw && projectOn(state, date)) {
+      const pb = ((state.project.schedule || {})[weekday(date)] || []);
+      if (pb.length) {
+        const hit = (x) => pb.some((p) => mn(x.start) < mn(p.end) && mn(x.end) > mn(p.start));
+        const keep = [];
+        out.forEach((b) => { if (!hit(b)) keep.push(b); else hourSlots(b).forEach((x) => { if (!hit(x)) keep.push(Object.assign({}, b, x)); }); });
+        out = keep.concat(pb.map((p) => Object.assign({}, p, { subject: state.project.name, project: true }))).sort((a, b) => mn(a.start) - mn(b.start));
+      }
+    }
+    return out.map((b) => Object.assign(b, { canon: canon(state, b.subject) }));
   }
+  /** Horas de proyecto de una semana (lo marcado en la rejilla). */
+  function projectWeekHours(p) { let h = 0; Object.keys((p && p.schedule) || {}).forEach((d) => (p.schedule[d] || []).forEach((b) => { h += +b.hours || 0; })); return r2(h); }
   /** Asignaturas desactivadas hoy: [{ name, cover, on }]. */
   function disabledOn(state, date) {
     return Object.keys(state.disabled || {}).filter((k) => offOn(state, k, date)).map((k) => ({ name: k, cover: state.disabled[k].cover, on: state.disabled[k].on || null }));
@@ -133,7 +163,7 @@
   }
   /** Todas las asignaturas del curso, contando las de todos los tramos. */
   function allSubjects(state) {
-    const out = [];
+    const out = state.project && state.project.name ? [state.project.name] : [];
     [state.schedule || {}].concat((state.periods || []).map((p) => p.schedule || {}), (state.history || []).map((h) => h.schedule || {})).forEach((sch) => {
       Object.keys(sch).forEach((d) => (sch[d] || []).forEach((b) => { if (out.indexOf(b.subject) < 0) out.push(b.subject); }));
     });
@@ -157,6 +187,7 @@
     const al = {}; Object.keys(c.alias || {}).forEach((k) => { const a = rn(k), b = rn(c.alias[k]); if (a !== b) al[a] = b; }); c.alias = al;
     ['totals', 'totalsUnified'].forEach((key) => Object.keys(c[key] || {}).forEach((tid) => { const o = {}; Object.keys(c[key][tid]).forEach((k) => { o[rn(k)] = c[key][tid][k]; }); c[key][tid] = o; }));
     (c.subjects || []).forEach((m) => { m.name = rn(m.name); });
+    if (c.project && c.project.name) c.project.name = rn(c.project.name);
     const dis = {}; Object.keys(c.disabled || {}).forEach((k) => { dis[rn(k)] = Object.assign({}, c.disabled[k], { cover: rn(c.disabled[k].cover) }); }); c.disabled = dis;
     return c;
   }
@@ -271,6 +302,6 @@
     for (let i = 0; i < 40; i++) { d.setDate(d.getDate() + 1); const k = ymd(d); if (dayClasses(state, k).length) return k; }
     return null;
   }
-  const api = { offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
+  const api = { projectOn, projectWeekHours, offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

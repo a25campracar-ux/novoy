@@ -129,6 +129,7 @@ Ahora te pego mis faltas:`;
       unificar: Object.keys(S.alias || {}).map((k) => ({ asignatura: k, dentro_de: S.alias[k] })),
       reglas: { ambito: (S.settings && S.settings.ambito) || 'trimestre', retrasos_por_falta: +((S.settings && S.settings.retrasosPorFalta) || 0), justificadas_cuentan: !(S.settings && S.settings.justificadasCuentan === false) },
       modulos: (S.subjects || []).map((m) => ({ id: m.id, nombre: m.name })),
+      proyecto: S.project && S.project.name ? { nombre: S.project.name, semanas: +S.project.weeks || 0, horario: schOf(S.project.schedule), activo: (S.project.ranges || []).map((r) => (r.to ? { desde: r.from, hasta: r.to } : { desde: r.from })) } : null,
       desactivadas: Object.keys(S.disabled || {}).map((k) => { const o = { asignatura: k, en_su_lugar: S.disabled[k].cover }; if (S.disabled[k].on) o.desde = S.disabled[k].on; return o; }),
       faltas: S.faltas.map((f) => { const o = { fecha: f.date, asignatura: f.subject, horas: f.hours, tipo: f.type, justificada: !!f.justified }; if (f.start) o.inicio = f.start; if (f.id) o.id = f.id; return o; }),
       dudas: []
@@ -233,6 +234,14 @@ Ahora te pego mis faltas:`;
       if (!subjects.has(u.dentro_de)) return warnings.push('Unificar: "' + u.dentro_de + '" no está en el horario, lo ignoro.');
       if (u.asignatura !== u.dentro_de) alias[u.asignatura] = u.dentro_de;
     });
+    // proyecto: franjas que en semana de proyecto pasan a ser del proyecto; se activa y termina a mano
+    let project = null;
+    if (j.proyecto && typeof j.proyecto === 'object' && j.proyecto.nombre) {
+      const sch = readSchedule(j.proyecto.horario, 'Proyecto ');
+      const ranges = (Array.isArray(j.proyecto.activo) ? j.proyecto.activo : []).filter((r) => r && isDate(r.desde) && (r.hasta == null || isDate(r.hasta))).map((r) => ({ from: r.desde, to: r.hasta || null }));
+      project = { name: String(j.proyecto.nombre), weeks: Math.max(0, +j.proyecto.semanas || 0), schedule: sch, ranges };
+      subjects.add(project.name);
+    }
     // desactivadas: aún no se imparten; su franja la cubre otra hasta "desde"
     const disabled = {};
     (Array.isArray(j.desactivadas) ? j.desactivadas : []).forEach((x) => {
@@ -273,7 +282,7 @@ Ahora te pego mis faltas:`;
       totals[t.id] = t.hours; delete t.hours;
     });
     return { ok: true, errors, warnings, limite, reglas, hasFaltas, faltas,
-      config: { center: String(j.centro || ''), terms, holidays, schedule, periods, history, alias, totals, totalsUnified: {}, disabled,
+      config: { center: String(j.centro || ''), terms, holidays, schedule, periods, history, alias, totals, totalsUnified: {}, disabled, project,
         subjects: (Array.isArray(j.modulos) ? j.modulos : []).filter((m) => m && typeof m.id === 'string' && m.nombre).map((m) => ({ id: m.id, name: String(m.nombre) })) } };
   }
 

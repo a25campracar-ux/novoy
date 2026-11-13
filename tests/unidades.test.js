@@ -93,3 +93,30 @@ console.log('unidades OK');
   assert.ok(r.ok, JSON.stringify(r.errors)); assert.deepStrictEqual(r.config.disabled, c2.disabled);
   console.log('desactivadas OK');
 }
+
+// --- semanas de proyecto: franjas marcadas que pasan a ser del proyecto mientras está activo
+{
+  const c = { terms: [{ id: '1r', label: '1r', from: '2026-09-14', to: '2026-12-18' }, { id: '2n', label: '2n', from: '2027-01-08', to: '2027-03-26' }], holidays: [], periods: [], alias: {}, totals: {}, totalsUnified: {},
+    schedule: { 1: [{ start: '08:00', end: '10:00', subject: 'IPO', hours: 2 }, { start: '10:00', end: '12:00', subject: 'ECli', hours: 2 }] },
+    project: { name: 'Proyecto', weeks: 4, schedule: { 1: [{ start: '10:00', end: '12:00', subject: 'Proyecto', hours: 2 }] }, ranges: [{ from: '2026-10-05', to: '2026-10-16' }] } };
+  const S = st(c, []);
+  assert.deepStrictEqual(C.dayClasses(S, '2026-09-28').map((b) => b.subject), ['IPO', 'ECli'], 'semana normal');
+  assert.deepStrictEqual(C.dayClasses(S, '2026-10-05').map((b) => b.subject + b.start), ['IPO08:00', 'Proyecto10:00'], 'semana de proyecto: IPO sigue, ECli pasa a Proyecto');
+  assert.strictEqual(C.dayClasses(S, '2026-10-05', true)[1].subject, 'ECli', 'raw: dueña de la rejilla');
+  assert.ok(C.projectOn(S, '2026-10-16') && !C.projectOn(S, '2026-10-19'));
+  // activo sin fin (se terminará a mano)
+  const open = st(Object.assign({}, c, { project: Object.assign({}, c.project, { ranges: [{ from: '2026-11-02', to: null }] }) }), []);
+  assert.ok(C.projectOn(open, '2027-02-01'));
+  // totales: el proyecto = semanas × horas por semana (4 × 2 = 8 h), repartido por trimestres; ECli no pierde horas
+  const t1 = C.computeTotals(S, '1r'), t2 = C.computeTotals(S, '2n');
+  assert.ok(Math.abs(t1.Proyecto + t2.Proyecto - 8) < 0.2, t1.Proyecto + '+' + t2.Proyecto);
+  assert.strictEqual(t1.ECli, t1.IPO, 'ECli cuenta sus horas aunque haya semanas de proyecto');
+  // una falta en semana de proyecto a las 10:00 va al proyecto, partida en horas
+  const n = C.normalize(c, [{ id: 'k', date: '2026-10-05', subject: 'Proyecto', hours: 2, type: 'falta' }]);
+  assert.deepStrictEqual(n.faltas.map((f) => f.start), ['10:00', '11:00']);
+  assert.ok(C.allSubjects(S).includes('Proyecto'));
+  // ida y vuelta
+  const r = SU.parseImport(SU.toExport(S)); assert.ok(r.ok, JSON.stringify(r.errors));
+  assert.deepStrictEqual(r.config.project.ranges, c.project.ranges); assert.strictEqual(r.config.project.weeks, 4);
+  console.log('proyecto OK');
+}

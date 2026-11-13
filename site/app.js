@@ -145,7 +145,12 @@
   const missAttr = (day, slots) => esc(JSON.stringify({ d: day, u: slots.map((x) => [x.subject, x.start, x.hours]) }));
   let onOpen = null; // asignatura desactivada que se está activando
   function offBubble(S, day) {
-    const off = C.disabledOn(S, day); if (!off.length) return '';
+    const off = C.disabledOn(S, day), pj = S.project && S.project.name && C.projectWeekHours(S.project) > 0;
+    if (pj && C.projectOn(S, day)) { const r = S.project.ranges.filter((x) => x.from <= day && (!x.to || day <= x.to)).pop(); return '<div class="card pjbar"><div class="grow"><b>Semana de ' + esc(S.project.name.toLowerCase()) + '</b><span class="muted">Desde el ' + nice(r.from) + '. Las horas marcadas cuentan como ' + esc(S.project.name) + '.</span></div><button class="btn small" data-act="pj-off">Ya es semana normal</button></div>' + (off.length ? offRow(off, S, day) : ''); }
+    if (!off.length && !pj) return '';
+    return (pj ? '<div class="offs"><button class="pal pj" data-act="pj-on">Semana de ' + esc(S.project.name.toLowerCase()) + ' <span class="mini">activar</span></button></div>' : '') + (off.length ? offRow(off, S, day) : '');
+  }
+  function offRow(off, S, day) {
     let h = '<div class="offs"><span class="muted mini">Aún no se dan:</span>' + off.map((x) => '<button class="pal pal-off" data-on-open="' + esc(x.name) + '">' + esc(x.name) + ' <span class="mini">activar</span></button>').join('') + '</div>';
     const x = off.find((y) => y.name === onOpen);
     if (x) h += '<div class="card"><div class="sec">¿Ya ha empezado ' + esc(x.name) + '?</div><p class="muted">Desde ese día sus horas dejan de contar para ' + esc(x.cover) + ' y cuentan para ' + esc(x.name) + '. Las faltas que apuntaste en esas horas pasan a ' + esc(x.name) + '.</p><div class="field"><label>Empezó el</label><input type="date" id="on-d" value="' + today() + '"></div><div class="btns"><button class="btn small" data-on-open="">Cancelar</button><button class="btn small primary" data-on-go="' + esc(x.name) + '">Activar</button></div></div>';
@@ -539,6 +544,8 @@
     if (!others.length) return '';
     return '<details class="offbox"><summary>¿Aún no se da esta asignatura?</summary><p class="muted">Se queda en su sitio, pero hasta que la actives sus horas cuentan para otra (la que se da de verdad esas semanas).</p><div class="field"><label>Mientras tanto se da</label><select id="q-cover">' + others.map((x) => '<option>' + esc(x) + '</option>').join('') + '</select></div><button type="button" class="btn small primary" style="margin-top:10px" data-q-off="' + esc(name) + '">Desactivar</button></details>';
   }
+  const QP = '__P__';
+  const qProjHours = () => { const rows = qRows(); let h = 0; Object.keys(qk.proj || {}).forEach((d) => Object.keys(qk.proj[d]).forEach((r) => { const row = rows[+r]; if (row) h += qk.unit === 'full' ? 1 : Math.round((mm(row.e) - mm(row.s)) / 60 * 100) / 100; })); return Math.round(h * 100) / 100; };
   const qTxt = (n) => (String(n).length <= 6 ? String(n).toUpperCase() : initials(n));
   const qCol = (name) => AVC[Math.max(0, qk.subjects.indexOf(qCover(name) || name)) % AVC.length];
   /** Si la asignatura está desactivada en la rejilla, la que la cubre. */
@@ -546,6 +553,12 @@
   const qCell = (s) => (qCover(s) ? esc(qTxt(qCover(s))) + '<small class="dis">' + esc(qTxt(s)) + '</small>' : esc(qTxt(s)));
   const qTid = (t, i) => t.id || (String(t.label).toLowerCase().replace(/[^a-z0-9]+/g, '') || 't') + i;
   /** Horario guardado -> estado de la rejilla, para poder editarlo pintando. */
+  /** Franjas de proyecto guardadas -> casillas de la rejilla. */
+  function qProjGrid(cfg, rows) {
+    const out = {}, sch = (cfg.project && cfg.project.schedule) || {};
+    Object.keys(sch).forEach((d) => (sch[d] || []).forEach((b) => C.hourSlots(b).forEach((x) => rows.forEach((r, i) => { if (mm(x.start) <= mm(r.s) && mm(x.end) >= mm(r.e)) (out[d] = out[d] || {})[i] = true; }))));
+    return out;
+  }
   function qFromCfg(cfg, pi) {
     const sch = pi == null ? (cfg.schedule || {}) : ((cfg.periods || [])[pi] || {}).schedule || {};
     const bounds = new Set(), slotsOf = (b) => C.hourSlots(b);
@@ -568,7 +581,7 @@
     return Object.assign(qNew(), {
       custom: rows.length ? rows : null, grid, subjects, adding: false, unit: exact ? 'full' : 'real',
       terms: cfg.terms.map((t) => ({ id: t.id, label: t.label, from: t.from, to: t.to })),
-      tmode: Object.keys(cfg.totals || {}).length ? 'manual' : 'auto', totals: JSON.parse(JSON.stringify(cfg.totals || {})), disabled: JSON.parse(JSON.stringify(cfg.disabled || {})),
+      tmode: Object.keys(cfg.totals || {}).length ? 'manual' : 'auto', totals: JSON.parse(JSON.stringify(cfg.totals || {})), disabled: JSON.parse(JSON.stringify(cfg.disabled || {})), proj: qProjGrid(cfg, rows), projName: (cfg.project && cfg.project.name) || 'Proyecto', projWeeks: cfg.project && cfg.project.weeks != null ? cfg.project.weeks : 4,
       holidays: (cfg.holidays || []).map((h) => ({ label: h.label, from: h.from, to: h.to })),
       limite: (user.settings && user.settings.limite) || 25, base: cfg, pi: pi == null ? null : pi
     });
@@ -595,7 +608,14 @@
     history.forEach((x) => Object.keys(x.schedule || {}).forEach((d) => x.schedule[d].forEach((b) => { b.subject = rn(b.subject); })));
     const rnT = (fx) => { const o = {}; Object.keys(fx || {}).forEach((tid) => { o[tid] = {}; Object.keys(fx[tid]).forEach((k) => { o[tid][rn(k)] = fx[tid][k]; }); }); return o; };
     const subjects = (base.subjects || []).map((m) => ({ id: m.id, name: rn(m.name) }));
-    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, history, alias, subjects, disabled: Object.assign({}, qk.disabled || base.disabled || {}), totals: rnT(base.totals), totalsUnified: rnT(base.totalsUnified) };
+    // proyecto: bloques seguidos de casillas marcadas, mismo criterio de horas que la rejilla
+    const pname = String(qk.projName || 'Proyecto').trim() || 'Proyecto', psch = {};
+    QDAYS.forEach(([d]) => { const g = (qk.proj || {})[d] || {}, bl = []; let cur = null;
+      rows.forEach((row, r) => { const unit = qk.unit === 'full' ? 1 : Math.round((mm(row.e) - mm(row.s)) / 60 * 100) / 100;
+        if (g[r] && cur) { cur.end = row.e; cur.hours = Math.round((cur.hours + unit) * 100) / 100; } else { cur = g[r] ? { start: row.s, end: row.e, subject: pname, hours: unit } : null; if (cur) bl.push(cur); } });
+      if (bl.length) psch[d] = bl; });
+    const project = Object.keys(psch).length ? { name: pname, weeks: +qk.projWeeks >= 0 ? +qk.projWeeks : 4, schedule: psch, ranges: (base.project && base.project.ranges) || [] } : null;
+    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, history, alias, subjects, disabled: Object.assign({}, qk.disabled || base.disabled || {}), project, totals: rnT(base.totals), totalsUnified: rnT(base.totalsUnified) };
   }
   const qUsed = () => Array.from(new Set(Object.values(qk.grid).flatMap((g) => Object.values(g)))).filter(Boolean);
   function qTotalsFor(cfg, termId) { return C.computeTotals(Object.assign({}, cfg, { settings: Object.assign({}, C.DEF, { unificar: false }), faltas: [] }), termId); }
@@ -630,12 +650,13 @@
       h += '<h1>' + (qk.fromShot ? 'Revisa tu horario' : 'Tu horario') + '</h1><p class="muted" style="margin-top:6px">' + (qk.fromShot ? 'Esto es lo que he leído. Corrige lo que no esté bien.' : 'Añade tus asignaturas, elige una y pinta sus casillas.') + '</p>' +
         (qk.photo ? '<details class="qph"' + (qk.fromShot ? ' open' : '') + '><summary>Tu captura</summary><img src="' + qk.photo + '" alt="Captura de tu horario"></details>' : '');
       h += qTramos();
-      h += '<div class="pals">' + qk.subjects.map((s, i) => '<button class="pal' + (qpaint === s ? ' on' : '') + (qCover(s) ? ' pal-off' : '') + '" data-pal="' + i + '" style="--c:' + AVC[i % AVC.length] + '">' + esc(s) + (qCover(s) ? ' <span class="mini">desactivada</span>' : '') + '</button>').join('') + '<button class="pal er' + (qpaint === '' ? ' on' : '') + '" data-pal="-1">Borrar</button><button class="pal add" data-act="q-add">+ Asignatura</button></div>';
+      h += '<div class="pals">' + qk.subjects.map((s, i) => '<button class="pal' + (qpaint === s ? ' on' : '') + (qCover(s) ? ' pal-off' : '') + '" data-pal="' + i + '" style="--c:' + AVC[i % AVC.length] + '">' + esc(s) + (qCover(s) ? ' <span class="mini">desactivada</span>' : '') + '</button>').join('') + '<button class="pal pj' + (qpaint === QP ? ' on' : '') + '" data-act="q-proj">' + esc(qk.projName || 'Proyecto') + ' <span class="mini">franjas</span></button><button class="pal er' + (qpaint === '' ? ' on' : '') + '" data-pal="-1">Borrar</button><button class="pal add" data-act="q-add">+ Asignatura</button></div>';
+      if (qpaint === QP) h += '<div class="card" style="margin-top:4px"><div class="sec">Semanas de proyecto</div><p class="muted">Marca en la rejilla las horas que se convierten en proyecto cuando hay semana de proyecto. Tus asignaturas se quedan debajo. Luego lo activas desde Hoy con un toque.</p><div class="two"><div class="field"><label>Nombre</label><input data-qf="projName" value="' + esc(qk.projName || 'Proyecto') + '" autocomplete="off"></div><div class="field"><label>Semanas en el curso</label><input type="number" min="0" max="40" step="1" inputmode="numeric" data-qf="projWeeks" value="' + (qk.projWeeks != null ? qk.projWeeks : 4) + '"></div></div><p class="muted mini">Con las semanas se calculan sus horas totales (' + fmt(qProjHours() * (qk.projWeeks != null ? qk.projWeeks : 4)) + ' h). Si sabes las oficiales, ponlas en «Horas totales».</p>' + (qProjHours() ? '<button type="button" class="btn small danger" style="margin-top:8px" data-act="q-proj-clear">Quitar las franjas de proyecto</button>' : '') + '</div>';
       if (qk.editing >= 0 && qk.subjects[qk.editing] != null) h += '<form id="q-ren" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>Cambiar nombre</label><input name="n" value="' + esc(qk.subjects[qk.editing]) + '" autocomplete="off" required></div><div class="btns" style="margin-top:10px"><button class="btn small primary">Guardar</button><button type="button" class="btn small danger" data-q-del="' + qk.editing + '">Quitar asignatura</button></div>' + qOffBox(qk.subjects[qk.editing]) + '</form>';
       if (qk.adding || !qk.subjects.length) h += '<form id="q-sub" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>' + (qk.subjects.length ? 'Nueva asignatura' : 'Empieza por tus asignaturas') + '</label><input name="s" placeholder="Ej. Programación, Inglés…" autocomplete="off" aria-label="Asignaturas"></div><p class="muted" style="margin-top:6px">Puedes poner varias separadas por comas.</p><button class="btn small primary" style="margin-top:10px">Añadir</button></form>';
       if (qk.subjects.length) {
-        h += '<p class="muted" style="margin:6px 2px 0">' + (qpaint === null ? 'Toca una asignatura de arriba.' : 'Toca o desliza para pintar. Si tocas una casilla ya pintada, se borra.') + '</p><div class="qgrid" id="qgrid"><span></span>' + QDAYS.map(([, l]) => '<b class="gh">' + l + '</b>').join('') +
-          rows.map((row, r) => '<span class="rl">' + row.s + '<small>' + row.e + '</small></span>' + QDAYS.map(([d]) => { const s = (qk.grid[d] || {})[r]; return '<button class="gc' + (s ? ' on' : '') + (s && qCover(s) ? ' off' : '') + '" data-d="' + d + '" data-r="' + r + '" style="--c:' + (s ? qCol(s) : 'transparent') + '" aria-label="' + QN[d] + ', ' + row.s + (s ? ': ' + esc(s) : ': vacía') + '">' + (s ? qCell(s) : '') + '</button>'; }).join('')).join('') + '</div>' +
+        h += '<p class="muted" style="margin:6px 2px 0">' + (qpaint === null ? 'Toca una asignatura de arriba.' : qpaint === QP ? 'Toca o desliza para marcar las horas de proyecto. Otra vez para quitarlas.' : 'Toca o desliza para pintar. Si tocas una casilla ya pintada, se borra.') + '</p><div class="qgrid" id="qgrid"><span></span>' + QDAYS.map(([, l]) => '<b class="gh">' + l + '</b>').join('') +
+          rows.map((row, r) => '<span class="rl">' + row.s + '<small>' + row.e + '</small></span>' + QDAYS.map(([d]) => { const s = (qk.grid[d] || {})[r]; return '<button class="gc' + (s ? ' on' : '') + (s && qCover(s) ? ' off' : '') + (((qk.proj || {})[d] || {})[r] ? ' pj' : '') + '" data-d="' + d + '" data-r="' + r + '" style="--c:' + (s ? qCol(s) : 'transparent') + '" aria-label="' + QN[d] + ', ' + row.s + (s ? ': ' + esc(s) : ': vacía') + '">' + (s ? qCell(s) : '') + '</button>'; }).join('')).join('') + '</div>' +
           '<details class="more"><summary>Copiar un día a otro</summary><div class="two"><div class="field"><label>De</label><select id="qcf">' + QDAYS.map(([d]) => '<option value="' + d + '">' + QN[d] + '</option>').join('') + '</select></div><div class="field"><label>A</label><select id="qct">' + QDAYS.map(([d]) => '<option value="' + d + '"' + (d === 3 ? ' selected' : '') + '>' + QN[d] + '</option>').join('') + '</select></div></div><div class="btns"><button class="btn small" data-act="q-copy">Copiar</button><button class="btn small danger" data-act="q-clear">Vaciar todo</button></div></details>';
         if (!qk.custom) h += '<details class="more"><summary>Cambiar las horas</summary><div class="two"><div class="field"><label>1ª clase empieza</label><input type="time" data-qf="start" value="' + qk.start + '"></div><div class="field"><label>Cada hora dura</label>' + sel('dur', [[45, '45 min'], [50, '50 min'], [55, '55 min'], [60, '60 min']], qk.dur) + '</div></div><div class="two"><div class="field"><label>Horas al día</label>' + sel('rows', [4, 5, 6, 7, 8, 9, 10].map((n) => [n, n]), qk.rows) + '</div><div class="field"><label>Recreo tras la hora</label>' + sel('brk', [[0, 'Sin recreo']].concat([1, 2, 3, 4, 5, 6].map((n) => [n, n])), qk.brk) + '</div></div>' + (qk.brk ? '<div class="field"><label>Duración del recreo</label>' + sel('brkMin', [[10, '10 min'], [15, '15 min'], [20, '20 min'], [30, '30 min']], qk.brkMin) + '</div>' : '') + '</details>';
       }
@@ -689,13 +710,14 @@
     if (qk.fromShot) qk.edited = true;
     if (!cell || !cell.classList.contains('gc') || qmode === null) return;
     const d = +cell.dataset.d, r = +cell.dataset.r; qk.grid[d] = qk.grid[d] || {};
+    if (qmode === QP || qmode === 'P-') { qk.proj = qk.proj || {}; qk.proj[d] = qk.proj[d] || {}; if (qmode === QP) qk.proj[d][r] = true; else delete qk.proj[d][r]; cell.classList.toggle('pj', qmode === QP); return; }
     if (qmode === '') delete qk.grid[d][r]; else qk.grid[d][r] = qmode;
     cell.classList.toggle('on', qmode !== ''); cell.style.setProperty('--c', qmode === '' ? 'transparent' : qCol(qmode)); cell.innerHTML = qmode === '' ? '' : qCell(qmode); cell.classList.toggle('off', !!(qmode && qCover(qmode)));
   }
   app.addEventListener('pointerdown', (e) => {
     const c = e.target.closest('.gc'); if (!c || !qk) return;
     if (qpaint === null) { toast('Elige antes una asignatura'); return; }
-    const cur = (qk.grid[+c.dataset.d] || {})[+c.dataset.r]; qmode = qpaint !== '' && cur === qpaint ? '' : qpaint; qdrag = true; qPaintCell(c);
+    const cur = (qk.grid[+c.dataset.d] || {})[+c.dataset.r]; qmode = qpaint === QP ? (((qk.proj || {})[+c.dataset.d] || {})[+c.dataset.r] ? 'P-' : QP) : qpaint !== '' && cur === qpaint ? '' : qpaint; qdrag = true; qPaintCell(c);
   });
   app.addEventListener('pointermove', (e) => { if (!qdrag) return; qPaintCell(document.elementFromPoint(e.clientX, e.clientY)); });
   const qEnd = () => { if (qdrag) { qdrag = false; qmode = null; if (qk && qk.step === 1) { const y = scrollY; render(); scrollTo(0, y); } } };
@@ -822,6 +844,11 @@
       const ids = added.map((x) => x.id);
       user.faltas.push.apply(user.faltas, added); save(); if (tab === 'sim') simSel = []; render();
       toast(added.length === 1 ? 'Falta anotada' : added.length + ' horas anotadas', () => { user.faltas = user.faltas.filter((f) => ids.indexOf(f.id) < 0); save(); render(); });
+    } else if (d.act === 'pj-on' || d.act === 'pj-off') {
+      const prev = JSON.stringify(user), p = user.config.project, day = today(); p.ranges = p.ranges || [];
+      if (d.act === 'pj-on') { p.ranges.push({ from: day, to: null }); toast('Semana de ' + p.name.toLowerCase() + ' activada', () => { user = JSON.parse(prev); save(); render(); }); }
+      else { const r = p.ranges.filter((x) => x.from <= day && (!x.to || day <= x.to)).pop(); if (r) { const y = C.parse(day); y.setDate(y.getDate() - 1); const yd = C.ymd(y); if (yd < r.from) p.ranges.splice(p.ranges.indexOf(r), 1); else r.to = yd; } toast('Vuelta al horario normal', () => { user = JSON.parse(prev); save(); render(); }); }
+      save(); render();
     } else if (d.onOpen !== undefined) { onOpen = d.onOpen || null; render();
     } else if (d.onGo) { const v = ($('#on-d') || {}).value; if (!/^\d{4}-\d\d-\d\d$/.test(v || '')) { toast('Elige una fecha'); return; } activate(d.onGo, v);
     } else if (d.aj !== undefined) { ajSec = d.aj || null; render(); scrollTo(0, 0);
@@ -979,6 +1006,8 @@
     } else if (d.act === 'q-exit') { qk = null; tab = user.config ? 'ajustes' : 'setup'; render();
     } else if (d.act === 'q-back') { if (qk.step <= 1) { qk = null; tab = user.config ? 'ajustes' : 'setup'; } else qk.step--; render(); scrollTo(0, 0);
     } else if (d.act === 'q-next') { if (qk.step === 3) qSave(); else { qk.step++; render(); scrollTo(0, 0); }
+    } else if (d.act === 'q-proj') { qpaint = qpaint === QP ? null : QP; qk.editing = -1; render();
+    } else if (d.act === 'q-proj-clear') { qk.proj = {}; render();
     } else if (d.qOff !== undefined) { const c = ($('#q-cover') || {}).value; if (!c) return; qk.disabled = Object.assign({}, qk.disabled, { [d.qOff]: { cover: c, on: null } }); render();
     } else if (d.qOn !== undefined) { const o = Object.assign({}, qk.disabled); delete o[d.qOn]; qk.disabled = o; render();
     } else if (d.pal !== undefined) { const nv = +d.pal < 0 ? '' : qk.subjects[+d.pal]; if (nv !== '' && qpaint === nv) qk.editing = qk.editing === +d.pal ? -1 : +d.pal; else { qpaint = nv; qk.editing = -1; } render();
@@ -1081,7 +1110,7 @@
       t.form.elements.slot.innerHTML = slotOpts(state(), t.form.elements.date.value, t.form.elements.subject.value); return;
     }
     if (t.id === 'qshot' && t.files[0]) { qStartShot(t.files[0]); t.value = ''; return; }
-    if (qk && t.dataset.qf) { const k = t.dataset.qf; qk[k] = ['dur', 'rows', 'brk', 'brkMin', 'limite'].includes(k) ? +t.value : t.value; if (k === 'rows' || k === 'brk') render(); else if (k === 'dur' || k === 'brkMin') render(); return; }
+    if (qk && t.dataset.qf) { const k = t.dataset.qf; qk[k] = ['dur', 'rows', 'brk', 'brkMin', 'limite', 'projWeeks'].includes(k) ? +t.value : t.value; if (k === 'projName' || k === 'projWeeks') { render(); return; } if (k === 'rows' || k === 'brk') render(); else if (k === 'dur' || k === 'brkMin') render(); return; }
     if (qk && t.dataset.qt) { const [i, k] = t.dataset.qt.split('|'); qk.terms[+i][k] = t.value; if (k !== 'label') render(); return; }
     if (qk && t.dataset.qtot) { const j = t.dataset.qtot.indexOf('|'), id = t.dataset.qtot.slice(0, j), s = t.dataset.qtot.slice(j + 1); (qk.totals[id] = qk.totals[id] || {})[s] = parseFloat(t.value); return; }
     if (t.id === 'simday') { simDay = t.value || null; simSel = []; render(); return; }

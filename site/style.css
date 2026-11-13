@@ -203,3 +203,5 @@ body.warn #app{padding-bottom:168px}
 .pal-off{opacity:.75;border-style:dashed!important;border-color:var(--line)!important}.pal .mini,.pal-off .mini{font-weight:600;font-size:11px;color:var(--mute)}
 .offs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 2px 4px}.offs .pal{min-height:32px;padding:5px 11px;font-size:13px;--c:var(--mute)}
 .offbox{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}.offbox summary{cursor:pointer;font-weight:700}
+.gc.pj{box-shadow:inset 0 0 0 3px var(--accent);position:relative}.gc.pj::after{content:"P";position:absolute;top:2px;right:4px;font-size:9px;font-weight:900;color:var(--accent);background:var(--card);border-radius:4px;padding:0 2px;line-height:12px}
+.pal.pj{--c:var(--accent);border:2px dashed var(--accent)}.pjbar{display:flex;align-items:center;gap:12px;border:2px solid var(--accent)}.pjbar .grow{display:flex;flex-direction:column;gap:2px}
