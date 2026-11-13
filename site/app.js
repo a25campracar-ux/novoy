@@ -184,13 +184,13 @@
       let right, bar, btns = '';
       if (canMark && !free.length) {
         // ya apuntada hoy: se ve el margen que queda ahora, y se puede quitar
-        right = '<span class="tag ' + (cur ? cur.status : 'verde') + '">✓ apuntada</span>';
+        right = '<span class="tag ' + (cur ? cur.status : 'verde') + '">✓ apuntada</span>' + (cur ? '<div class="pct">' + cnt(cur.pct) + '%</div>' : '');
         bar = cur ? meter(cur.pct, null, lim, cur.status) : '';
         btns = '<p class="muted mini" style="margin:8px 0 0">Te quedan ' + fmt(cur ? Math.max(0, cur.margin) : 0) + ' h. <button class="link" data-unmiss="' + esc(JSON.stringify({ d: day, u: g.slots.map((x) => [x.subject, x.start]) })) + '">Quitar</button></p>';
       } else {
         const miss = canMark ? free : g.slots, mh = miss.reduce((a, x) => a + x.hours, 0);
         const left = cur ? r1(cur.limit - cur.absent - mh) : 0, st = statusOf(left);
-        right = '<span class="tag ' + st + '">' + (left < 0 ? 'te pasas ' + fmt(-left) + ' h' : 'te quedan ' + fmt(left) + ' h') + '</span>';
+        right = '<span class="tag ' + st + '">' + (left < 0 ? 'te pasas ' + fmt(-left) + ' h' : 'te quedan ' + fmt(left) + ' h') + '</span>' + (cur ? '<div class="pct">' + cnt(cur.pct) + '% → ' + cnt(r1(((cur.absent + mh) / cur.total) * 100)) + '%</div>' : '');
         bar = cur ? meter(cur.pct, r1(((cur.absent + mh) / cur.total) * 100), lim, st) : '';
         if (canMark) btns = '<div class="btns"><button class="btn small dark" data-miss="' + missAttr(day, free) + '">' + (free.length > 1 ? 'Falté a todo' : 'Falté') + '</button>' +
           (free.length > 1 ? free.map((x) => '<button class="btn small" data-miss="' + missAttr(day, [x]) + '">Solo ' + x.start + '</button>').join('') : '') + '</div>' +
@@ -276,11 +276,12 @@
     let h = '<div class="top"><h1>Resumen</h1></div>';
     if (S.terms.length > 1) h += '<div class="seg terms">' + S.terms.map((t) => '<button class="' + (t.id === tid ? 'on' : '') + '" data-term="' + esc(t.id) + '">' + esc(t.label.replace(/ trimestre$/, ' trim.')) + '</button>').join('') + '</div>';
     const rem = C.remaining(S, tid, today());
+    h += '<button class="card sim-entry" data-act="open-sim"><span class="grow"><b>Simulador</b><span class="muted">¿Y si falto mañana? Míralo antes de decidir.</span></span><span class="arrow">›</span></button>';
     h += '<p class="muted">Puedes faltar hasta el ' + lim + '% de cada asignatura.</p>';
     if (!sum.length) h += '<div class="card muted">Este trimestre aún no tiene horas.</div>';
     const offNow = new Set(C.disabledOn(S, today()).map((x) => x.name)), offRows = sum.filter((x) => offNow.has(x.name));
     sum.filter((x) => !offNow.has(x.name)).sort((a, b) => a.margin - b.margin).forEach((x, n) => {
-      h += '<div' + rise(n) + '><div class="card"><div class="row">' + avatar(S, x.name) + '<div class="grow"><div class="name">' + esc(x.name) + '</div><div class="muted">Llevas ' + fmt(x.absent) + ' de ' + fmt(x.limit) + ' h</div></div><div class="right"><span class="tag big ' + x.status + '">' + (x.margin < 0 ? 'te pasas ' + fmt(-x.margin) + ' h' : 'te quedan ' + fmt(x.margin) + ' h') + '</span></div></div>' + meter(x.pct, null, lim, x.status) +
+      h += '<div' + rise(n) + '><div class="card"><div class="row">' + avatar(S, x.name) + '<div class="grow"><div class="name">' + esc(x.name) + '</div><div class="muted">Llevas ' + fmt(x.absent) + ' de ' + fmt(x.limit) + ' h</div></div><div class="right"><span class="tag big ' + x.status + '">' + (x.margin < 0 ? 'te pasas ' + fmt(-x.margin) + ' h' : 'te quedan ' + fmt(x.margin) + ' h') + '</span><div class="pct">' + cnt(x.pct) + '% de ' + lim + '%</div></div></div>' + meter(x.pct, null, lim, x.status) +
         lastLine(x, rem[x.name] || 0) + '</div></div>';
     });
     const nc = (S.nocount || []).filter((k) => C.allSubjects(S).indexOf(k) >= 0);

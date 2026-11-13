@@ -269,3 +269,4 @@ h1.big{font-size:30px;letter-spacing:-.03em;line-height:1.1;margin-top:6px}
 .tag.big{font-size:14px;padding:4px 11px}
 .seg.terms{display:inline-flex;margin:0 0 8px}
 .hint1{margin-top:18px}
+.pct{margin-top:5px;font-size:13px;font-weight:700;color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap}
