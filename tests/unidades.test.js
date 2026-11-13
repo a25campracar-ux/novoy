@@ -120,3 +120,15 @@ console.log('unidades OK');
   assert.deepStrictEqual(r.config.project.ranges, c.project.ranges); assert.strictEqual(r.config.project.weeks, 4);
   console.log('proyecto OK');
 }
+
+// --- clases que no cuentan faltas (tutoría): no salen en el día ni tienen porcentaje
+{
+  const c = { terms: [{ id: '1r', label: '1r', from: '2026-09-14', to: '2026-11-27' }], holidays: [], periods: [], alias: {}, totals: {}, totalsUnified: {},
+    schedule: { 1: [{ start: '08:00', end: '09:00', subject: 'Tut', hours: 1 }, { start: '09:00', end: '10:00', subject: 'IPO', hours: 1 }] }, nocount: ['Tut'] };
+  const S = st(c, []);
+  assert.deepStrictEqual(C.dayClasses(S, '2026-09-14').map((b) => b.subject), ['IPO']);
+  assert.ok(!C.summary(S, '1r').some((x) => x.name === 'Tut'));
+  assert.deepStrictEqual(C.renameSubjects(c, { Tut: 'Tutoría' }).nocount, ['Tutoría']);
+  const r = SU.parseImport(SU.toExport(S)); assert.ok(r.ok); assert.deepStrictEqual(r.config.nocount, ['Tut']);
+  console.log('no cuentan OK');
+}

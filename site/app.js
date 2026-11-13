@@ -240,12 +240,12 @@
   function viewFaltas() {
     if (!user.config) return emptyView('Faltas', 'Aquí se apuntan tus faltas, una a una o importadas de donde las tengas.');
     const S = state();
-    let h = '<div class="top"><h1>Faltas</h1></div><form id="add" class="card"><div class="sec">Apuntar una falta</div>' +
+    let h = '<div class="top"><h1>Faltas</h1></div>' + weekGrid(S) + '<details class="more"><summary>Apuntar a mano (otra forma)</summary><form id="add" class="card" style="margin-top:8px"><div class="sec">Apuntar una falta</div>' +
       '<div class="field"><label>Fecha</label><input type="date" name="date" value="' + today() + '" required></div>' +
       '<div class="field"><label>Asignatura</label><select name="subject">' + subjectOpts(S, today()) + '</select><div class="muted" id="subhint">' + (subjectsOn(S, today()).all ? 'Ese día no hay clase: salen todas.' : 'Solo las de ese día.') + '</div></div>' +
       '<div class="field"><label>Hora</label><select name="slot">' + slotOpts(S, today(), subjectsOn(S, today()).list[0]) + '</select><div class="muted">Cada hora es una falta. Si faltaste a dos seguidas, apunta las dos.</div></div>' +
       '<div class="switch" style="margin-top:12px"><label for="rt">' + lateLabel() + '</label><input id="rt" type="checkbox" name="retraso"></div><div class="switch"><label for="ju">Justificada</label><input id="ju" type="checkbox" name="justified"></div>' +
-      '<button class="btn primary block" style="margin-top:10px">Añadir falta</button></form><h2>Registradas</h2>';
+      '<button class="btn primary block" style="margin-top:10px">Añadir falta</button></form></details><h2>Registradas</h2>';
     h = h.replace('<h2>Registradas</h2>', '');
     const list = user.faltas.filter((f) => !fday || f.date === fday).sort((a, b) => ((b.date || '0') < (a.date || '0') ? -1 : 1));
     h += '<div class="top" style="margin-top:22px"><h2 style="margin:0">' + (user.faltas.length === 1 ? 'Registrada 1 falta' : 'Registradas ' + user.faltas.length + ' faltas') + '</h2></div><div class="filter"><div class="field" style="margin:0;flex:1"><label>Filtrar por día</label><input type="date" id="fday" value="' + (fday || '') + '"></div>' + (fday ? '<button class="btn small" data-act="fclear">Ver todas</button>' : '') + '</div>';
@@ -253,6 +253,42 @@
     return h;
   }
   /** Las horas sueltas de esa clase ese día, una por una: ["08:00 – 09:00", "09:00 – 10:00"]. */
+  // ---- rejilla de la semana: cada casilla es una hora de clase; tocarla abre una tarjeta para apuntarla
+  let fwk = null, fcell = null; // lunes de la semana que se ve, y casilla abierta {d, st, s, h}
+  const addDays = (k, n) => { const d = C.parse(k); d.setDate(d.getDate() + n); return C.ymd(d); };
+  const mondayOf = (k) => { const d = C.parse(k), w = d.getDay(); d.setDate(d.getDate() + (w === 0 ? 1 : w === 6 ? 2 : 1 - w)); return C.ymd(d); };
+  function weekGrid(S) {
+    const mon = fwk || mondayOf(today()), days = [0, 1, 2, 3, 4].map((i) => addDays(mon, i)), cols = {}, rows = {};
+    days.forEach((k) => { cols[k] = {}; C.dayClasses(S, k).forEach((b) => C.hourSlots(b).forEach((x) => { cols[k][x.start] = { s: b.subject, e: x.end, h: x.hours }; rows[x.start] = rows[x.start] || x.end; })); });
+    const starts = Object.keys(rows).sort(), DL = ['L', 'M', 'X', 'J', 'V'];
+    const mine = (k, st, sub) => user.faltas.find((f) => f.date === k && f.start === st && f.subject === sub);
+    const hol = (k) => (S.holidays || []).find((x) => k >= x.from && k <= (x.to || x.from));
+    let h = '<div class="card wk"><div class="wkbar"><button class="btn small" data-fw="-7" aria-label="Semana anterior">‹</button><b>' + nice(days[0]).replace(/^\S+ /, '') + ' – ' + nice(days[4]).replace(/^\S+ /, '') + '</b><button class="btn small" data-fw="7" aria-label="Semana siguiente">›</button></div>' +
+      (mon !== mondayOf(today()) ? '<p style="text-align:center;margin:0 0 6px"><button class="link" data-fw="0">Volver a esta semana</button></p>' : '') +
+      '<p class="muted mini" style="margin:0 0 8px">Toca la hora a la que faltaste.</p>';
+    if (!starts.length) return h + '<p class="muted">Esta semana no hay clase.</p></div>';
+    h += '<div class="fgrid"><span></span>' + days.map((k, i) => '<b class="gh' + (k === today() ? ' now' : '') + '">' + DL[i] + '<small>' + C.parse(k).getDate() + '</small></b>').join('');
+    starts.forEach((st) => {
+      h += '<span class="rl">' + st + '<small>' + rows[st] + '</small></span>';
+      days.forEach((k) => {
+        const c = cols[k][st];
+        if (!c) { h += '<span class="fc empty">' + (hol(k) && st === starts[0] ? '<small>' + esc(hol(k).label.split(' ')[0]) + '</small>' : '') + '</span>'; return; }
+        const f = mine(k, st, c.s), cls = f ? (f.type === 'retraso' ? ' late' : ' miss') : '', open = fcell && fcell.d === k && fcell.st === st ? ' sel' : '';
+        h += '<button class="fc' + cls + open + '" data-fc="' + esc(JSON.stringify({ d: k, st, s: c.s, h: c.h, e: c.e })) + '" style="--c:' + AVC[Math.max(0, subjectsOf(S).indexOf(c.s)) % AVC.length] + '" aria-label="' + esc(c.s + ', ' + nice(k) + ', ' + st + (f ? ', apuntada' : '')) + '">' + esc(initials(c.s)) + (f ? '<i>' + (f.type === 'retraso' ? 'R' : '✕') + '</i>' : '') + '</button>';
+      });
+    });
+    h += '</div>' + cellCard() + '</div>';
+    return h;
+  }
+  function cellCard() {
+    if (!fcell) return '';
+    const c = fcell, f = user.faltas.find((x) => x.date === c.d && x.start === c.st && x.subject === c.s);
+    const late = f ? f.type === 'retraso' : !!c.late, just = f ? !!f.justified : !!c.just;
+    return '<div class="fcard"><div class="row"><div class="grow"><div class="name">' + esc(c.s) + '</div><div class="muted">' + nice(c.d) + ' · ' + c.st + '–' + c.e + '</div></div><button class="x" data-fc-x="1" aria-label="Cerrar">×</button></div>' +
+      '<div class="switch"><label for="fc-l">¿Retraso?</label><input id="fc-l" type="checkbox" data-fc-t="late"' + (late ? ' checked' : '') + '></div>' +
+      '<div class="switch"><label for="fc-j">¿Justificada?</label><input id="fc-j" type="checkbox" data-fc-t="just"' + (just ? ' checked' : '') + '></div>' +
+      '<div class="btns">' + (f ? '<button class="btn small" data-fc-del="' + esc(f.id) + '">Quitar</button><button class="btn small primary" data-fc-save="' + esc(f.id) + '">Guardar</button>' : '<button class="btn primary block" data-fc-add="1">' + (late ? 'Apuntar retraso' : 'Apuntar falta') + '</button>') + '</div></div>';
+  }
   /** Opciones de hora de una asignatura un día: "inicio|horas". Si no hay clase, una unidad sin hora. */
   function slotOpts(S, date, subject, sel) {
     const out = [];
@@ -539,13 +575,27 @@
   }
   /** Caja para desactivar una asignatura que aún no se da: se queda en su sitio y otra la cubre. */
   function qOffBox(name) {
+    if (!qYes('late')) return '';
     const others = qk.subjects.filter((x) => x !== name && !qCover(x)), cur = qCover(name);
     if (cur) return '<div class="offbox"><b>Desactivada</b><p class="muted">Aún no se da. En sus horas cuenta <b>' + esc(cur) + '</b>. La activas desde la pantalla Hoy cuando empiece.</p><button type="button" class="btn small" data-q-on="' + esc(name) + '">Quitar desactivación</button></div>';
     if (!others.length) return '';
     return '<details class="offbox"><summary>¿Aún no se da esta asignatura?</summary><p class="muted">Se queda en su sitio, pero hasta que la actives sus horas cuentan para otra (la que se da de verdad esas semanas).</p><div class="field"><label>Mientras tanto se da</label><select id="q-cover">' + others.map((x) => '<option>' + esc(x) + '</option>').join('') + '</select></div><button type="button" class="btn small primary" style="margin-top:10px" data-q-off="' + esc(name) + '">Desactivar</button></details>';
   }
   const QP = '__P__';
+  /** Preguntas de sí/no: lo que se conteste que no, no aparece (se puede cambiar luego desde Ajustes). */
+  const ASK = [['proj', '¿Tienes semanas de proyecto?', 'Semanas en que se deja la clase normal y se hace proyecto.'], ['late', '¿Alguna asignatura empieza a mitad de curso?', 'Sale en el horario pero aún no se da (otra ocupa su hora).'], ['nocount', '¿Alguna clase no cuenta faltas?', 'Por ejemplo, la tutoría.']];
+  const qYes = (k) => !!(qk.ask && qk.ask[k] === true);
+  function qAsk() {
+    const a = qk.ask || {}, done = ASK.every((x) => a[x[0]] != null);
+    if (done && !qk.askOpen) return '<p class="muted mini" style="margin:4px 2px 2px">' + ASK.filter((x) => a[x[0]]).map((x) => ({ proj: 'Con semanas de proyecto', late: 'Con asignaturas que empiezan tarde', nocount: 'Con clases que no cuentan' })[x[0]]).join(' · ') + (ASK.some((x) => a[x[0]]) ? ' · ' : '') + '<button class="link" data-act="q-ask-open">Cambiar respuestas</button></p>';
+    return '<div class="card ask">' + ASK.map((x) => '<div class="askrow"><div class="grow"><b>' + x[1] + '</b><span class="muted mini">' + x[2] + '</span></div><div class="seg"><button class="' + (a[x[0]] === true ? 'on' : '') + '" data-ask="' + x[0] + '|1">Sí</button><button class="' + (a[x[0]] === false ? 'on' : '') + '" data-ask="' + x[0] + '|0">No</button></div></div>').join('') + (done ? '<button class="btn small" style="margin-top:8px" data-act="q-ask-open">Listo</button>' : '') + '</div>';
+  }
   const qProjHours = () => { const rows = qRows(); let h = 0; Object.keys(qk.proj || {}).forEach((d) => Object.keys(qk.proj[d]).forEach((r) => { const row = rows[+r]; if (row) h += qk.unit === 'full' ? 1 : Math.round((mm(row.e) - mm(row.s)) / 60 * 100) / 100; })); return Math.round(h * 100) / 100; };
+  function qNoCountBox(name) {
+    if (!qYes('nocount')) return '';
+    const on = (qk.nocount || []).indexOf(name) >= 0;
+    return '<div class="offbox switch"><div><b>No cuenta faltas</b><div class="muted mini">Sale en el horario, pero no tiene porcentaje.</div></div><input type="checkbox" data-q-nc="' + esc(name) + '"' + (on ? ' checked' : '') + '></div>';
+  }
   const qTxt = (n) => (String(n).length <= 6 ? String(n).toUpperCase() : initials(n));
   const qCol = (name) => AVC[Math.max(0, qk.subjects.indexOf(qCover(name) || name)) % AVC.length];
   /** Si la asignatura está desactivada en la rejilla, la que la cubre. */
@@ -581,7 +631,7 @@
     return Object.assign(qNew(), {
       custom: rows.length ? rows : null, grid, subjects, adding: false, unit: exact ? 'full' : 'real',
       terms: cfg.terms.map((t) => ({ id: t.id, label: t.label, from: t.from, to: t.to })),
-      tmode: Object.keys(cfg.totals || {}).length ? 'manual' : 'auto', totals: JSON.parse(JSON.stringify(cfg.totals || {})), disabled: JSON.parse(JSON.stringify(cfg.disabled || {})), proj: qProjGrid(cfg, rows), projName: (cfg.project && cfg.project.name) || 'Proyecto', projWeeks: cfg.project && cfg.project.weeks != null ? cfg.project.weeks : 4,
+      tmode: Object.keys(cfg.totals || {}).length ? 'manual' : 'auto', totals: JSON.parse(JSON.stringify(cfg.totals || {})), disabled: JSON.parse(JSON.stringify(cfg.disabled || {})), proj: qProjGrid(cfg, rows), nocount: (cfg.nocount || []).slice(), ask: Object.assign({ proj: !!cfg.project, late: Object.keys(cfg.disabled || {}).length > 0, nocount: (cfg.nocount || []).length > 0 }, cfg.ask || {}), ambito: (user.settings || {}).ambito || 'trimestre', retrasos: +(user.settings || {}).retrasosPorFalta || 0, projName: (cfg.project && cfg.project.name) || 'Proyecto', projWeeks: cfg.project && cfg.project.weeks != null ? cfg.project.weeks : 4,
       holidays: (cfg.holidays || []).map((h) => ({ label: h.label, from: h.from, to: h.to })),
       limite: (user.settings && user.settings.limite) || 25, base: cfg, pi: pi == null ? null : pi
     });
@@ -614,8 +664,9 @@
       rows.forEach((row, r) => { const unit = qk.unit === 'full' ? 1 : Math.round((mm(row.e) - mm(row.s)) / 60 * 100) / 100;
         if (g[r] && cur) { cur.end = row.e; cur.hours = Math.round((cur.hours + unit) * 100) / 100; } else { cur = g[r] ? { start: row.s, end: row.e, subject: pname, hours: unit } : null; if (cur) bl.push(cur); } });
       if (bl.length) psch[d] = bl; });
-    const project = Object.keys(psch).length ? { name: pname, weeks: +qk.projWeeks >= 0 ? +qk.projWeeks : 4, schedule: psch, ranges: (base.project && base.project.ranges) || [] } : null;
-    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, history, alias, subjects, disabled: Object.assign({}, qk.disabled || base.disabled || {}), project, totals: rnT(base.totals), totalsUnified: rnT(base.totalsUnified) };
+    const A = qk.ask || {};
+    const project = A.proj && Object.keys(psch).length ? { name: pname, weeks: +qk.projWeeks >= 0 ? +qk.projWeeks : 4, schedule: psch, ranges: (base.project && base.project.ranges) || [] } : null;
+    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, history, alias, subjects, disabled: A.late ? Object.assign({}, qk.disabled || base.disabled || {}) : {}, project, nocount: A.nocount ? (qk.nocount || []).filter((x) => qUsed().indexOf(x) >= 0) : [], ask: { proj: A.proj, late: A.late, nocount: A.nocount }, totals: rnT(base.totals), totalsUnified: rnT(base.totalsUnified) };
   }
   const qUsed = () => Array.from(new Set(Object.values(qk.grid).flatMap((g) => Object.values(g)))).filter(Boolean);
   function qTotalsFor(cfg, termId) { return C.computeTotals(Object.assign({}, cfg, { settings: Object.assign({}, C.DEF, { unificar: false }), faltas: [] }), termId); }
@@ -649,11 +700,11 @@
       const rows = qRows();
       h += '<h1>' + (qk.fromShot ? 'Revisa tu horario' : 'Tu horario') + '</h1><p class="muted" style="margin-top:6px">' + (qk.fromShot ? 'Esto es lo que he leído. Corrige lo que no esté bien.' : 'Añade tus asignaturas, elige una y pinta sus casillas.') + '</p>' +
         (qk.photo ? '<details class="qph"' + (qk.fromShot ? ' open' : '') + '><summary>Tu captura</summary><img src="' + qk.photo + '" alt="Captura de tu horario"></details>' : '');
-      h += qTramos();
-      h += '<div class="pals">' + qk.subjects.map((s, i) => '<button class="pal' + (qpaint === s ? ' on' : '') + (qCover(s) ? ' pal-off' : '') + '" data-pal="' + i + '" style="--c:' + AVC[i % AVC.length] + '">' + esc(s) + (qCover(s) ? ' <span class="mini">desactivada</span>' : '') + '</button>').join('') + '<button class="pal pj' + (qpaint === QP ? ' on' : '') + '" data-act="q-proj">' + esc(qk.projName || 'Proyecto') + ' <span class="mini">franjas</span></button><button class="pal er' + (qpaint === '' ? ' on' : '') + '" data-pal="-1">Borrar</button><button class="pal add" data-act="q-add">+ Asignatura</button></div>';
+      h += qAsk() + qTramos();
+      h += '<div class="pals">' + qk.subjects.map((s, i) => '<button class="pal' + (qpaint === s ? ' on' : '') + (qCover(s) ? ' pal-off' : '') + '" data-pal="' + i + '" style="--c:' + AVC[i % AVC.length] + '">' + esc(s) + (qCover(s) ? ' <span class="mini">desactivada</span>' : '') + ((qk.nocount || []).indexOf(s) >= 0 && qYes('nocount') ? ' <span class="mini">no cuenta</span>' : '') + '</button>').join('') + (qYes('proj') ? '<button class="pal pj' + (qpaint === QP ? ' on' : '') + '" data-act="q-proj">' + esc(qk.projName || 'Proyecto') + ' <span class="mini">franjas</span></button>' : '') + '<button class="pal er' + (qpaint === '' ? ' on' : '') + '" data-pal="-1">Borrar</button><button class="pal add" data-act="q-add">+ Asignatura</button></div>';
       if (qpaint === QP) h += '<div class="card" style="margin-top:4px"><div class="sec">Semanas de proyecto</div><p class="muted">Marca en la rejilla las horas que se convierten en proyecto cuando hay semana de proyecto. Tus asignaturas se quedan debajo. Luego lo activas desde Hoy con un toque.</p><div class="two"><div class="field"><label>Nombre</label><input data-qf="projName" value="' + esc(qk.projName || 'Proyecto') + '" autocomplete="off"></div><div class="field"><label>Semanas en el curso</label><input type="number" min="0" max="40" step="1" inputmode="numeric" data-qf="projWeeks" value="' + (qk.projWeeks != null ? qk.projWeeks : 4) + '"></div></div><p class="muted mini">Con las semanas se calculan sus horas totales (' + fmt(qProjHours() * (qk.projWeeks != null ? qk.projWeeks : 4)) + ' h). Si sabes las oficiales, ponlas en «Horas totales».</p>' + (qProjHours() ? '<button type="button" class="btn small danger" style="margin-top:8px" data-act="q-proj-clear">Quitar las franjas de proyecto</button>' : '') + '</div>';
-      if (qk.editing >= 0 && qk.subjects[qk.editing] != null) h += '<form id="q-ren" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>Cambiar nombre</label><input name="n" value="' + esc(qk.subjects[qk.editing]) + '" autocomplete="off" required></div><div class="btns" style="margin-top:10px"><button class="btn small primary">Guardar</button><button type="button" class="btn small danger" data-q-del="' + qk.editing + '">Quitar asignatura</button></div>' + qOffBox(qk.subjects[qk.editing]) + '</form>';
-      if (qk.adding || !qk.subjects.length) h += '<form id="q-sub" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>' + (qk.subjects.length ? 'Nueva asignatura' : 'Empieza por tus asignaturas') + '</label><input name="s" placeholder="Ej. Programación, Inglés…" autocomplete="off" aria-label="Asignaturas"></div><p class="muted" style="margin-top:6px">Puedes poner varias separadas por comas.</p><button class="btn small primary" style="margin-top:10px">Añadir</button></form>';
+      if (qk.editing >= 0 && qk.subjects[qk.editing] != null) h += '<form id="q-ren" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>Cambiar nombre</label><input name="n" value="' + esc(qk.subjects[qk.editing]) + '" autocomplete="off" required></div><div class="btns" style="margin-top:10px"><button class="btn small primary">Guardar</button><button type="button" class="btn small danger" data-q-del="' + qk.editing + '">Quitar asignatura</button></div>' + qNoCountBox(qk.subjects[qk.editing]) + qOffBox(qk.subjects[qk.editing]) + '</form>';
+      if (qk.adding || !qk.subjects.length) h += '<form id="q-sub" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>' + (qk.subjects.length ? 'Nueva asignatura' : 'Empieza por tus asignaturas') + '</label><input name="s" placeholder="Ej. Programación" autocomplete="off" enterkeyhint="next" aria-label="Asignaturas"></div><p class="muted" style="margin-top:6px">Escribe una y pulsa Enter para crear la siguiente.</p><div class="btns" style="margin-top:10px"><button class="btn small primary">Añadir</button>' + (qk.subjects.length ? '<button type="button" class="btn small" data-act="q-add-done">Listo</button>' : '') + '</div></form>';
       if (qk.subjects.length) {
         h += '<p class="muted" style="margin:6px 2px 0">' + (qpaint === null ? 'Toca una asignatura de arriba.' : qpaint === QP ? 'Toca o desliza para marcar las horas de proyecto. Otra vez para quitarlas.' : 'Toca o desliza para pintar. Si tocas una casilla ya pintada, se borra.') + '</p><div class="qgrid" id="qgrid"><span></span>' + QDAYS.map(([, l]) => '<b class="gh">' + l + '</b>').join('') +
           rows.map((row, r) => '<span class="rl">' + row.s + '<small>' + row.e + '</small></span>' + QDAYS.map(([d]) => { const s = (qk.grid[d] || {})[r]; return '<button class="gc' + (s ? ' on' : '') + (s && qCover(s) ? ' off' : '') + (((qk.proj || {})[d] || {})[r] ? ' pj' : '') + '" data-d="' + d + '" data-r="' + r + '" style="--c:' + (s ? qCol(s) : 'transparent') + '" aria-label="' + QN[d] + ', ' + row.s + (s ? ': ' + esc(s) : ': vacía') + '">' + (s ? qCell(s) : '') + '</button>'; }).join('')).join('') + '</div>' +
@@ -671,7 +722,9 @@
       ok = chk.ok;
       const keys = QDAYS.map(([d]) => d).filter((d) => cfg.schedule[d]);
       h += '<h1>Casi listo</h1><div class="card"><div class="sec">Tu horario</div>' + keys.map((d) => '<div class="day"><b>' + QN[d] + '</b><span class="muted">' + cfg.schedule[d].map((b) => esc(b.subject) + (b.hours > 1 ? ' ×' + fmt(b.hours) : '')).join(' · ') + '</span></div>').join('') + '</div>' +
-        '<div class="card"><div class="field" style="margin-top:0"><label>Límite de faltas</label>' + sel('limite', [10, 15, 20, 25, 30].map((n) => [n, n + '%']), qk.limite) + '</div></div>' +
+        '<div class="card"><div class="sec">Reglas de tu centro</div><p class="muted mini">Si no lo sabes, déjalo así: es lo más estricto. Lo puedes cambiar en Ajustes.</p><div class="field"><label>Límite de faltas</label>' + sel('limite', [10, 15, 20, 25, 30].map((n) => [n, n + '%']), qk.limite) + '</div>' +
+          (cfg.terms.length > 1 ? '<div class="field"><label>El límite se aplica</label>' + sel('ambito', [['trimestre', 'En cada trimestre (o no lo sé)'], ['curso', 'Sobre el curso entero']], qk.ambito || 'trimestre') + '</div>' : '') +
+          '<div class="field"><label>¿Los retrasos suman faltas?</label>' + sel('retrasos', [[0, 'No'], [2, 'Sí, 2 retrasos = 1 h'], [3, 'Sí, 3 retrasos = 1 h'], [4, 'Sí, 4 retrasos = 1 h'], [5, 'Sí, 5 retrasos = 1 h']], qk.retrasos || 0) + '</div></div>' +
         '<details class="more"><summary>Ajustes avanzados</summary><div class="field"><label>Cada casilla cuenta como</label>' + sel('unit', [['full', '1 hora entera'], ['real', 'lo que dura']], qk.unit) + '</div><div class="field"><label>Horas totales de cada asignatura</label></div><div class="btns" style="margin-top:0"><button class="btn small' + (qk.tmode === 'auto' ? ' primary' : '') + '" data-act="q-tmode" data-m="auto">Calcular con mi horario</button><button class="btn small' + (qk.tmode === 'manual' ? ' primary' : '') + '" data-act="q-tmode" data-m="manual">Las sé yo</button></div>' +
         (qk.tmode === 'manual' ? cfg.terms.map((t) => { const auto = qTotalsFor(cfg, t.id); return '<div class="sec" style="margin-top:14px">' + esc(t.label) + '</div>' + qUsed().map((s) => { const v = (qk.totals[t.id] || {})[s]; return '<div class="item"><span class="grow">' + esc(s) + '</span><input class="num" type="number" min="0" step="any" inputmode="decimal" data-qtot="' + esc(t.id) + '|' + esc(s) + '" value="' + (v != null ? v : (auto[s] || 0)) + '" aria-label="Horas de ' + esc(s) + ' en ' + esc(t.label) + '"></div>'; }).join(''); }).join('') : '<p class="muted" style="margin-top:10px">Se calculan solas contando tus clases y los festivos.</p>') + '</details>';
       if (!chk.ok) h += '<div class="card err"><ul class="list">' + chk.errors.map((e) => '<li>' + esc(e) + '</li>').join('') + '</ul></div>';
@@ -688,7 +741,7 @@
     if (window.FTAcct) FTAcct.stat(qk.fromShot ? (qk.edited ? 'ocr-editado' : 'ocr-ok') : 'manual');
     const ren = qk.ren || {};
     const faltas = (user.faltas || []).map((f) => (ren[f.subject] != null ? Object.assign({}, f, { subject: ren[f.subject] }) : f));
-    user = { config: cfg, settings: Object.assign({ aviso: 2, justificadasCuentan: true }, user.settings, { limite: qk.limite, unificar: Object.keys(cfg.alias || {}).length > 0 && user.settings ? user.settings.unificar : false }), faltas: faltas, acct: user.acct, skipCfg: user.skipCfg };
+    user = { config: cfg, settings: Object.assign({ aviso: 2, justificadasCuentan: true }, user.settings, { ambito: qk.ambito || 'trimestre', retrasosPorFalta: +qk.retrasos || 0, limite: qk.limite, unificar: Object.keys(cfg.alias || {}).length > 0 && user.settings ? user.settings.unificar : false }), faltas: faltas, acct: user.acct, skipCfg: user.skipCfg };
     save(); qk = null; tab = 'hoy'; viewTerm = null; render(); scrollTo(0, 0);
     toast('Horario guardado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
   }
@@ -832,7 +885,7 @@
   // ---------- eventos ----------
   const wb = document.getElementById('warnbar');
   if (wb) wb.addEventListener('click', (e) => { if (e.target.closest('[data-act="go-setup"]')) { sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0); } });
-  $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { if (b.dataset.tab === 'ajustes') ajSec = null; tab = b.dataset.tab; render(); scrollTo(0, 0); } });
+  $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { if (b.dataset.tab === 'ajustes') ajSec = null; if (b.dataset.tab === 'faltas') { fwk = null; fcell = null; } tab = b.dataset.tab; render(); scrollTo(0, 0); } });
   const nid = () => 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   app.addEventListener('click', async (e) => {
     const b = e.target.closest('button,label'); if (!b) return; const d = b.dataset;
@@ -849,6 +902,17 @@
       if (d.act === 'pj-on') { p.ranges.push({ from: day, to: null }); toast('Semana de ' + p.name.toLowerCase() + ' activada', () => { user = JSON.parse(prev); save(); render(); }); }
       else { const r = p.ranges.filter((x) => x.from <= day && (!x.to || day <= x.to)).pop(); if (r) { const y = C.parse(day); y.setDate(y.getDate() - 1); const yd = C.ymd(y); if (yd < r.from) p.ranges.splice(p.ranges.indexOf(r), 1); else r.to = yd; } toast('Vuelta al horario normal', () => { user = JSON.parse(prev); save(); render(); }); }
       save(); render();
+    } else if (d.fw !== undefined) { const mon = fwk || mondayOf(today()); fwk = +d.fw === 0 ? null : addDays(mon, +d.fw); fcell = null; render();
+    } else if (d.fc) { const c = JSON.parse(d.fc); fcell = fcell && fcell.d === c.d && fcell.st === c.st ? null : c; render(); const el = $('.fcard'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: REDUCED ? 'auto' : 'smooth' });
+    } else if (d.fcX) { fcell = null; render();
+    } else if (d.fcAdd) {
+      const c = fcell, late = !!($('#fc-l') || {}).checked, just = !!($('#fc-j') || {}).checked, id = nid();
+      user.faltas.push({ id, date: c.d, term: C.termOf(state(), c.d), subject: c.s, start: c.st, hours: late ? 0 : c.h, type: late ? 'retraso' : 'falta', justified: just, note: '' });
+      fcell = null; save(); render(); toast((late ? 'Retraso' : 'Falta') + ' apuntada: ' + c.s + ' ' + c.st, () => { user.faltas = user.faltas.filter((x) => x.id !== id); save(); render(); });
+    } else if (d.fcSave) {
+      const f = user.faltas.find((x) => x.id === d.fcSave); if (!f) return; const late = !!($('#fc-l') || {}).checked;
+      f.type = late ? 'retraso' : 'falta'; f.hours = late ? 0 : fcell.h; f.justified = !!($('#fc-j') || {}).checked; fcell = null; save(); render(); toast('Guardado');
+    } else if (d.fcDel) { const f = user.faltas.find((x) => x.id === d.fcDel); user.faltas = user.faltas.filter((x) => x !== f); fcell = null; save(); render(); toast('Quitada', () => { user.faltas.push(f); save(); render(); });
     } else if (d.onOpen !== undefined) { onOpen = d.onOpen || null; render();
     } else if (d.onGo) { const v = ($('#on-d') || {}).value; if (!/^\d{4}-\d\d-\d\d$/.test(v || '')) { toast('Elige una fecha'); return; } activate(d.onGo, v);
     } else if (d.aj !== undefined) { ajSec = d.aj || null; render(); scrollTo(0, 0);
@@ -1006,6 +1070,9 @@
     } else if (d.act === 'q-exit') { qk = null; tab = user.config ? 'ajustes' : 'setup'; render();
     } else if (d.act === 'q-back') { if (qk.step <= 1) { qk = null; tab = user.config ? 'ajustes' : 'setup'; } else qk.step--; render(); scrollTo(0, 0);
     } else if (d.act === 'q-next') { if (qk.step === 3) qSave(); else { qk.step++; render(); scrollTo(0, 0); }
+    } else if (d.ask) { const [k, v] = d.ask.split('|'); qk.ask = Object.assign({}, qk.ask, { [k]: v === '1' }); if (k === 'proj' && v !== '1' && qpaint === QP) qpaint = null; render();
+    } else if (d.act === 'q-ask-open') { qk.askOpen = !qk.askOpen; render();
+    } else if (d.act === 'q-add-done') { qk.adding = false; render();
     } else if (d.act === 'q-proj') { qpaint = qpaint === QP ? null : QP; qk.editing = -1; render();
     } else if (d.act === 'q-proj-clear') { qk.proj = {}; render();
     } else if (d.qOff !== undefined) { const c = ($('#q-cover') || {}).value; if (!c) return; qk.disabled = Object.assign({}, qk.disabled, { [d.qOff]: { cover: c, on: null } }); render();
@@ -1053,7 +1120,9 @@
     } else if (id === 'f-hol') {
       ed.cfg.holidays.push({ from: f.get('from'), to: f.get('to') || f.get('from'), label: String(f.get('label')).trim() }); render();
     } else if (id === 'q-sub') {
-      let last = null; String(f.get('s') || '').split(/[,\n;]+/).map((x) => x.trim()).filter(Boolean).forEach((x) => { if (!qk.subjects.some((y) => y.toLowerCase() === x.toLowerCase())) qk.subjects.push(x); last = qk.subjects.find((y) => y.toLowerCase() === x.toLowerCase()); }); if (last) qpaint = last; qk.adding = false; render();
+      let last = null; String(f.get('s') || '').split(/[,\n;]+/).map((x) => x.trim()).filter(Boolean).forEach((x) => { if (!qk.subjects.some((y) => y.toLowerCase() === x.toLowerCase())) qk.subjects.push(x); last = qk.subjects.find((y) => y.toLowerCase() === x.toLowerCase()); }); if (last) qpaint = last; qk.adding = true; render();
+      // Enter crea la asignatura y deja el teclado abierto para la siguiente
+      const inp = $('#q-sub input[name=s]'); if (inp) { inp.focus(); }
     } else if (id === 'q-ren') {
       const nn = String(f.get('n') || '').trim(), old = qk.subjects[qk.editing];
       if (qk.fromShot) qk.edited = true;
@@ -1110,11 +1179,13 @@
       t.form.elements.slot.innerHTML = slotOpts(state(), t.form.elements.date.value, t.form.elements.subject.value); return;
     }
     if (t.id === 'qshot' && t.files[0]) { qStartShot(t.files[0]); t.value = ''; return; }
-    if (qk && t.dataset.qf) { const k = t.dataset.qf; qk[k] = ['dur', 'rows', 'brk', 'brkMin', 'limite', 'projWeeks'].includes(k) ? +t.value : t.value; if (k === 'projName' || k === 'projWeeks') { render(); return; } if (k === 'rows' || k === 'brk') render(); else if (k === 'dur' || k === 'brkMin') render(); return; }
+    if (qk && t.dataset.qf) { const k = t.dataset.qf; qk[k] = ['dur', 'rows', 'brk', 'brkMin', 'limite', 'projWeeks', 'retrasos'].includes(k) ? +t.value : t.value; if (k === 'projName' || k === 'projWeeks') { render(); return; } if (k === 'rows' || k === 'brk') render(); else if (k === 'dur' || k === 'brkMin') render(); return; }
     if (qk && t.dataset.qt) { const [i, k] = t.dataset.qt.split('|'); qk.terms[+i][k] = t.value; if (k !== 'label') render(); return; }
     if (qk && t.dataset.qtot) { const j = t.dataset.qtot.indexOf('|'), id = t.dataset.qtot.slice(0, j), s = t.dataset.qtot.slice(j + 1); (qk.totals[id] = qk.totals[id] || {})[s] = parseFloat(t.value); return; }
     if (t.id === 'simday') { simDay = t.value || null; simSel = []; render(); return; }
     if (t.id === 'fday') { fday = t.value; render(); return; }
+    if (qk && t.dataset.qNc) { const n = t.dataset.qNc, l = (qk.nocount || []).filter((x) => x !== n); if (t.checked) l.push(n); qk.nocount = l; render(); return; }
+    if (t.dataset.fcT && fcell) { fcell[t.dataset.fcT] = t.checked; const b = $('[data-fc-add]'); if (b) b.textContent = fcell.late ? 'Apuntar retraso' : 'Apuntar falta'; return; }
     if (t.dataset.sel) { user.settings = Object.assign({}, user.settings, { [t.dataset.sel]: t.value }); viewTerm = null; save(); render(); return; }
     if (t.dataset.set) { user.settings = Object.assign({}, user.settings, { [t.dataset.set]: t.checked }); save(); }
     else if (t.dataset.num) { const v = parseFloat(t.value); if (v >= 0) { user.settings = Object.assign({}, user.settings, { [t.dataset.num]: v }); save(); } }

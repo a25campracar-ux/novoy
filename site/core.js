@@ -120,7 +120,8 @@
    */
   function dayClasses(state, date, raw) {
     if ((state.holidays || []).some((h) => date >= h.from && date <= (h.to || h.from))) return [];
-    let out = (scheduleOn(state, date)[weekday(date)] || []).map((b0) => {
+    const nc = state.nocount || []; // clases que no cuentan faltas (p. ej. tutoría): no existen para el cálculo
+    let out = (scheduleOn(state, date)[weekday(date)] || []).filter((b0) => nc.indexOf(b0.subject) < 0).map((b0) => {
       const b = Object.assign({}, b0);
       if (!raw && offOn(state, b.subject, date)) { b.covers = b.subject; b.subject = state.disabled[b.subject].cover; }
       return b;
@@ -176,7 +177,7 @@
     const subs = allSubjects(cfg), canonAll = subs.concat(Object.values(cfg.alias || {})), terms = (cfg.terms || []).map((t) => t.id);
     const clean = (fx) => { const o = {}; Object.keys(fx || {}).forEach((tid) => { if (terms.indexOf(tid) < 0) return; const x = {}; Object.keys(fx[tid] || {}).forEach((k) => { if (canonAll.indexOf(k) >= 0) x[k] = fx[tid][k]; }); if (Object.keys(x).length) o[tid] = x; }); return o; };
     const dis = {}; Object.keys(cfg.disabled || {}).forEach((k) => { const x = cfg.disabled[k]; if (subs.indexOf(k) >= 0 && x && subs.indexOf(x.cover) >= 0 && x.cover !== k) dis[k] = x; });
-    return Object.assign({}, cfg, { totals: clean(cfg.totals), totalsUnified: clean(cfg.totalsUnified), disabled: dis });
+    return Object.assign({}, cfg, { totals: clean(cfg.totals), totalsUnified: clean(cfg.totalsUnified), disabled: dis, nocount: (cfg.nocount || []).filter((k) => subs.indexOf(k) >= 0) });
   }
   /** Renombra asignaturas en todo el horario (principal, tramos e historial), uniones y horas fijadas. */
   function renameSubjects(cfg, ren) {
@@ -188,6 +189,7 @@
     ['totals', 'totalsUnified'].forEach((key) => Object.keys(c[key] || {}).forEach((tid) => { const o = {}; Object.keys(c[key][tid]).forEach((k) => { o[rn(k)] = c[key][tid][k]; }); c[key][tid] = o; }));
     (c.subjects || []).forEach((m) => { m.name = rn(m.name); });
     if (c.project && c.project.name) c.project.name = rn(c.project.name);
+    c.nocount = (c.nocount || []).map(rn);
     const dis = {}; Object.keys(c.disabled || {}).forEach((k) => { dis[rn(k)] = Object.assign({}, c.disabled[k], { cover: rn(c.disabled[k].cover) }); }); c.disabled = dis;
     return c;
   }
