@@ -1,0 +1,6 @@
+# datos personales (horario y faltas reales): nunca al repo
+private/
+# salidas de compilación
+build/
+node_modules/
+.DS_Store

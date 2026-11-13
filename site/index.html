@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>NoVoy</title>
+<meta name="theme-color" content="#F1F5F9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="NoVoy">
+<meta name="description" content="Mira cuántas horas puedes faltar a clase sin pasarte del límite.">
+<meta property="og:type" content="website"><meta property="og:title" content="NoVoy"><meta property="og:description" content="NoVoy: tu semáforo de faltas. Cuántas horas puedes saltarte sin pasarte del límite.">
+<meta property="og:image" content="__SITE__/og.png"><meta property="og:url" content="__SITE__/"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="__SITE__/og.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app" aria-live="polite"></main>
+<div id="warnbar" hidden></div>
+<nav id="tabs" aria-label="Secciones">
+  <button data-tab="hoy"><svg viewBox="0 0 24 24"><path d="M4 11.2 12 4.5l8 6.7V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg><span>Hoy</span></button>
+  <button data-tab="resumen"><svg viewBox="0 0 24 24"><path d="M6 20v-7M12 20V5M18 20v-10"/></svg><span>Resumen</span></button>
+  <button data-tab="faltas"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".8"/><circle cx="4.5" cy="12" r=".8"/><circle cx="4.5" cy="18" r=".8"/></svg><span>Faltas</span></button>
+  <button data-tab="ajustes"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg><span>Ajustes</span></button>
+</nav>
+<div id="toast" role="status"></div>
+<script src="seed.js"></script><script src="core.js"></script><script src="setup.js"></script><script src="shot.js"></script><script src="acct.js"></script><script src="app.js"></script>
+</body>
+</html>
