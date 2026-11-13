@@ -203,7 +203,12 @@
    */
   function normalize(cfg, faltas) {
     if (!cfg) return { cfg, faltas: faltas || [] };
-    const c = Object.assign({}, cfg), reg = (cfg.subjects || []).map((m) => ({ id: m.id, name: m.name })).filter((m) => m.id && m.name);
+    const c = Object.assign({}, cfg);
+    c.schedule = splitAtBreaks(c.schedule);
+    if (c.periods) c.periods = c.periods.map((p) => Object.assign({}, p, { schedule: splitAtBreaks(p.schedule, c.schedule) }));
+    if (c.history) c.history = c.history.map((h) => Object.assign({}, h, { schedule: splitAtBreaks(h.schedule, c.schedule) }));
+    if (c.project && c.project.schedule) c.project = Object.assign({}, c.project, { schedule: splitAtBreaks(c.project.schedule, c.schedule) });
+    const reg = (cfg.subjects || []).map((m) => ({ id: m.id, name: m.name })).filter((m) => m.id && m.name);
     const byName = (n) => reg.find((m) => m.name === n), byId = (i) => reg.find((m) => m.id === i);
     allSubjects(c).forEach((n) => { if (!byName(n)) reg.push({ id: uid('m'), name: n }); });
     const seen = new Set(), out = [];
@@ -213,6 +218,15 @@
       else { let m = byName(f.subject); if (!m) { m = { id: uid('m'), name: f.subject }; reg.push(m); } f.sid = m.id; }
       const units = unitsOf(c, f, out);
       units.forEach((u, i) => { const g = Object.assign({}, f, u); if (i || !g.id || seen.has(g.id)) g.id = uid('f'); seen.add(g.id); out.push(g); });
+    });
+    // horas que ya no existen (p. ej. 09:10 de un reparto antiguo con el recreo mal puesto): a la hora real más cercana libre
+    out.forEach((f) => {
+      if (!f.date || !f.start) return;
+      const sl = []; dayClasses(c, f.date).filter((b) => b.subject === f.subject).forEach((b) => hourSlots(b).forEach((x) => sl.push(x.start)));
+      if (!sl.length || sl.indexOf(f.start) >= 0) return;
+      const used = new Set(out.filter((x) => x !== f && x.date === f.date && x.subject === f.subject && x.type === f.type).map((x) => x.start));
+      const free = sl.filter((x) => !used.has(x)); if (!free.length) return;
+      f.start = free.reduce((best, x) => (Math.abs(mn(x) - mn(f.start)) < Math.abs(mn(best) - mn(f.start)) ? x : best), free[0]);
     });
     // el registro guarda las asignaturas del horario y las que aún tienen faltas
     const live = new Set(allSubjects(c).concat(out.map((f) => f.subject)));
@@ -247,10 +261,35 @@
     const mm = (t) => +t.slice(0, 2) * 60 + +t.slice(3), hh = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
     const s0 = mm(b.start), e0 = mm(b.end), dur = e0 - s0, n = Math.ceil(b.hours - 1e-9), out = [];
     for (let i = 0; i < n; i++) {
-      const hrs = i < n - 1 ? 1 : r2(b.hours - (n - 1)), st = n > 1 && dur > b.hours * 60 + 1 ? s0 + Math.round(i * (dur - 60) / (n - 1)) : s0 + i * 60;
+      // si el bloque dura más que sus horas, dentro hay un recreo: horas seguidas desde el inicio y la última pegada al final
+      // (antes se repartían a partes iguales y salían horas imposibles como 09:10 o 10:20)
+      const hrs = i < n - 1 ? 1 : r2(b.hours - (n - 1)), st = n > 1 && i === n - 1 && dur > b.hours * 60 + 1 ? e0 - Math.round(hrs * 60) : s0 + i * 60;
       out.push({ start: hh(st), end: hh(Math.min(e0, st + Math.round(hrs * 60))), hours: hrs });
     }
     return out;
+  }
+  /**
+   * Parte los bloques que llevan un recreo dentro (dura más que sus horas) usando los recreos que se ven en
+   * otros días (huecos cortos entre clases). Ej.: FIS 08:00–12:30 con 4 h y un hueco 11:00–11:30 el lunes
+   * → FIS 08:00–11:00 (3 h) + FIS 11:30–12:30 (1 h). Si no se ve ningún recreo que encaje, lo deja igual.
+   */
+  function splitAtBreaks(sch, ref) {
+    const hh = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    const gaps = [];
+    [sch, ref].forEach((src) => Object.keys(src || {}).forEach((d) => { const bl = (src[d] || []).slice().sort((a, b) => mn(a.start) - mn(b.start));
+      for (let i = 1; i < bl.length; i++) { const a = mn(bl[i - 1].end), z = mn(bl[i].start); if (z > a && z - a <= 45 && !gaps.some((g) => g[0] === a && g[1] === z)) gaps.push([a, z]); } }));
+    let changed = false; const out = {};
+    Object.keys(sch || {}).forEach((d) => {
+      out[d] = [];
+      (sch[d] || []).forEach((b) => {
+        const s0 = mn(b.start), e0 = mn(b.end), extra = e0 - s0 - b.hours * 60;
+        const g = extra > 1 ? gaps.find((x) => x[0] > s0 && x[1] < e0 && Math.abs((x[1] - x[0]) - extra) <= 1) : null;
+        const h1 = g ? r2((g[0] - s0) / 60) : 0;
+        if (g && h1 > 0 && h1 < b.hours) { changed = true; out[d].push(Object.assign({}, b, { end: hh(g[0]), hours: h1 }), Object.assign({}, b, { start: hh(g[1]), hours: r2(b.hours - h1) })); }
+        else out[d].push(b);
+      });
+    });
+    return changed ? out : sch;
   }
   /** ¿Puedo faltar este día? Veredicto por clase y global (peor caso). */
   function verdict(state, date) {
@@ -304,6 +343,6 @@
     for (let i = 0; i < 40; i++) { d.setDate(d.getDate() + 1); const k = ymd(d); if (dayClasses(state, k).length) return k; }
     return null;
   }
-  const api = { projectOn, projectWeekHours, offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
+  const api = { splitAtBreaks, projectOn, projectWeekHours, offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

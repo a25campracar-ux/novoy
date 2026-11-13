@@ -199,6 +199,7 @@ Ahora te pego mis faltas:`;
         const hours = +b.horas;
         if (!(hours > 0 && hours <= 12)) return errors.push(where + ' (' + name + '): "horas" debe ser un número entre 0,1 y 12.');
         if (hours * 60 > (mins(e) - mins(s)) * 1.25 + 1) errors.push(where + ' (' + name + '): ' + hours + ' h no caben entre ' + s + ' y ' + e + '.');
+        if (hours * 60 < mins(e) - mins(s) - 1 && Math.abs(hours - Math.round(hours)) < 0.01) warnings.push(where + ' (' + name + '): dura ' + (mins(e) - mins(s)) + ' min pero son ' + hours + ' h. Si hay un recreo dentro, mejor parte el bloque en dos.');
         blocks.push({ start: s, end: e, subject: name, hours: hours }); subjects.add(name);
       });
       blocks.sort((a, b) => mins(a.start) - mins(b.start));

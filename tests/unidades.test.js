@@ -132,3 +132,16 @@ console.log('unidades OK');
   const r = SU.parseImport(SU.toExport(S)); assert.ok(r.ok); assert.deepStrictEqual(r.config.nocount, ['Tut']);
   console.log('no cuentan OK');
 }
+
+// --- recreos dentro de un bloque: horas reales, nunca 09:10 ni 10:20
+{
+  const sch = { 1: [{ start: '10:00', end: '11:00', subject: 'PRO', hours: 1 }, { start: '11:30', end: '12:30', subject: 'MAT', hours: 1 }], 5: [{ start: '08:00', end: '12:30', subject: 'FIS', hours: 4 }] };
+  assert.deepStrictEqual(C.hourSlots(sch[5][0]).map((x) => x.start), ['08:00', '09:00', '10:00', '11:30'], 'sin recreo conocido: seguidas y la última al final');
+  const f = C.splitAtBreaks(sch);
+  assert.deepStrictEqual(f[5].map((b) => b.start + '-' + b.end + ':' + b.hours), ['08:00-11:00:3', '11:30-12:30:1'], 'se parte por el recreo de otro día');
+  assert.strictEqual(C.splitAtBreaks(f), f, 'idempotente');
+  const c = { terms: [{ id: 't', label: 't', from: '2026-09-01', to: '2026-12-20' }], holidays: [], alias: {}, schedule: sch };
+  const n = C.normalize(c, [{ id: 'a', date: '2026-11-13', subject: 'FIS', start: '09:10', hours: 0, type: 'retraso' }, { id: 'b', date: '2026-11-13', subject: 'FIS', start: '10:20', hours: 1, type: 'falta' }]);
+  assert.deepStrictEqual(n.faltas.map((x) => x.start), ['09:00', '10:00'], 'faltas con horas imposibles pasan a la hora real más cercana');
+  console.log('recreos OK');
+}

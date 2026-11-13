@@ -267,15 +267,23 @@
       (mon !== mondayOf(today()) ? '<p style="text-align:center;margin:0 0 6px"><button class="link" data-fw="0">Volver a esta semana</button></p>' : '') +
       '<p class="muted mini" style="margin:0 0 8px">Toca la hora a la que faltaste.</p>';
     if (!starts.length) return h + '<p class="muted">Esta semana no hay clase.</p></div>';
-    h += '<div class="fgrid"><span></span>' + days.map((k, i) => '<b class="gh' + (k === today() ? ' now' : '') + '">' + DL[i] + '<small>' + C.parse(k).getDate() + '</small></b>').join('');
-    starts.forEach((st) => {
-      h += '<span class="rl">' + st + '<small>' + rows[st] + '</small></span>';
-      days.forEach((k) => {
-        const c = cols[k][st];
-        if (!c) { h += '<span class="fc empty">' + (hol(k) && st === starts[0] ? '<small>' + esc(hol(k).label.split(' ')[0]) + '</small>' : '') + '</span>'; return; }
-        const f = mine(k, st, c.s), cls = f ? (f.type === 'retraso' ? ' late' : ' miss') : '', open = fcell && fcell.d === k && fcell.st === st ? ' sel' : '';
-        h += '<button class="fc' + cls + open + '" data-fc="' + esc(JSON.stringify({ d: k, st, s: c.s, h: c.h, e: c.e })) + '" style="--c:' + AVC[Math.max(0, subjectsOf(S).indexOf(c.s)) % AVC.length] + '" aria-label="' + esc(c.s + ', ' + nice(k) + ', ' + st + (f ? ', apuntada' : '')) + '">' + esc(initials(c.s)) + (f ? '<i>' + (f.type === 'retraso' ? 'R' : '✕') + '</i>' : '') + '</button>';
+    // línea de tiempo: cada casilla se coloca según su hora real, así los días con horas distintas no se descuadran
+    const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3), K = 1.05;
+    let t0 = Infinity, t1 = 0; days.forEach((k) => Object.keys(cols[k]).forEach((st) => { t0 = Math.min(t0, mins(st)); t1 = Math.max(t1, mins(cols[k][st].e)); }));
+    const H = Math.round((t1 - t0) * K), top = (t) => Math.round((mins(t) - t0) * K);
+    const ticks = Array.from(new Set(starts)).filter((st, i, arr) => i === 0 || mins(st) - mins(arr[i - 1]) >= 25);
+    h += '<div class="tl"><span></span>' + days.map((k, i) => '<b class="gh' + (k === today() ? ' now' : '') + '">' + DL[i] + '<small>' + C.parse(k).getDate() + '</small></b>').join('');
+    h += '<div class="ax" style="height:' + H + 'px">' + ticks.map((st) => '<span style="top:' + top(st) + 'px">' + st + '</span>').join('') + '</div>';
+    days.forEach((k) => {
+      h += '<div class="col" style="height:' + H + 'px">';
+      const sl = Object.keys(cols[k]).sort();
+      if (!sl.length) h += '<span class="fc empty" style="top:0;height:' + H + 'px">' + (hol(k) ? '<small>' + esc(hol(k).label) + '</small>' : '') + '</span>';
+      sl.forEach((st) => {
+        const c = cols[k][st], f = mine(k, st, c.s), cls = f ? (f.type === 'retraso' ? ' late' : ' miss') : '', open = fcell && fcell.d === k && fcell.st === st ? ' sel' : '';
+        const odd = ticks.indexOf(st) < 0 || (mins(c.e) - mins(st)) !== 60; // hora distinta de las de la columna de horas: se enseña dentro
+        h += '<button class="fc' + cls + open + '" style="top:' + top(st) + 'px;height:' + Math.max(28, Math.round((mins(c.e) - mins(st)) * K) - 4) + 'px;--c:' + AVC[Math.max(0, subjectsOf(S).indexOf(c.s)) % AVC.length] + '" data-fc="' + esc(JSON.stringify({ d: k, st, s: c.s, h: c.h, e: c.e })) + '" aria-label="' + esc(c.s + ', ' + nice(k) + ', ' + st + '–' + c.e + (f ? ', apuntada' : '')) + '">' + esc(initials(c.s)) + (odd ? '<small>' + st + '</small>' : '') + (f ? '<i>' + (f.type === 'retraso' ? 'R' : '✕') + '</i>' : '') + '</button>';
       });
+      h += '</div>';
     });
     h += '</div>' + cellCard() + '</div>';
     return h;
@@ -714,7 +722,7 @@
       const g = qk.grid[d] || {}, blocks = []; let cur = null;
       rows.forEach((row, r) => {
         const s = g[r], unit = qk.unit === 'full' ? 1 : Math.round((mm(row.e) - mm(row.s)) / 60 * 100) / 100;
-        if (s && cur && cur.subject === s) { cur.end = row.e; cur.hours = Math.round((cur.hours + unit) * 100) / 100; }
+        if (s && cur && cur.subject === s && cur.end === row.s) { cur.end = row.e; cur.hours = Math.round((cur.hours + unit) * 100) / 100; }
         else { cur = s ? { start: row.s, end: row.e, subject: s, hours: unit } : null; if (cur) blocks.push(cur); }
       });
       if (blocks.length) schedule[d] = blocks;
@@ -734,7 +742,7 @@
     const pname = String(qk.projName || 'Proyecto').trim() || 'Proyecto', psch = {};
     QDAYS.forEach(([d]) => { const g = (qk.proj || {})[d] || {}, bl = []; let cur = null;
       rows.forEach((row, r) => { const unit = qk.unit === 'full' ? 1 : Math.round((mm(row.e) - mm(row.s)) / 60 * 100) / 100;
-        if (g[r] && cur) { cur.end = row.e; cur.hours = Math.round((cur.hours + unit) * 100) / 100; } else { cur = g[r] ? { start: row.s, end: row.e, subject: pname, hours: unit } : null; if (cur) bl.push(cur); } });
+        if (g[r] && cur && cur.end === row.s) { cur.end = row.e; cur.hours = Math.round((cur.hours + unit) * 100) / 100; } else { cur = g[r] ? { start: row.s, end: row.e, subject: pname, hours: unit } : null; if (cur) bl.push(cur); } });
       if (bl.length) psch[d] = bl; });
     const A = qk.ask || {};
     const project = A.proj && Object.keys(psch).length ? { name: pname, weeks: +qk.projWeeks >= 0 ? +qk.projWeeks : 4, schedule: psch, ranges: (base.project && base.project.ranges) || [] } : null;
