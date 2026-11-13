@@ -16,9 +16,28 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap">
+<style>
+/* splash: va en línea para que salga antes de cargar nada más */
+#splash{position:fixed;inset:0;z-index:99;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#F1F5F9;transition:opacity .35s ease,visibility .35s}
+#splash.out{opacity:0;visibility:hidden}
+#splash svg{width:74px;height:auto;animation:sp-drop .5s cubic-bezier(.2,1.4,.4,1) both}
+#splash circle.l{fill:#2A3647}
+#splash .r{animation:sp-r .9s .15s both}#splash .a{animation:sp-a .9s .15s both}#splash .v{animation:sp-v 1s .15s both}
+#splash b{font:800 30px/1 Manrope,system-ui,sans-serif;letter-spacing:-.5px;color:#121212;opacity:0;animation:sp-up .45s .55s ease both}
+#splash b i{font-style:normal;color:#22B573}
+@media(prefers-color-scheme:dark){#splash{background:#121212}#splash b{color:#F1F5F9}}
+@keyframes sp-drop{from{transform:translateY(-24px) scale(.9);opacity:0}to{transform:none;opacity:1}}
+@keyframes sp-up{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+@keyframes sp-r{0%,30%{fill:#F06464}31%,100%{fill:#2A3647}}
+@keyframes sp-a{0%,30%{fill:#2A3647}31%,58%{fill:#F7BC3F}59%,100%{fill:#2A3647}}
+@keyframes sp-v{0%,58%{fill:#2A3647}59%,100%{fill:#34D399}}
+@media(prefers-reduced-motion:reduce){#splash *{animation:none!important;opacity:1!important}#splash .v{fill:#34D399}}
+</style>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="splash" aria-hidden="true"><svg viewBox="0 0 92 188"><rect x="2" y="2" width="88" height="184" rx="28" fill="#1F2937" stroke="#0F172A" stroke-width="3"/><circle class="l r" cx="46" cy="38" r="26"/><circle class="l a" cx="46" cy="94" r="26"/><circle class="l v" cx="46" cy="150" r="26"/></svg><b>No<i>Voy</i></b></div>
+<script>(function(){var s=document.getElementById('splash');try{if(sessionStorage.getItem('ft.sp')){s.remove();return}sessionStorage.setItem('ft.sp','1')}catch(e){}var t0=Date.now();window.ftSplashDone=function(){var w=Math.max(0,1150-(Date.now()-t0));setTimeout(function(){s.classList.add('out');setTimeout(function(){s.remove()},400)},w)};setTimeout(window.ftSplashDone,2500)})();</script>
 <main id="app" aria-live="polite"></main>
 <div id="warnbar" hidden></div>
 <nav id="tabs" aria-label="Secciones">

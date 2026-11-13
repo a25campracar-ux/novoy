@@ -951,7 +951,9 @@
     const sc = ISCENES[iScene];
     return '<div class="intro">' + dots + '<div class="i-scene" key="' + iScene + '">' + sc.art() + '<p class="i-cap">' + sc.cap + '</p></div><button class="link i-skip" data-act="intro-go">Saltar</button></div>';
   }
-  function introTick() { clearTimeout(iTimer); if (tab !== 'intro' || iScene >= ISCENES.length) return; iTimer = setTimeout(() => { iScene++; render(); }, REDUCED ? 3500 : 3000); }
+  function introTick() { clearTimeout(iTimer); if (tab !== 'intro' || iScene >= ISCENES.length) return; const sp = iScene === 0 && document.getElementById('splash') ? 1200 : 0; // la primera escena empieza cuando se va el splash
+    if (sp) { const bar = document.querySelector('.i-dots i.on'); if (bar) bar.style.animationDelay = sp + 'ms'; }
+    iTimer = setTimeout(() => { iScene++; render(); }, (REDUCED ? 3500 : 3000) + sp); }
   function render() {
     document.body.classList.toggle('setup', tab === 'intro' || tab === 'desde' || tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
     app.innerHTML = VIEWS[tab]();
@@ -1274,5 +1276,6 @@
   render();
   if (window.FTAcct) FTAcct.notice().then((n) => { if (n && n.text) { gNotice = n; render(); } });
   readLink();
+  if (window.ftSplashDone) window.ftSplashDone(); // la app ya está pintada: fuera el splash (como mínimo ~1 s de animación)
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
