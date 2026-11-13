@@ -951,7 +951,7 @@
     const sc = ISCENES[iScene];
     return '<div class="intro">' + dots + '<div class="i-scene" key="' + iScene + '">' + sc.art() + '<p class="i-cap">' + sc.cap + '</p></div><button class="link i-skip" data-act="intro-go">Saltar</button></div>';
   }
-  function introTick() { clearTimeout(iTimer); if (tab !== 'intro' || iScene >= ISCENES.length) return; iTimer = setTimeout(() => { iScene++; render(); }, REDUCED ? 3200 : 2600); }
+  function introTick() { clearTimeout(iTimer); if (tab !== 'intro' || iScene >= ISCENES.length) return; iTimer = setTimeout(() => { iScene++; render(); }, REDUCED ? 3500 : 3000); }
   function render() {
     document.body.classList.toggle('setup', tab === 'intro' || tab === 'desde' || tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
     app.innerHTML = VIEWS[tab]();

@@ -217,7 +217,7 @@ body.warn #app{padding-bottom:168px}
 .intro{min-height:calc(100dvh - 40px);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;text-align:center;position:relative;cursor:pointer;user-select:none;-webkit-user-select:none;padding-bottom:40px}
 .intro.end{cursor:default}.intro.end h1{font-size:40px;margin:0}.intro.end .i-art .mascot{width:120px}
 .i-dots{position:absolute;top:8px;left:0;right:0;display:flex;gap:6px;justify-content:center}.i-dots i{width:28px;height:4px;border-radius:4px;background:var(--line);overflow:hidden;position:relative}.i-dots i.done{background:var(--ink)}
-.i-dots i.on::after{content:"";position:absolute;inset:0;background:var(--ink);transform-origin:left;animation:i-prog 2.6s linear forwards}
+.i-dots i.on::after{content:"";position:absolute;inset:0;background:var(--ink);transform-origin:left;animation:i-prog 3s linear forwards}
 .i-skip{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);color:var(--mute)}
 .i-scene{display:flex;flex-direction:column;align-items:center;gap:22px;animation:i-in .45s ease both}
 .i-cap{font-size:24px;font-weight:900;line-height:1.2;max-width:320px;margin:0;animation:i-in .5s .25s ease both}
