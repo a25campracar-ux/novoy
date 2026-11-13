@@ -9,44 +9,70 @@
   const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
 
   const FORMAT = `{
-  "formato": "puedo-faltar/1",
+  "formato": "puedo-faltar/2",
   "centro": "Nombre del centro y curso",
   "limite": 25,
-  "trimestres": [ { "id": "1r", "nombre": "1r trimestre", "desde": "2026-09-14", "hasta": "2026-11-27" } ],
+  "trimestres": [
+    { "id": "1r", "nombre": "1r trimestre", "desde": "2026-09-14", "hasta": "2026-12-18",
+      "horas_totales": [ { "asignatura": "Matematicas", "horas": 99 } ] }
+  ],
   "festivos": [ { "desde": "2026-10-12", "hasta": "2026-10-12", "nombre": "Fiesta Nacional" } ],
   "horario": {
-    "lunes": [ { "inicio": "08:00", "fin": "10:00", "asignatura": "Matemáticas", "horas": 2 } ],
+    "lunes": [ { "inicio": "08:00", "fin": "10:00", "asignatura": "Matematicas", "horas": 2 } ],
     "martes": [], "miercoles": [], "jueves": [], "viernes": []
   },
-  "unificar": [ { "asignatura": "Proyecto (Pol)", "dentro_de": "Programación" } ],
-  "faltas": [ { "fecha": "2026-10-02", "asignatura": "Matemáticas", "horas": 2, "tipo": "falta", "justificada": false } ],
-  "dudas": [ "Cualquier dato que no se vea claro en las fotos" ]
+  "tramos": [
+    { "nombre": "A partir de febrero", "desde": "2027-02-08", "hasta": "2027-06-19",
+      "horario": { "lunes": [], "martes": [], "miercoles": [], "jueves": [], "viernes": [] } }
+  ],
+  "unificar": [ { "asignatura": "Proyecto (Pol)", "dentro_de": "Programacion" } ],
+  "faltas": [ { "fecha": "2026-10-02", "asignatura": "Matematicas", "horas": 2, "tipo": "falta", "justificada": false } ],
+  "dudas": [ "Lo que no se vea claro en las fotos" ]
 }`;
 
   function buildPrompt() {
-    return `Actúa como mi asistente para configurar una app llamada "NoVoy". La app calcula mi porcentaje de faltas por asignatura y me dice si puedo faltar hoy. Necesita mi horario semanal y el calendario escolar en un formato exacto.
+    return `Tarea: rellenar el JSON de configuracion de mi app de faltas "NoVoy", a partir de las fotos de mi horario y mi calendario escolar. Nada de rodeos.
 
-CÓMO TRABAJAR
-1. Te voy a adjuntar fotos o capturas de mi horario semanal y de mi calendario escolar (o PDF). Léelas con mucha atención.
-2. Si te falta algún dato, PREGÚNTAMELO antes de dar el resultado. Como mínimo confirma: qué porcentaje máximo de faltas me permiten por asignatura (normalmente 25), las fechas de inicio y fin de cada trimestre o evaluación, y si alguna asignatura cuenta junta con otra (por ejemplo varios profesores de un mismo proyecto).
-3. NO inventes nada. Lo que no se vea o no sepas, no lo pongas: añádelo a "dudas".
-4. Antes de responder, revisa tu trabajo: ningún bloque de un mismo día debe solaparse, "fin" debe ser posterior a "inicio", los festivos y vacaciones deben incluir TODOS los días sin clase del calendario que caigan dentro de los trimestres (puentes, vacaciones de Navidad y Semana Santa, festivos locales), y las fechas deben existir de verdad.
-5. "horas" es el número de horas de clase del bloque (08:00 a 10:00 son 2 horas). Los recreos o descansos no cuentan.
-6. Mi respuesta final debe ser UN SOLO bloque de código con este JSON, sin texto antes ni después de ese bloque, para que yo lo copie entero:
+QUE HACER
+1. Te adjunto fotos, capturas o PDF de mi horario semanal y del calendario del curso. Leelos con atencion.
+2. Si falta algo, preguntamelo TODO DE UNA VEZ en un solo mensaje, no de una en una. Pregunta solo lo que no puedas deducir de las fotos.
+3. Cuando lo tengas, responde con dos lineas de resumen y despues el JSON en UN SOLO bloque de codigo. Nada mas.
+4. No inventes. Lo que no sepas va en "dudas", no te lo imagines.
 
+LO MINIMO QUE NECESITAS SABER
+- Fechas de inicio y fin del curso (o de cada trimestre).
+- Que porcentaje de faltas me permiten (casi siempre 25) y si se aplica por trimestre o sobre el curso entero.
+- Los dias sin clase: festivos, puentes, vacaciones de Navidad y Semana Santa.
+
+COMO SE APLICA EL LIMITE (importante)
+- Si en mi centro el limite va sobre el total de cada asignatura en TODO el curso (lo normal en FP y ciclos), pon UN SOLO trimestre que cubra el curso entero.
+- Si va por trimestre, pon un trimestre por cada uno.
+- "horas_totales" es opcional pero es lo mas fiable que hay: si tengo un papel con las horas oficiales de cada modulo (99 h, 66 h...), ponlas ahi y la app usara esas en vez de calcularlas. Si no las tengo, omite el campo entero.
+
+SI EL HORARIO CAMBIA DURANTE EL CURSO
+Muchos ciclos concentran modulos por tramos: unas semanas una cosa y otras semanas otra.
+- "horario" es el horario principal, el que vale por defecto.
+- "tramos" son los periodos con un horario DISTINTO, cada uno con sus fechas. Fuera de esos tramos manda "horario".
+- Si mi horario es el mismo todo el curso, pon "tramos": [].
+- Si te doy una hoja de planificacion por semanas, uala para deducir los tramos y dime en el resumen que tramos has detectado.
+
+REGLAS DEL FORMATO
+- Fechas AAAA-MM-DD, horas HH:MM en 24 h.
+- Dias: lunes, martes, miercoles, jueves, viernes (sin tildes). Un dia sin clase va con [].
+- "horas" son las horas lectivas del bloque: de 08:00 a 10:00 son 2. El recreo no cuenta; si parte un bloque, parte el bloque en dos.
+- Dentro de un dia, los bloques no pueden solaparse ni acabar antes de empezar.
+- Escribe cada asignatura SIEMPRE igual, con el mismo nombre exacto, en el horario, en los tramos, en "horas_totales" y en "faltas".
+- "festivos": una entrada por dia suelto o por periodo de vacaciones.
+- "unificar": solo si varias asignaturas cuentan como una para el porcentaje. Si no, [].
+- "faltas": dejalo en [] salvo que yo te pase mis faltas.
+- No añadas ni quites campos.
+
+EL JSON
 \`\`\`json
 ${FORMAT}
 \`\`\`
 
-REGLAS DEL FORMATO
-- Fechas siempre AAAA-MM-DD y horas HH:MM en 24 h.
-- Días del horario: lunes, martes, miercoles, jueves, viernes (sin tildes). Un día sin clase va con [].
-- "festivos": una entrada por festivo o por periodo de vacaciones (si es un solo día, "desde" y "hasta" son iguales).
-- "unificar": solo si algunas asignaturas cuentan juntas para el porcentaje; si no hay, usa [].
-- "faltas": déjala como [] salvo que yo te dé mis faltas. Tipo: "falta" o "retraso" (el retraso no cuenta).
-- No cambies ni añadas campos.
-
-Empieza saludándome y pidiéndome las fotos.`;
+Empieza: leeme las fotos y pregunta de una vez lo que falte.`;
   }
 
   function buildUpdatePrompt(snapshot) {
@@ -91,13 +117,14 @@ Ahora te pego mis faltas:`;
 
   /** Estado de la app → JSON en formato de intercambio (para "Actualizar con mi IA" y exportar). */
   function toExport(S) {
-    const sch = {};
-    ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'].forEach((n) => { sch[n] = (S.schedule[DAYS[n]] || []).map((b) => ({ inicio: b.start, fin: b.end, asignatura: b.subject, horas: b.hours })); });
+    const schOf = (src) => { const o = {}; ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'].forEach((n) => { o[n] = ((src || {})[DAYS[n]] || []).map((b) => ({ inicio: b.start, fin: b.end, asignatura: b.subject, horas: b.hours })); }); return o; };
+    const sch = schOf(S.schedule);
     return JSON.stringify({
-      formato: 'puedo-faltar/1', centro: S.center || '', limite: (S.settings && S.settings.limite) || 25,
-      trimestres: S.terms.map((t) => ({ id: t.id, nombre: t.label, desde: t.from, hasta: t.to })),
+      formato: 'puedo-faltar/2', centro: S.center || '', limite: (S.settings && S.settings.limite) || 25,
+      trimestres: S.terms.map((t) => { const o = { id: t.id, nombre: t.label, desde: t.from, hasta: t.to }; const h = (S.totals || {})[t.id]; if (h && Object.keys(h).length) o.horas_totales = Object.keys(h).map((k) => ({ asignatura: k, horas: h[k] })); return o; }),
       festivos: (S.holidays || []).map((h) => ({ desde: h.from, hasta: h.to || h.from, nombre: h.label })),
       horario: sch,
+      tramos: (S.periods || []).map((p) => ({ nombre: p.label || 'Tramo', desde: p.from, hasta: p.to, horario: schOf(p.schedule) })),
       unificar: Object.keys(S.alias || {}).map((k) => ({ asignatura: k, dentro_de: S.alias[k] })),
       faltas: S.faltas.map((f) => ({ fecha: f.date, asignatura: f.subject, horas: f.hours, tipo: f.type, justificada: !!f.justified })),
       dudas: []
@@ -121,13 +148,23 @@ Ahora te pego mis faltas:`;
     try { j = extractJSON(text); } catch (e) {
       return { ok: false, errors: [e instanceof SyntaxError ? 'El texto pegado no es un JSON válido (¿se cortó al copiar?).' : e.message], warnings };
     }
-    if (j.formato !== 'puedo-faltar/1') warnings.push('El formato no se identifica como "puedo-faltar/1"; reviso igualmente.');
+    if (j.formato !== 'puedo-faltar/2' && j.formato !== 'puedo-faltar/1') warnings.push('El formato no se identifica como "puedo-faltar"; reviso igualmente.');
     // trimestres
     const terms = [];
     (Array.isArray(j.trimestres) ? j.trimestres : []).forEach((t, i) => {
       if (!isDate(t && t.desde) || !isDate(t && t.hasta)) return errors.push('Trimestre ' + (i + 1) + ': las fechas "desde" y "hasta" no son válidas.');
       if (t.hasta < t.desde) return errors.push('Trimestre ' + (i + 1) + ': termina antes de empezar.');
-      terms.push({ id: String(t.id || i + 1), label: String(t.nombre || t.id || 'Trimestre ' + (i + 1)), from: t.desde, to: t.hasta });
+      const term = { id: String(t.id || i + 1), label: String(t.nombre || t.id || 'Trimestre ' + (i + 1)), from: t.desde, to: t.hasta };
+      if (Array.isArray(t.horas_totales) && t.horas_totales.length) {
+        term.hours = {};
+        t.horas_totales.forEach((x) => {
+          const nm = String((x && x.asignatura) || '').trim(), hv = +(x && x.horas);
+          if (!nm) return warnings.push('Horas totales de "' + term.label + '": falta el nombre de una asignatura.');
+          if (!(hv > 0 && hv <= 2000)) return errors.push('Horas totales de "' + nm + '" en "' + term.label + '": ' + (x && x.horas) + ' no es un número de horas válido.');
+          term.hours[nm] = hv;
+        });
+      }
+      terms.push(term);
     });
     if (!terms.length) errors.push('Falta al menos un trimestre con fechas de inicio y fin.');
     terms.sort((a, b) => (a.from < b.from ? -1 : 1));
@@ -140,15 +177,16 @@ Ahora te pego mis faltas:`;
       if (to < h.desde) return errors.push('Festivo "' + (h.nombre || i + 1) + '": termina antes de empezar.');
       holidays.push({ from: h.desde, to: to, label: String(h.nombre || 'Festivo') });
     });
-    // horario
-    const schedule = {}, subjects = new Set();
-    const src = j.horario && typeof j.horario === 'object' ? j.horario : {};
-    Object.keys(src).forEach((k) => {
+    // horario (y, más abajo, el de cada tramo: misma validación)
+    const subjects = new Set();
+    const readSchedule = (src, tag) => {
+      const schedule = {};
+      Object.keys(src && typeof src === 'object' ? src : {}).forEach((k) => {
       const wd = DAYS[strip(k)];
       if (wd === undefined) return warnings.push('Día desconocido "' + k + '", lo ignoro.');
       const blocks = [];
       (Array.isArray(src[k]) ? src[k] : []).forEach((b, i) => {
-        const where = k + ' #' + (i + 1), s = time(b && b.inicio), e = time(b && b.fin), name = String((b && b.asignatura) || '').trim();
+        const where = tag + k + ' #' + (i + 1), s = time(b && b.inicio), e = time(b && b.fin), name = String((b && b.asignatura) || '').trim();
         if (!s || !e) return errors.push(where + ': hora de inicio o fin no válida.');
         if (mins(e) <= mins(s)) return errors.push(where + ' (' + name + '): termina antes de empezar.');
         if (!name) return errors.push(where + ': falta el nombre de la asignatura.');
@@ -160,7 +198,22 @@ Ahora te pego mis faltas:`;
       blocks.sort((a, b) => mins(a.start) - mins(b.start));
       for (let i = 1; i < blocks.length; i++) if (mins(blocks[i].start) < mins(blocks[i - 1].end)) errors.push(k + ': "' + blocks[i - 1].subject + '" y "' + blocks[i].subject + '" se solapan.');
       if (blocks.length) schedule[wd] = blocks;
+      });
+      return schedule;
+    };
+    const schedule = readSchedule(j.horario, '');
+    // tramos: periodos con un horario distinto
+    const periods = [];
+    (Array.isArray(j.tramos) ? j.tramos : []).forEach((p, i) => {
+      const nm = String((p && p.nombre) || 'Tramo ' + (i + 1));
+      if (!isDate(p && p.desde) || !isDate(p && p.hasta)) return errors.push('Tramo "' + nm + '": las fechas "desde" y "hasta" no son válidas.');
+      if (p.hasta < p.desde) return errors.push('Tramo "' + nm + '": termina antes de empezar.');
+      const sch = readSchedule(p.horario, nm + ' ');
+      if (!Object.keys(sch).length) return warnings.push('Tramo "' + nm + '": no tiene ninguna clase, lo ignoro.');
+      periods.push({ label: nm, from: p.desde, to: p.hasta, schedule: sch });
     });
+    periods.sort((a, b) => (a.from < b.from ? -1 : 1));
+    for (let i = 1; i < periods.length; i++) if (periods[i].from <= periods[i - 1].to) errors.push('Los tramos "' + periods[i - 1].label + '" y "' + periods[i].label + '" se solapan.');
     if (!subjects.size) errors.push('El horario no tiene ninguna clase.');
     // unificar
     const alias = {};
@@ -186,8 +239,14 @@ Ahora te pego mis faltas:`;
     if (limite !== null && !(limite > 0 && limite <= 100)) errors.push('El límite de faltas debe estar entre 1 y 100 (%).');
     (Array.isArray(j.dudas) ? j.dudas : []).forEach((d) => d && warnings.push('Duda de la IA: ' + d));
     if (errors.length) return { ok: false, errors, warnings };
+    const totals = {};
+    terms.forEach((t) => {
+      if (!t.hours) return;
+      Object.keys(t.hours).forEach((nm) => { if (!subjects.has(nm)) warnings.push('Horas totales: "' + nm + '" no aparece en ningún horario.'); });
+      totals[t.id] = t.hours; delete t.hours;
+    });
     return { ok: true, errors, warnings, limite, hasFaltas, faltas,
-      config: { center: String(j.centro || ''), terms, holidays, schedule, alias, totals: {}, totalsUnified: {} } };
+      config: { center: String(j.centro || ''), terms, holidays, schedule, periods, alias, totals, totalsUnified: {} } };
   }
 
   const api = { buildPrompt, buildUpdatePrompt, buildImportPrompt, toExport, extractJSON, parseImport, DAYNAMES, FORMAT };

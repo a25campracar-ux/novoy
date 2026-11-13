@@ -56,8 +56,20 @@
   /** Clases de un día. */
   function dayClasses(state, date) {
     if ((state.holidays || []).some((h) => date >= h.from && date <= (h.to || h.from))) return [];
-    const wd = weekday(date);
-    return (state.schedule[wd] || []).map((b) => Object.assign({}, b, { canon: canon(state, b.subject) }));
+    return (scheduleOn(state, date)[weekday(date)] || []).map((b) => Object.assign({}, b, { canon: canon(state, b.subject) }));
+  }
+  /** El horario semanal que toca ese día: el del tramo que lo cubra, o el principal. */
+  function scheduleOn(state, date) {
+    const p = (state.periods || []).find((x) => x.from && x.to && date >= x.from && date <= x.to);
+    return (p && p.schedule) || state.schedule || {};
+  }
+  /** Todas las asignaturas del curso, contando las de todos los tramos. */
+  function allSubjects(state) {
+    const out = [];
+    [state.schedule || {}].concat((state.periods || []).map((p) => p.schedule || {})).forEach((sch) => {
+      Object.keys(sch).forEach((d) => (sch[d] || []).forEach((b) => { if (out.indexOf(b.subject) < 0) out.push(b.subject); }));
+    });
+    return out;
   }
   const RANK = { verde: 0, amarillo: 1, rojo: 2 };
   /** Parte un bloque en tramos de 1 h (el último puede ser fraccionario). Reparte con el recreo si el bloque es más largo que sus horas. */
@@ -122,6 +134,6 @@
     for (let i = 0; i < 40; i++) { d.setDate(d.getDate() + 1); const k = ymd(d); if (dayClasses(state, k).length) return k; }
     return null;
   }
-  const api = { DEF, ymd, parse, weekday, termOf, canon, computeTotals, status, absentByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
+  const api = { DEF, ymd, parse, weekday, scheduleOn, allSubjects, termOf, canon, computeTotals, status, absentByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

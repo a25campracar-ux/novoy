@@ -1,4 +1,4 @@
-const V = 'pf-v16', FILES = ['./', 'index.html', 'style.css', 'core.js', 'setup.js', 'shot.js', 'acct.js', 'app.js', 'seed.js', 'manifest.webmanifest', 'icons/icon-192.png'];
+const V = 'pf-v18', FILES = ['./', 'index.html', 'style.css', 'core.js', 'setup.js', 'shot.js', 'acct.js', 'app.js', 'seed.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((k) => Promise.all(k.filter((x) => x !== V).map((x) => caches.delete(x)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => { // red primero, caché si no hay conexión

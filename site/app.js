@@ -33,6 +33,14 @@
     } catch (e) { acState = 'err'; return false; } finally { acBusy = false; }
   }
   const snapState = () => state() || Object.assign({}, blank(), { settings: Object.assign({}, C.DEF, user.settings), faltas: user.faltas || [] });
+  /** Si se renombró una asignatura fuera de la rejilla, su unión puede apuntar a un nombre que ya no existe. */
+  function fixAlias() {
+    if (!user.config || !user.config.alias) return;
+    const subs = C.allSubjects(user.config), bad = Object.keys(user.config.alias).filter((k) => subs.indexOf(user.config.alias[k]) < 0);
+    if (!bad.length) return;
+    bad.forEach((k) => { delete user.config.alias[k]; });
+    save();
+  }
   const state = () => user.config && Object.assign({}, user.config, { settings: Object.assign({}, C.DEF, user.settings), faltas: user.faltas });
   const qd = new URLSearchParams(location.search).get('d');
   const today = () => (qd && /^\d{4}-\d\d-\d\d$/.test(qd) ? qd : C.ymd(new Date()));
@@ -163,9 +171,13 @@
     if (un) h += '<p class="muted" style="margin-top:14px">' + un + ' falta(s) sin fecha cuentan en el total. Ponles fecha en "Faltas".</p>';
     return h;
   }
-  const subjectsOf = (S) => Array.from(new Set(Object.values(S.schedule).flat().map((b) => b.subject))).sort();
+  const subjectsOf = (S) => C.allSubjects(S).slice().sort();
   // asignaturas del día de la semana de esa fecha (si no hay clase ese día, todas)
-  const subjectsOn = (S, date) => { const d = date && /^\d{4}-\d\d-\d\d$/.test(date) ? C.weekday(date) : 0, day = Array.from(new Set((S.schedule[d] || []).map((b) => b.subject))); return day.length ? { list: day, all: false } : { list: subjectsOf(S), all: true }; };
+  const subjectsOn = (S, date) => {
+    const ok = date && /^\d{4}-\d\d-\d\d$/.test(date), sch = ok ? C.scheduleOn(S, date) : {};
+    const day = ok ? Array.from(new Set((sch[C.weekday(date)] || []).map((b) => b.subject))) : [];
+    return day.length ? { list: day, all: false } : { list: subjectsOf(S), all: true };
+  };
   const subjectOpts = (S, date, sel) => { const r = subjectsOn(S, date); return r.list.map((x) => '<option' + (x === sel ? ' selected' : '') + '>' + esc(x) + '</option>').join(''); };
   // avatar por asignatura: iniciales + color fijo de la paleta (según su posición en la lista de asignaturas)
   const AVC = ['#6366F1', '#0EA5E9', '#14B8A6', '#8B5CF6', '#3B82F6', '#0891B2', '#64748B', '#7C3AED', '#2563EB', '#0D9488', '#4F46E5', '#0284C7'];
@@ -197,7 +209,7 @@
   function slotTimes(S, f) {
     if (!f.date || !/^\d{4}-\d\d-\d\d$/.test(f.date)) return [];
     const out = [];
-    (S.schedule[C.weekday(f.date)] || []).filter((b) => b.subject === f.subject)
+    (C.scheduleOn(S, f.date)[C.weekday(f.date)] || []).filter((b) => b.subject === f.subject)
       .forEach((b) => C.hourSlots(b).forEach((x) => out.push(x.start + ' – ' + x.end)));
     return out;
   }
@@ -386,17 +398,18 @@
   const qCol = (name) => AVC[Math.max(0, qk.subjects.indexOf(name)) % AVC.length];
   const qTid = (t, i) => (String(t.label).toLowerCase().replace(/[^a-z0-9]+/g, '') || 't') + i;
   /** Horario guardado -> estado de la rejilla, para poder editarlo pintando. */
-  function qFromCfg(cfg) {
+  function qFromCfg(cfg, pi) {
+    const sch = pi == null ? (cfg.schedule || {}) : ((cfg.periods || [])[pi] || {}).schedule || {};
     const bounds = new Set(), slotsOf = (b) => C.hourSlots(b);
-    QDAYS.forEach(([d]) => (cfg.schedule[d] || []).forEach((b) => slotsOf(b).forEach((x) => { bounds.add(mm(x.start)); bounds.add(mm(x.end)); })));
+    QDAYS.forEach(([d]) => (sch[d] || []).forEach((b) => slotsOf(b).forEach((x) => { bounds.add(mm(x.start)); bounds.add(mm(x.end)); })));
     const bs = Array.from(bounds).sort((a, b) => a - b), rows = [];
     for (let i = 0; i + 1 < bs.length; i++) {
       const a = bs[i], z = bs[i + 1];
-      const used = QDAYS.some(([d]) => (cfg.schedule[d] || []).some((b) => slotsOf(b).some((x) => mm(x.start) <= a && mm(x.end) >= z)));
+      const used = QDAYS.some(([d]) => (sch[d] || []).some((b) => slotsOf(b).some((x) => mm(x.start) <= a && mm(x.end) >= z)));
       if (used) rows.push({ s: hhmm(a), e: hhmm(z) });
     }
     const grid = {}, subjects = []; let exact = true;
-    QDAYS.forEach(([d]) => (cfg.schedule[d] || []).forEach((b) => {
+    QDAYS.forEach(([d]) => (sch[d] || []).forEach((b) => {
       if (subjects.indexOf(b.subject) < 0) subjects.push(b.subject);
       let n = 0;
       slotsOf(b).forEach((x) => rows.forEach((r, i) => {
@@ -408,7 +421,7 @@
       custom: rows.length ? rows : null, grid, subjects, adding: false, unit: exact ? 'full' : 'real',
       terms: cfg.terms.map((t) => ({ label: t.label, from: t.from, to: t.to })),
       holidays: (cfg.holidays || []).map((h) => ({ label: h.label, from: h.from, to: h.to })),
-      limite: (user.settings && user.settings.limite) || 25, base: cfg
+      limite: (user.settings && user.settings.limite) || 25, base: cfg, pi: pi == null ? null : pi
     });
   }
   function qCfg() {
@@ -423,7 +436,13 @@
       if (blocks.length) schedule[d] = blocks;
     });
     const terms = qk.terms.map((t, i) => ({ id: qTid(t, i), label: t.label, from: t.from, to: t.to })).sort((a, b) => (a.from < b.from ? -1 : 1));
-    return { center: (qk.base && qk.base.center) || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule, alias: (qk.base && qk.base.alias) || {}, totals: {}, totalsUnified: {} };
+    const base = qk.base || {}, periods = JSON.parse(JSON.stringify(base.periods || []));
+    const ren = qk.ren || {}, rn = (x) => (ren[x] != null ? ren[x] : x);
+    const alias = {}; Object.keys(base.alias || {}).forEach((k) => { const a = rn(k), b = rn(base.alias[k]); if (a !== b) alias[a] = b; });
+    periods.forEach((p) => Object.keys(p.schedule || {}).forEach((d) => p.schedule[d].forEach((b) => { b.subject = rn(b.subject); })));
+    let main = base.schedule || {};
+    if (qk.pi == null) main = schedule; else if (periods[qk.pi]) periods[qk.pi].schedule = schedule;
+    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, alias, totals: {}, totalsUnified: {} };
   }
   const qUsed = () => Array.from(new Set(Object.values(qk.grid).flatMap((g) => Object.values(g)))).filter(Boolean);
   function qTotalsFor(cfg, termId) { return C.computeTotals(Object.assign({}, cfg, { settings: Object.assign({}, C.DEF, { unificar: false }), faltas: [] }), termId); }
@@ -456,6 +475,7 @@
       const rows = qRows();
       h += '<h1>' + (qk.fromShot ? 'Revisa tu horario' : 'Tu horario') + '</h1><p class="muted" style="margin-top:6px">' + (qk.fromShot ? 'Esto es lo que he leído. Corrige lo que no esté bien.' : 'Añade tus asignaturas, elige una y pinta sus casillas.') + '</p>' +
         (qk.photo ? '<details class="qph"' + (qk.fromShot ? ' open' : '') + '><summary>Tu captura</summary><img src="' + qk.photo + '" alt="Captura de tu horario"></details>' : '');
+      h += qTramos();
       h += '<div class="pals">' + qk.subjects.map((s, i) => '<button class="pal' + (qpaint === s ? ' on' : '') + '" data-pal="' + i + '" style="--c:' + AVC[i % AVC.length] + '">' + esc(s) + '</button>').join('') + '<button class="pal er' + (qpaint === '' ? ' on' : '') + '" data-pal="-1">Borrar</button><button class="pal add" data-act="q-add">+ Asignatura</button></div>';
       if (qk.editing >= 0 && qk.subjects[qk.editing] != null) h += '<form id="q-ren" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>Cambiar nombre</label><input name="n" value="' + esc(qk.subjects[qk.editing]) + '" autocomplete="off" required></div><div class="btns" style="margin-top:10px"><button class="btn small primary">Guardar</button><button type="button" class="btn small danger" data-q-del="' + qk.editing + '">Quitar asignatura</button></div></form>';
       if (qk.adding || !qk.subjects.length) h += '<form id="q-sub" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>' + (qk.subjects.length ? 'Nueva asignatura' : 'Empieza por tus asignaturas') + '</label><input name="s" placeholder="Ej. Programación, Inglés…" autocomplete="off" aria-label="Asignaturas"></div><p class="muted" style="margin-top:6px">Puedes poner varias separadas por comas.</p><button class="btn small primary" style="margin-top:10px">Añadir</button></form>';
@@ -486,10 +506,26 @@
   function qSave() {
     const cfg = qCfg(), prev = JSON.stringify(user);
     if (qk.tmode === 'manual') { cfg.terms.forEach((t) => { const auto = qTotalsFor(cfg, t.id), o = {}; qUsed().forEach((s) => { const v = (qk.totals[t.id] || {})[s]; o[s] = v != null && !isNaN(v) ? +v : (auto[s] || 0); }); cfg.totals[t.id] = o; cfg.totalsUnified[t.id] = o; }); }
-    user = { config: cfg, settings: Object.assign({ aviso: 2, justificadasCuentan: true }, user.settings, { limite: qk.limite, unificar: Object.keys(cfg.alias || {}).length > 0 && user.settings ? user.settings.unificar : false }), faltas: user.faltas || [] , acct: user.acct, skipCfg: user.skipCfg };
+    const ren = qk.ren || {};
+    const faltas = (user.faltas || []).map((f) => (ren[f.subject] != null ? Object.assign({}, f, { subject: ren[f.subject] }) : f));
+    user = { config: cfg, settings: Object.assign({ aviso: 2, justificadasCuentan: true }, user.settings, { limite: qk.limite, unificar: Object.keys(cfg.alias || {}).length > 0 && user.settings ? user.settings.unificar : false }), faltas: faltas, acct: user.acct, skipCfg: user.skipCfg };
     save(); qk = null; tab = 'hoy'; viewTerm = null; render(); scrollTo(0, 0);
     toast('Horario guardado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
   }
+  /** Chips de tramo: el horario principal y los periodos con horario distinto. */
+  function qTramos() {
+    const ps = (qk.base && qk.base.periods) || [];
+    if (!ps.length && !qk.addp) return qk.base ? '<p class="muted mini" style="margin:0 2px 10px"><button class="link" data-act="q-addp">El horario cambia durante el curso</button></p>' : '';
+    const chip = (i, lab, sub) => '<button class="pal tr' + (qk.pi === i ? ' on' : '') + '" data-q-tramo="' + (i == null ? 'main' : i) + '">' + esc(lab) + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</button>';
+    let h = '<div class="pals tramos">' + chip(null, 'Principal', 'el resto del curso') +
+      ps.map((p, i) => chip(i, p.label || 'Tramo ' + (i + 1), nice(p.from) + ' → ' + nice(p.to))).join('') +
+      '<button class="pal add" data-act="q-addp">+ Tramo</button></div>';
+    if (qk.pi != null && ps[qk.pi]) h += '<p class="muted mini" style="margin:0 2px 10px">Pintando el tramo <b>' + esc(ps[qk.pi].label) + '</b>. <button class="link" data-q-delp="' + qk.pi + '">Quitar este tramo</button></p>';
+    if (qk.addp) h += '<form id="q-per" class="card" style="margin-bottom:12px"><div class="sec">Nuevo tramo</div><p class="muted">Un periodo con un horario distinto, por ejemplo cuando se concentra un módulo.</p><div class="field"><label>Nombre</label><input name="label" placeholder="A partir de febrero" required></div><div class="two"><div class="field"><label>Desde</label><input type="date" name="from" required></div><div class="field"><label>Hasta</label><input type="date" name="to" required></div></div><div class="btns"><button type="button" class="btn small" data-act="q-addp">Cancelar</button><button class="btn small primary">Crear tramo</button></div></form>';
+    return h;
+  }
+  /** Guarda lo pintado en el horario que toca y abre otro tramo. */
+  function qGo(pi) { const ren = qk.ren, cfg = qCfg(); qk = Object.assign(qFromCfg(cfg, pi), { adding: false, ren: ren }); qpaint = null; render(); scrollTo(0, 0); }
   function qPaintCell(cell) {
     if (!cell || !cell.classList.contains('gc') || qmode === null) return;
     const d = +cell.dataset.d, r = +cell.dataset.r; qk.grid[d] = qk.grid[d] || {};
@@ -728,6 +764,12 @@
       try { jn = SU.parseImport(await unpack(m[1])); } catch (err) { jn = { ok: false, errors: ['El enlace está cortado o no es válido.'], warnings: [] }; }
       tab = 'join'; render(); scrollTo(0, 0);
     } else if (d.act === 'q-start' || d.act === 'q-manual') { qk = qNew(); qpaint = null; tab = 'quick'; render(); scrollTo(0, 0);
+    } else if (d.qTramo !== undefined) { qGo(d.qTramo === 'main' ? null : +d.qTramo);
+    } else if (d.qDelp !== undefined) {
+      const cfg = qCfg(); cfg.periods.splice(+d.qDelp, 1);
+      qk = Object.assign(qFromCfg(cfg, null), { adding: false, ren: qk.ren }); qpaint = null; render(); scrollTo(0, 0);
+      toast('Tramo quitado');
+    } else if (d.act === 'q-addp') { qk.addp = !qk.addp; render();
     } else if (d.act === 'q-add') { qk.adding = !qk.adding; qk.editing = -1; render();
     } else if (d.act === 'ai-go') { sx.ai = true; render(); scrollTo(0, 0);
     } else if (d.act === 'ai-back') { sx.ai = false; sx.copied = false; render();
@@ -775,7 +817,23 @@
     } else if (id === 'q-sub') {
       let last = null; String(f.get('s') || '').split(/[,\n;]+/).map((x) => x.trim()).filter(Boolean).forEach((x) => { if (!qk.subjects.some((y) => y.toLowerCase() === x.toLowerCase())) qk.subjects.push(x); last = qk.subjects.find((y) => y.toLowerCase() === x.toLowerCase()); }); if (last) qpaint = last; qk.adding = false; render();
     } else if (id === 'q-ren') {
-      const nn = String(f.get('n') || '').trim(), old = qk.subjects[qk.editing]; if (nn && old != null) { qk.subjects[qk.editing] = nn; Object.values(qk.grid).forEach((g) => Object.keys(g).forEach((r) => { if (g[r] === old) g[r] = nn; })); if (qpaint === old) qpaint = nn; } qk.editing = -1; render();
+      const nn = String(f.get('n') || '').trim(), old = qk.subjects[qk.editing];
+      if (nn && old != null && nn !== old) {
+        qk.ren = qk.ren || {}; let chained = false;
+        Object.keys(qk.ren).forEach((k) => { if (qk.ren[k] === old) { qk.ren[k] = nn; chained = true; } });
+        if (!chained) qk.ren[old] = nn;
+      }
+      if (nn && old != null) { qk.subjects[qk.editing] = nn; Object.values(qk.grid).forEach((g) => Object.keys(g).forEach((r) => { if (g[r] === old) g[r] = nn; })); if (qpaint === old) qpaint = nn; } qk.editing = -1; render();
+    } else if (id === 'q-per') {
+      const from = f.get('from'), to = f.get('to'), label = String(f.get('label') || '').trim() || 'Tramo';
+      if (!from || !to || to < from) return toast('Revisa las fechas del tramo');
+      const cfg = qCfg(); cfg.periods = cfg.periods || [];
+      if (cfg.periods.some((p) => from <= p.to && to >= p.from)) return toast('Ese tramo se solapa con otro');
+      cfg.periods.push({ label, from, to, schedule: {} });
+      cfg.periods.sort((a, b) => (a.from < b.from ? -1 : 1));
+      const pi = cfg.periods.findIndex((p) => p.from === from && p.to === to);
+      qk = Object.assign(qFromCfg(cfg, pi), { adding: true, ren: qk.ren }); qpaint = null; render(); scrollTo(0, 0);
+      toast('Tramo creado. Pinta su horario');
     } else if (id === 'q-hol') {
       qk.holidays.push({ from: f.get('from'), to: f.get('to') || f.get('from'), label: String(f.get('label') || '').trim() || 'Festivo' }); render();
     } else if (id === 'f-ali') {
@@ -815,6 +873,7 @@
     } else if (t.id === 'paste') { sx.text = t.value; }
   });
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+  fixAlias();
   render();
   readLink();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -21,5 +21,24 @@ assert.ok(!bad((o) => (o.horario.lunes[0].horas = 5)).ok, 'horas no caben');
 assert.ok(!bad((o) => (o.limite = 250)).ok, 'límite');
 assert.ok(!S.parseImport('hola').ok && !S.parseImport('{ "a": ').ok);
 assert.ok(bad((o) => (o.faltas[0].asignatura = 'Inventada')).warnings.some((w) => /no está en el horario/.test(w)));
-assert.ok(S.buildPrompt().includes('puedo-faltar/1') && S.buildUpdatePrompt(exp).includes('MIS DATOS'));
+assert.ok(S.buildPrompt().includes('puedo-faltar/2') && S.buildUpdatePrompt(exp).includes('MIS DATOS'));
 console.log('setup OK');
+
+// --- tramos: horarios distintos por periodo del curso
+const conTramos = JSON.parse(exp);
+conTramos.formato = 'puedo-faltar/2';
+conTramos.trimestres[0].horas_totales = [{ asignatura: conTramos.horario.lunes[0].asignatura, horas: 99 }];
+conTramos.tramos = [{ nombre: 'Desde febrero', desde: conTramos.trimestres[0].hasta, hasta: conTramos.trimestres[0].hasta, horario: { lunes: [{ inicio: '08:00', fin: '13:00', asignatura: 'Proyecto', horas: 5 }] } }];
+const rt = S.parseImport(JSON.stringify(conTramos));
+assert.ok(rt.ok, 'tramos válidos: ' + rt.errors.join(' '));
+assert.strictEqual(rt.config.periods.length, 1, 'un tramo');
+assert.strictEqual(rt.config.periods[0].schedule[1][0].subject, 'Proyecto');
+assert.ok(Object.keys(rt.config.totals).length === 1, 'horas totales por trimestre');
+// tramos solapados y fechas al revés se rechazan
+const solapa = JSON.parse(JSON.stringify(conTramos));
+solapa.tramos.push(JSON.parse(JSON.stringify(solapa.tramos[0])));
+assert.ok(!S.parseImport(JSON.stringify(solapa)).ok, 'tramos solapados');
+const alreves = JSON.parse(JSON.stringify(conTramos));
+alreves.tramos[0].desde = '2027-06-01'; alreves.tramos[0].hasta = '2027-01-01';
+assert.ok(!S.parseImport(JSON.stringify(alreves)).ok, 'tramo al revés');
+console.log('tramos OK');
