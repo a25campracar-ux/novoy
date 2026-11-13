@@ -49,7 +49,7 @@
   const calc = () => user.config && C.scope(state());
   const qd = new URLSearchParams(location.search).get('d');
   const today = () => (qd && /^\d{4}-\d\d-\d\d$/.test(qd) ? qd : C.ymd(new Date()));
-  let tab = user.config ? 'hoy' : 'setup', viewTerm = null, undo = null, ed = null, efId = null, fday = '', simDay = null, simSel = [], wipe = null, instTab = /iphone|ipad|ipod/i.test(navigator.userAgent) ? 'ios' : 'android';
+  let tab = user.config ? 'hoy' : (!user.acct && !location.hash && (() => { try { return localStorage.getItem('ft.intro') !== '1'; } catch (e) { return false; } })() ? 'intro' : 'setup'), viewTerm = null, undo = null, ed = null, efId = null, fday = '', simDay = null, simSel = [], wipe = null, instTab = /iphone|ipad|ipod/i.test(navigator.userAgent) ? 'ios' : 'android';
   let sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: '' };
 
   function toast(msg, fn) {
@@ -929,19 +929,36 @@
   }
 
   // ---------- render + animaciones ----------
-  const VIEWS = { desde: viewDesde, hoy: viewHoy, resumen: viewResumen, faltas: viewFaltas, ajustes: viewAjustes, join: viewJoin, sim: viewSim, install: viewInstall, setup: viewSetup, editor: viewEditor, quick: viewQuick, admin: viewAdmin };
+  const VIEWS = { intro: viewIntro, desde: viewDesde, hoy: viewHoy, resumen: viewResumen, faltas: viewFaltas, ajustes: viewAjustes, join: viewJoin, sim: viewSim, install: viewInstall, setup: viewSetup, editor: viewEditor, quick: viewQuick, admin: viewAdmin };
   function warnBar() {
     const el = document.getElementById('warnbar'); if (!el) return;
     const show = !user.config && tab !== 'setup' && tab !== 'quick' && tab !== 'editor' && tab !== 'join';
     el.hidden = !show; document.body.classList.toggle('warn', show);
     if (show) el.innerHTML = '<div class="in"><span><b>Falta tu horario</b><span class="muted"> · sin él la app no calcula nada</span></span><button class="btn small primary" data-act="go-setup">Configurar</button></div>';
   }
+  // ---------- intro: qué es NoVoy en ~10 s, casi sin texto (solo la primera vez) ----------
+  let iScene = 0, iTimer = null;
+  const ISCENES = [
+    { cap: 'Pásate del 25 %… y adiós evaluación continua', art: () => '<div class="i-art i-s1">' + mascot('rojo') + '<div class="i-bar"><i></i><s></s><span>25 %</span></div><div class="i-days">' + [1, 2, 3, 4, 5, 6].map((n) => '<b style="--d:' + n + '">✕</b>').join('') + '</div></div>' },
+    { cap: 'Pinta tu horario una vez', art: () => '<div class="i-art i-grid">' + Array.from({ length: 20 }, (_, n) => '<b style="--d:' + ((n * 7) % 20) + ';--c:' + AVC[(n * 3 + Math.floor(n / 5)) % 6] + '"></b>').join('') + '<i class="i-finger"></i></div>' },
+    { cap: 'Cada mañana te dice si puedes faltar', art: () => '<div class="i-art i-s3"><div class="i-phone">' + mascot('verde') + '<b>Puedes faltar</b><span class="tag verde">te quedan 4 h</span></div></div>' },
+    { cap: '¿Faltaste? Un toque y apuntado', art: () => '<div class="i-art i-grid i-tap">' + Array.from({ length: 15 }, (_, n) => '<b class="' + (n === 7 ? 'hit' : '') + '" style="--d:0;--c:' + AVC[(n * 3) % 6] + '"></b>').join('') + '<i class="i-finger"></i></div>' }
+  ];
+  function viewIntro() {
+    const last = iScene >= ISCENES.length;
+    const dots = '<div class="i-dots">' + ISCENES.map((_, i) => '<i class="' + (i === iScene ? 'on' : i < iScene ? 'done' : '') + '"></i>').join('') + '</div>';
+    if (last) return '<div class="intro end"><div class="i-art">' + mascot('verde') + '</div><h1>NoVoy</h1><p class="muted">Tu semáforo de faltas. Gratis y sin correo.</p><button class="btn primary block" data-act="intro-go">Empezar</button><p class="muted mini" style="text-align:center;margin-top:10px"><button class="link" data-act="intro-replay">Verlo otra vez</button></p></div>';
+    const sc = ISCENES[iScene];
+    return '<div class="intro">' + dots + '<div class="i-scene" key="' + iScene + '">' + sc.art() + '<p class="i-cap">' + sc.cap + '</p></div><button class="link i-skip" data-act="intro-go">Saltar</button></div>';
+  }
+  function introTick() { clearTimeout(iTimer); if (tab !== 'intro' || iScene >= ISCENES.length) return; iTimer = setTimeout(() => { iScene++; render(); }, REDUCED ? 3200 : 2600); }
   function render() {
-    document.body.classList.toggle('setup', tab === 'desde' || tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
+    document.body.classList.toggle('setup', tab === 'intro' || tab === 'desde' || tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
     app.innerHTML = VIEWS[tab]();
     document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
     requestAnimationFrame(() => requestAnimationFrame(animate));
     warnBar();
+    if (tab === 'intro') introTick();
     if (tab === 'ajustes') fillShare().catch(() => {});
   }
   function animate() {
@@ -960,6 +977,7 @@
   $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { if (b.dataset.tab === 'ajustes') ajSec = null; if (b.dataset.tab === 'faltas') { fwk = null; fcell = null; } tab = b.dataset.tab; render(); scrollTo(0, 0); } });
   const nid = () => 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   app.addEventListener('click', async (e) => {
+    if (tab === 'intro' && !e.target.closest('button') && e.target.closest('.intro:not(.end)')) { iScene++; render(); return; } // tocar = siguiente
     const b = e.target.closest('button,label'); if (!b) return; const d = b.dataset;
     if (d.miss) {
       let m; try { m = JSON.parse(d.miss); } catch (er) { return; }
@@ -1061,6 +1079,8 @@
     } else if (d.act === 'skip-cfg') { user.skipCfg = true; save(); tab = 'hoy'; render(); scrollTo(0, 0);
     } else if (d.act === 'go-setup') { sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'acct-dice') { acg.u = window.FTAcct.genUser(); acg.p = ($('#ac-p') || {}).value || ''; render();
+    } else if (d.act === 'intro-replay') { iScene = 0; render();
+    } else if (d.act === 'intro-go') { clearTimeout(iTimer); flagSet('intro'); tab = 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'ac-mode') { acg.mode = d.m; acg.p = ''; acg.p2 = ''; render();
     } else if (d.act === 'ac-eye') { acg.p = ($('#ac-p') || {}).value || ''; acg.p2 = ($('#ac-p2') || {}).value || ''; const fu = $('#acf #ac-u'); if (fu) { if ($('#acf').dataset.mode === 'login') acg.uLogin = fu.value; else acg.u = fu.value; } acg.eye = !acg.eye; render();
     } else if (d.acx !== undefined) { acx = d.acx || null; acxFail = false; render(); const i = $('#acx-p') || $('#acx-n'); if (i) i.focus();
