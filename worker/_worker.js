@@ -9,6 +9,12 @@ const HEX = /^[0-9a-f]{32}$/;
 const USER = /^[A-Za-z0-9]{3,24}$/;
 const KEY = (id) => 'c:' + id;
 const today = () => new Date().toISOString().slice(0, 10);
+/* El id de una cuenta se deriva SOLO del nombre, así que se puede comprobar que el nombre
+   que dice el cliente es de verdad el suyo. Sin esto, cualquiera podría declararse "c33". */
+async function idOf(u) {
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('novoy/id/1|' + String(u).trim().toLowerCase()));
+  return Array.from(new Uint8Array(h)).slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 /** Los datos que el panel puede ver de una cuenta. Nunca incluyen las faltas. */
 const card = (id, m) => ({ id, u: (m && m.u) || '', t: (m && m.t) || 0, c: (m && m.c) || 0, n: (m && m.n) || 0, blocked: !!(m && m.b), note: (m && m.note) || '', adm: !!(m && m.adm) });
@@ -135,6 +141,7 @@ async function api(req, env, url) {
       if (cur) return J(409, { error: 'existe' });
       if (!okData) return J(400, { error: 'bad-data' });
       if (!USER.test(b.u || '')) return J(400, { error: 'bad-user' });
+      if ((await idOf(b.u)) !== b.id) return J(400, { error: 'nombre-no-cuadra' });
       const now = Date.now();
       await kv.put(KEY(b.id), JSON.stringify({ a: b.auth, d: b.data, t: now }), { metadata: { u: b.u, t: now, c: now, n: b.data.length } });
       return J(200, { ok: 1 });
@@ -153,7 +160,7 @@ async function api(req, env, url) {
       if (!okData) return J(400, { error: 'bad-data' });
       const t = Date.now();
       const m = Object.assign({}, meta, { t, n: b.data.length });
-      if (!m.u && USER.test(b.u || '')) m.u = b.u; // cuentas creadas antes de guardar el nombre
+      if (!m.u && USER.test(b.u || '') && (await idOf(b.u)) === b.id) m.u = b.u; // cuentas creadas antes de guardar el nombre
       if (!m.c) m.c = cur.t || t;
       await kv.put(KEY(b.id), JSON.stringify({ a: cur.a, d: b.data, t }), { metadata: m });
       return J(200, { ok: 1, t });

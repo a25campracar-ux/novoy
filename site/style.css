@@ -243,3 +243,8 @@ body.warn #app{padding-bottom:168px}
 .tl .ax,.tl .col{position:relative}.tl .ax span{position:absolute;left:0;font-size:11px;font-weight:800;line-height:1;transform:translateY(2px)}
 .tl .fc{position:absolute;left:0;right:0;height:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0}.tl .fc small{font-size:9px;font-weight:700;opacity:.8}
 .tl .fc.empty{bottom:auto}.tl .fc.empty small{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px}
+.hrows{display:flex;flex-direction:column;gap:6px}
+.hrow{display:grid;grid-template-columns:28px 1fr 1fr 30px;align-items:center;gap:6px}
+.hrow span{font-size:12px;font-weight:700;color:var(--mute)}
+.hrow input{margin:0}
+.hrow .x{justify-self:center}

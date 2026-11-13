@@ -22,7 +22,8 @@
   function save() { tidy(user); try { localStorage.setItem(KEY, JSON.stringify(user)); } catch (e) {} acSched(); }
   // --- cuenta (usuario+contraseña): envío cifrado con retardo tras cada cambio
   let acT = null, acBusy = false, acState = '';
-  function acSched() { if (!user.acct || acBusy) return; clearTimeout(acT); acT = setTimeout(() => { acPush().catch(() => {}); }, 1500); }
+  let acDirty = false;
+  function acSched() { if (!user.acct) return; if (acBusy) { acDirty = true; return; } clearTimeout(acT); acT = setTimeout(() => { acPush().catch(() => {}); }, 1500); }
   async function acPush() {
     const A = window.FTAcct; if (!user.acct || !A) return false;
     acBusy = true;
@@ -33,7 +34,7 @@
       if (r.ok) { acState = 'ok'; user.acct.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(user)); } catch (e) {} return true; }
       acState = r.error === 'bloqueada' ? 'bloqueada' : r.error === 'clave' || r.error === 'no-existe' ? 'sesion' : 'err';
       return false;
-    } catch (e) { acState = 'err'; return false; } finally { acBusy = false; }
+    } catch (e) { acState = 'err'; return false; } finally { acBusy = false; if (acDirty) { acDirty = false; acSched(); } }
   }
   const snapState = () => state() || Object.assign({}, blank(), { settings: Object.assign({}, C.DEF, user.settings), faltas: user.faltas || [] });
   /** Si se renombró una asignatura fuera de la rejilla, su unión puede apuntar a un nombre que ya no existe. */
@@ -789,7 +790,7 @@
         h += '<p class="muted" style="margin:6px 2px 0">' + (qpaint === null ? 'Toca una asignatura de arriba.' : qpaint === QP ? 'Toca o desliza para marcar las horas de proyecto. Otra vez para quitarlas.' : 'Toca o desliza para pintar. Si tocas una casilla ya pintada, se borra.') + '</p><div class="qgrid" id="qgrid"><span></span>' + QDAYS.map(([, l]) => '<b class="gh">' + l + '</b>').join('') +
           rows.map((row, r) => '<span class="rl">' + row.s + '<small>' + row.e + '</small></span>' + QDAYS.map(([d]) => { const s = (qk.grid[d] || {})[r]; return '<button class="gc' + (s ? ' on' : '') + (s && qCover(s) ? ' off' : '') + (((qk.proj || {})[d] || {})[r] ? ' pj' : '') + '" data-d="' + d + '" data-r="' + r + '" style="--c:' + (s ? qCol(s) : 'transparent') + '" aria-label="' + QN[d] + ', ' + row.s + (s ? ': ' + esc(s) : ': vacía') + '">' + (s ? qCell(s) : '') + '</button>'; }).join('')).join('') + '</div>' +
           '<details class="more"><summary>Copiar un día a otro</summary><div class="two"><div class="field"><label>De</label><select id="qcf">' + QDAYS.map(([d]) => '<option value="' + d + '">' + QN[d] + '</option>').join('') + '</select></div><div class="field"><label>A</label><select id="qct">' + QDAYS.map(([d]) => '<option value="' + d + '"' + (d === 3 ? ' selected' : '') + '>' + QN[d] + '</option>').join('') + '</select></div></div><div class="btns"><button class="btn small" data-act="q-copy">Copiar</button><button class="btn small danger" data-act="q-clear">Vaciar todo</button></div></details>';
-        if (!qk.custom) h += '<details class="more"><summary>Cambiar las horas</summary><div class="two"><div class="field"><label>1ª clase empieza</label><input type="time" data-qf="start" value="' + qk.start + '"></div><div class="field"><label>Cada hora dura</label>' + sel('dur', [[45, '45 min'], [50, '50 min'], [55, '55 min'], [60, '60 min']], qk.dur) + '</div></div><div class="two"><div class="field"><label>Horas al día</label>' + sel('rows', [4, 5, 6, 7, 8, 9, 10].map((n) => [n, n]), qk.rows) + '</div><div class="field"><label>Recreo tras la hora</label>' + sel('brk', [[0, 'Sin recreo']].concat([1, 2, 3, 4, 5, 6].map((n) => [n, n])), qk.brk) + '</div></div>' + (qk.brk ? '<div class="field"><label>Duración del recreo</label>' + sel('brkMin', [[10, '10 min'], [15, '15 min'], [20, '20 min'], [30, '30 min']], qk.brkMin) + '</div>' : '') + '</details>';
+        h += qk.custom ? qCustomHours(rows) : '<details class="more"><summary>Cambiar las horas</summary><div class="two"><div class="field"><label>1ª clase empieza</label><input type="time" data-qf="start" value="' + qk.start + '"></div><div class="field"><label>Cada hora dura</label>' + sel('dur', [[45, '45 min'], [50, '50 min'], [55, '55 min'], [60, '60 min']], qk.dur) + '</div></div><div class="two"><div class="field"><label>Horas al día</label>' + sel('rows', [4, 5, 6, 7, 8, 9, 10].map((n) => [n, n]), qk.rows) + '</div><div class="field"><label>Recreo tras la hora</label>' + sel('brk', [[0, 'Sin recreo']].concat([1, 2, 3, 4, 5, 6].map((n) => [n, n])), qk.brk) + '</div></div>' + (qk.brk ? '<div class="field"><label>Duración del recreo</label>' + sel('brkMin', [[10, '10 min'], [15, '15 min'], [20, '20 min'], [30, '30 min']], qk.brkMin) + '</div>' : '') + '</details>';
       }
     } else if (st === 2) {
       ok = qk.terms.length > 0 && qk.terms.every((t) => t.from && t.to && t.from <= t.to);
@@ -826,6 +827,18 @@
     toast('Horario guardado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
   }
   /** Chips de tramo: el horario principal y los periodos con horario distinto. */
+  /** Franjas leídas de una captura o de un horario guardado: se editan una a una. */
+  function qCustomHours(rows) {
+    return '<details class="more" id="q-hours"' + (qk.hopen ? ' open' : '') + '><summary>Cambiar las horas</summary>' +
+      '<p class="muted mini" style="margin:0 0 8px">Estas horas salen de tu horario. Corrige la que esté mal.</p>' +
+      '<div class="hrows">' + rows.map((r, i) =>
+        '<div class="hrow"><span>' + (i + 1) + 'ª</span>' +
+        '<input type="time" data-qr="' + i + '" data-qe="s" value="' + r.s + '" aria-label="Empieza la hora ' + (i + 1) + '">' +
+        '<input type="time" data-qr="' + i + '" data-qe="e" value="' + r.e + '" aria-label="Termina la hora ' + (i + 1) + '">' +
+        '<button class="x" data-q-delrow="' + i + '" aria-label="Quitar la hora ' + (i + 1) + '">×</button></div>').join('') + '</div>' +
+      '<div class="btns" style="margin-top:10px"><button class="btn small" data-act="q-addrow">+ Añadir hora</button>' +
+      '<button class="btn small" data-act="q-autorows">Volver a calcularlas</button></div></details>';
+  }
   function qTramos() {
     const ps = (qk.base && qk.base.periods) || [];
     if (!ps.length && !qk.addp) return qk.base ? '<p class="muted mini" style="margin:0 2px 10px"><button class="link" data-act="q-addp">El horario cambia durante el curso</button></p>' : '';
@@ -853,6 +866,8 @@
     const cur = (qk.grid[+c.dataset.d] || {})[+c.dataset.r]; qmode = qpaint === QP ? (((qk.proj || {})[+c.dataset.d] || {})[+c.dataset.r] ? 'P-' : QP) : qpaint !== '' && cur === qpaint ? '' : qpaint; qdrag = true; qPaintCell(c);
   });
   app.addEventListener('pointermove', (e) => { if (!qdrag) return; qPaintCell(document.elementFromPoint(e.clientX, e.clientY)); });
+  // el desplegable de las horas no se cierra al corregir una franja
+  document.addEventListener('toggle', (e) => { if (e.target && e.target.id === 'q-hours' && qk) qk.hopen = e.target.open; }, true);
   const qEnd = () => { if (qdrag) { qdrag = false; qmode = null; if (qk && qk.step === 1) { const y = scrollY; render(); scrollTo(0, y); } } };
   addEventListener('pointerup', qEnd); addEventListener('pointercancel', qEnd);
 
@@ -1166,6 +1181,21 @@
     } else if (d.qHol !== undefined) { qk.holidays.splice(+d.qHol, 1); render();
     } else if (d.act === 'q-addterm') { qk.terms.push({ label: (qk.terms.length + 1) + 'r trimestre', from: '', to: '' }); render();
     } else if (d.act === 'q-tmode') { qk.tmode = d.m; render();
+    } else if (d.act === 'q-addrow') {
+      const rows = qRows(), last = rows[rows.length - 1];
+      const dur = last ? mm(last.e) - mm(last.s) : 60, st2 = last ? mm(last.e) : 8 * 60;
+      qk.custom = rows.concat([{ s: hhmm(st2), e: hhmm(Math.min(st2 + dur, 23 * 60 + 59)) }]);
+      render();
+    } else if (d.qDelrow !== undefined) {
+      const i = +d.qDelrow, rows = qRows();
+      if (rows.length <= 1) return toast('Tiene que quedar al menos una hora');
+      qk.custom = rows.filter((_, k) => k !== i);
+      [qk.grid, qk.proj].forEach((g) => { if (!g) return; Object.keys(g).forEach((dd) => {
+        const o = {}; Object.keys(g[dd]).map(Number).sort((a, b) => a - b).forEach((r) => { if (r < i) o[r] = g[dd][r]; else if (r > i) o[r - 1] = g[dd][r]; });
+        g[dd] = o; }); });
+      render();
+    } else if (d.act === 'q-autorows') {
+      qk.custom = null; render(); toast('Vuelven a calcularse solas');
     } else if (d.act === 'q-copy') { const a = +$('#qcf').value, z = +$('#qct').value; if (a !== z) { qk.grid[z] = Object.assign({}, qk.grid[a] || {}); } render();
     } else if (d.act === 'q-clear') { qk.grid = {}; render();
     } else if (d.act === 'next') { sx.step = 3; render(); scrollTo(0, 0);
@@ -1265,6 +1295,13 @@
       t.form.elements.slot.innerHTML = slotOpts(state(), t.form.elements.date.value, t.form.elements.subject.value); return;
     }
     if (t.id === 'qshot' && t.files[0]) { qStartShot(t.files[0]); t.value = ''; return; }
+    if (qk && t.dataset.qr !== undefined) { // una franja concreta leída de la captura
+      const i = +t.dataset.qr, rows = qRows().slice(), v = t.value;
+      if (!/^\d\d:\d\d$/.test(v)) return;
+      rows[i] = Object.assign({}, rows[i], t.dataset.qe === 's' ? { s: v } : { e: v });
+      if (mm(rows[i].e) <= mm(rows[i].s)) { toast('Esa hora termina antes de empezar'); return render(); }
+      qk.custom = rows; render(); return;
+    }
     if (qk && t.dataset.qf) { const k = t.dataset.qf; qk[k] = ['dur', 'rows', 'brk', 'brkMin', 'limite', 'projWeeks', 'retrasos'].includes(k) ? +t.value : t.value; if (k === 'projName' || k === 'projWeeks') { render(); return; } if (k === 'rows' || k === 'brk') render(); else if (k === 'dur' || k === 'brkMin') render(); return; }
     if (qk && t.dataset.qt) { const [i, k] = t.dataset.qt.split('|'); qk.terms[+i][k] = t.value; if (k !== 'label') render(); return; }
     if (qk && t.dataset.qtot) { const j = t.dataset.qtot.indexOf('|'), id = t.dataset.qtot.slice(0, j), s = t.dataset.qtot.slice(j + 1); (qk.totals[id] = qk.totals[id] || {})[s] = parseFloat(t.value); return; }
