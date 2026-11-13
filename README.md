@@ -18,6 +18,8 @@ faltas llevas, pero no lo que de verdad quieres saber a las siete y media de la 
 - **Funciona sin conexión.** Es una PWA: se instala en la pantalla de inicio y abre sin internet.
 - **Compartir con la clase.** Un enlace lleva tu horario (sin tus faltas) para que tus compañeros no lo configuren.
 - **Simulador.** "Si falto el jueves, ¿cómo quedo?" sin apuntar nada.
+- **Reglas de tu centro.** Límite por trimestre o sobre el curso entero, y cuántos retrasos hacen una falta. Si no lo sabes, usa lo más estricto.
+- **Cambios de horario sin perder nada.** Si el horario cambia a mitad de curso, eliges desde qué día vale y las faltas de antes siguen contando con el horario de entonces.
 
 ## Cómo está hecho
 

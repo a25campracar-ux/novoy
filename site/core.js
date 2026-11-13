@@ -1,7 +1,7 @@
 /* Lógica pura (sin DOM). Funciona en navegador (window.FTCore) y en Node (require). */
 (function (root) {
   'use strict';
-  const DEF = { limite: 25, aviso: 2, unificar: false, justificadasCuentan: true };
+  const DEF = { limite: 25, aviso: 2, unificar: false, justificadasCuentan: true, ambito: 'trimestre', retrasosPorFalta: 0 };
 
   const r1 = (n) => Math.round(n * 10) / 10, r2 = (n) => Math.round(n * 100) / 100;
   const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -22,15 +22,51 @@
     return margin < 0 ? 'rojo' : margin <= aviso ? 'amarillo' : 'verde';
   }
   /** Horas faltadas por asignatura (canónica) en un trimestre. */
+  /** Trimestre de una falta: por su fecha si la tiene; si no, el que tenga guardado (o el primero). */
+  function faltaTerm(state, f) {
+    if (f.date) return termOf(state, f.date);
+    return state.terms.some((t) => t.id === f.term) ? f.term : (state.terms[0] || {}).id;
+  }
   function absentByTerm(state, term) {
-    const s = Object.assign({}, DEF, state.settings), out = {};
+    const s = Object.assign({}, DEF, state.settings), out = {}, late = {};
     for (const f of state.faltas) {
-      if (f.term !== term || f.type === 'retraso') continue;
+      if (faltaTerm(state, f) !== term) continue;
       if (f.justified && !s.justificadasCuentan) continue;
       const k = canon(state, f.subject);
+      if (f.type === 'retraso') { late[k] = (late[k] || 0) + 1; continue; }
       out[k] = (out[k] || 0) + f.hours;
     }
+    // "N retrasos = 1 falta": cada bloque completo de N retrasos suma 1 h
+    const n = +s.retrasosPorFalta;
+    if (n > 0) Object.keys(late).forEach((k) => { const h = Math.floor(late[k] / n); if (h) out[k] = (out[k] || 0) + h; });
     return out;
+  }
+  /** Retrasos que llevas por asignatura en un trimestre (para enseñar cuántos faltan para la siguiente falta). */
+  function latesByTerm(state, term) {
+    const s = Object.assign({}, DEF, state.settings), out = {};
+    for (const f of state.faltas) {
+      if (f.type !== 'retraso' || faltaTerm(state, f) !== term || (f.justified && !s.justificadasCuentan)) continue;
+      const k = canon(state, f.subject); out[k] = (out[k] || 0) + 1;
+    }
+    return out;
+  }
+  /**
+   * Si el límite va sobre el curso entero, junta todos los trimestres en uno solo.
+   * Los totales fijados se suman solo si todos los trimestres los tienen; si no, se calculan.
+   * No modifica el estado guardado: es una vista para calcular.
+   */
+  function scope(state) {
+    const s = Object.assign({}, DEF, state.settings);
+    if (s.ambito !== 'curso' || !state.terms || state.terms.length < 2) return state;
+    const ts = state.terms.slice().sort((a, b) => (a.from < b.from ? -1 : 1));
+    const t = { id: 'curso', label: 'Curso entero', from: ts[0].from, to: ts.reduce((m, x) => (x.to > m ? x.to : m), ts[0].to) };
+    const sumFixed = (fx) => {
+      if (!fx || !ts.every((x) => fx[x.id] && Object.keys(fx[x.id]).length)) return {};
+      const o = {}; ts.forEach((x) => Object.keys(fx[x.id]).forEach((k) => { o[k] = r2((o[k] || 0) + fx[x.id][k]); }));
+      return { curso: o };
+    };
+    return Object.assign({}, state, { terms: [t], totals: sumFixed(state.totals), totalsUnified: sumFixed(state.totalsUnified),
+      faltas: (state.faltas || []).map((f) => Object.assign({}, f, { term: 'curso' })) });
   }
   /** Horas totales de un trimestre calculadas con horario + festivos (si no hay totales fijados). */
   function computeTotals(state, term) {
@@ -61,12 +97,26 @@
   /** El horario semanal que toca ese día: el del tramo que lo cubra, o el principal. */
   function scheduleOn(state, date) {
     const p = (state.periods || []).find((x) => x.from && x.to && date >= x.from && date <= x.to);
-    return (p && p.schedule) || state.schedule || {};
+    if (p && p.schedule) return p.schedule;
+    // horarios anteriores: cada uno valió hasta su fecha "to" (ordenados de más antiguo a más nuevo)
+    const old = (state.history || []).slice().sort((a, b) => (a.to < b.to ? -1 : 1)).find((h) => h.to && date <= h.to);
+    return (old && old.schedule) || state.schedule || {};
+  }
+  /** Al cambiar el horario a partir de `from`, el anterior se guarda en el historial hasta el día antes. */
+  function withHistory(prev, next, from) {
+    const hist = ((prev && prev.history) || []).slice();
+    if (prev && from && JSON.stringify(prev.schedule || {}) !== JSON.stringify(next.schedule || {})) {
+      const d = parse(from); d.setDate(d.getDate() - 1); const to = ymd(d);
+      const kept = hist.filter((h) => h.to < to); // un cambio anterior a otro posterior: el posterior manda
+      kept.push({ to, schedule: JSON.parse(JSON.stringify(prev.schedule || {})) });
+      return Object.assign({}, next, { history: kept });
+    }
+    return Object.assign({}, next, { history: hist });
   }
   /** Todas las asignaturas del curso, contando las de todos los tramos. */
   function allSubjects(state) {
     const out = [];
-    [state.schedule || {}].concat((state.periods || []).map((p) => p.schedule || {})).forEach((sch) => {
+    [state.schedule || {}].concat((state.periods || []).map((p) => p.schedule || {}), (state.history || []).map((h) => h.schedule || {})).forEach((sch) => {
       Object.keys(sch).forEach((d) => (sch[d] || []).forEach((b) => { if (out.indexOf(b.subject) < 0) out.push(b.subject); }));
     });
     return out;
@@ -134,6 +184,6 @@
     for (let i = 0; i < 40; i++) { d.setDate(d.getDate() + 1); const k = ymd(d); if (dayClasses(state, k).length) return k; }
     return null;
   }
-  const api = { DEF, ymd, parse, weekday, scheduleOn, allSubjects, termOf, canon, computeTotals, status, absentByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
+  const api = { DEF, ymd, parse, weekday, scheduleOn, withHistory, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

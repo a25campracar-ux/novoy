@@ -42,6 +42,8 @@
     save();
   }
   const state = () => user.config && Object.assign({}, user.config, { settings: Object.assign({}, C.DEF, user.settings), faltas: user.faltas });
+  /** Lo que se usa para calcular: igual que state(), pero con los trimestres juntos si el límite va sobre el curso entero. */
+  const calc = () => user.config && C.scope(state());
   const qd = new URLSearchParams(location.search).get('d');
   const today = () => (qd && /^\d{4}-\d\d-\d\d$/.test(qd) ? qd : C.ymd(new Date()));
   let tab = user.config ? 'hoy' : 'setup', viewTerm = null, undo = null, ed = null, efId = null, fday = '', simDay = null, simSel = [], wipe = null, instTab = /iphone|ipad|ipod/i.test(navigator.userAgent) ? 'ios' : 'android';
@@ -113,7 +115,7 @@
   }
   function viewHoy() {
     if (!user.config) return emptyView('Hoy', 'Sin horario no puedo decirte si puedes faltar. Esto es solo un vistazo a la app vacía.');
-    const S = state(), day = today(), v = C.verdict(S, day), lim = S.settings.limite;
+    const S = calc(), day = today(), v = C.verdict(S, day), lim = S.settings.limite;
     const hol = (S.holidays || []).find((h) => day >= h.from && day <= (h.to || h.from));
     let h = '<div class="top"><span class="date">' + nice(day) + '</span><span class="chip">' + esc((S.terms.find((t) => t.id === v.term) || {}).label || 'Fuera de trimestre') + '</span></div>';
     if (v.free || !v.term) {
@@ -131,6 +133,7 @@
     if (!flagOff('imphint')) h += '<div class="card feat"><div class="sec">¿Ya llevas faltas de antes?</div><p class="muted">Si las tienes apuntadas en notas, una tabla o el Moodle, tu IA las pasa aquí de una vez. Copias, pegas y listo.</p><div class="btns"><button class="btn small primary" data-act="start-import">Pasar mis faltas</button><button class="btn small" data-act="imp-x">Ahora no</button></div></div>';
     if (user.acct && !flagOff('lnkhint')) h += '<div class="card"><div class="sec">Por si olvidas la contraseña</div><p class="muted">No pedimos correo, así que no se puede recuperar. Guárdate el enlace de copia en tus mensajes: con él vuelves a tener todo.</p><div class="btns"><button class="btn small primary" data-act="backup-link">Copiar mi enlace</button><button class="btn small" data-act="lnk-x">Ya lo tengo</button></div></div>';
     if (!standalone() && !hintOff() && /^https?:/.test(location.protocol)) h += '<div class="card hint"><div class="grow"><b>Instálala en tu móvil</b><span class="muted">Se abre como una app. Son 20 segundos.</span></div><button class="btn small primary" data-act="open-install">Cómo</button><button class="x" data-act="hint-x" aria-label="Cerrar">×</button></div>';
+    if (iosRisk()) h += '<div class="card warn"><div class="sec">Tus faltas pueden borrarse</div><p>En iPhone, si NoVoy no está instalada, Safari puede borrar sus datos cuando pasas unos días sin abrirla.</p><div class="btns"><button class="btn small primary" data-act="open-install">Instalarla (20 s)</button><button class="btn small" data-act="ios-x">Recuérdamelo en 7 días</button></div></div>';
     if (bkDue()) h += '<div class="card hint"><div class="grow"><b>Guarda tu copia</b><span class="muted">Si pierdes el móvil, pierdes tus faltas.</span></div><button class="btn small primary" data-act="goto-backup">Guardar</button><button class="x" data-act="bk-x" aria-label="Cerrar">×</button></div>';
     return h;
   }
@@ -150,7 +153,7 @@
         (canMark ? '<div class="btns"><button class="btn small" data-miss="' + esc(day) + '|' + esc(i.subject) + ':' + i.hours + '">Falté a esta hora</button></div>' : '') + '</div></div>';
     }).join('');
   }
-  function curTerm(S) { return viewTerm || C.termOf(S, today()) || (S.terms.filter((t) => t.from <= today()).pop() || S.terms[0]).id; }
+  function curTerm(S) { return (viewTerm && S.terms.some((t) => t.id === viewTerm) ? viewTerm : null) || C.termOf(S, today()) || (S.terms.filter((t) => t.from <= today()).pop() || S.terms[0]).id; }
   function lastLine(x, rem) {
     let t = '';
     if (x.margin < 0) t = 'Ya te has pasado ' + fmt(-x.margin) + ' h del límite.';
@@ -162,7 +165,7 @@
   }
   function viewResumen() {
     if (!user.config) return emptyView('Resumen', 'Aquí verás el porcentaje de cada asignatura y cuántas horas te quedan.');
-    const S = state(), lim = S.settings.limite, tid = curTerm(S), sum = C.summary(S, tid);
+    const S = calc(), lim = S.settings.limite, tid = curTerm(S), sum = C.summary(S, tid);
     let h = '<div class="top"><h1>Resumen</h1></div>';
     if (S.terms.length > 1) h += '<div class="btns" style="margin:0 0 4px">' + S.terms.map((t) => '<button class="btn small' + (t.id === tid ? ' primary' : '') + '" data-term="' + esc(t.id) + '">' + esc(t.label) + '</button>').join('') + '</div>';
     const rem = C.remaining(S, tid, today());
@@ -173,6 +176,8 @@
       h += '<div' + rise(n) + '><div class="card"><div class="row">' + avatar(S, x.name) + '<div class="grow"><div class="name">' + esc(x.name) + '</div></div><div class="right"><div class="num">' + cnt(x.pct) + '%</div><span class="tag ' + x.status + '">' + (x.margin < 0 ? 'pasado ' + fmt(-x.margin) + ' h' : 'margen ' + fmt(x.margin) + ' h') + '</span></div></div>' + meter(x.pct, null, lim, x.status) +
         '<div class="stats"><div><b>' + fmt(x.total) + ' h</b><span>Totales</span></div><div><b>' + fmt(x.limit) + ' h</b><span>Puedes faltar</span></div><div><b>' + fmt(x.absent) + ' h</b><span>Has faltado</span></div><div class="' + x.status + '"><b>' + (x.margin < 0 ? '−' : '') + fmt(Math.abs(x.margin)) + ' h</b><span>' + (x.margin < 0 ? 'Te pasas' : 'Margen') + '</span></div></div>' + lastLine(x, rem[x.name] || 0) + '</div></div>';
     });
+    const n = +S.settings.retrasosPorFalta, late = n > 0 ? C.latesByTerm(S, tid) : {};
+    if (n > 0 && Object.keys(late).length) h += '<div class="card"><div class="sec">Retrasos</div><p class="muted">Cada ' + n + ' retrasos cuentan 1 h de falta (ya sumada arriba).</p><ul class="list">' + Object.keys(late).sort().map((k) => { const r = late[k] % n; return '<li><b>' + esc(k) + '</b>: ' + late[k] + ' retraso' + (late[k] === 1 ? '' : 's') + ' · ' + (r === 0 ? 'el siguiente empieza otra cuenta' : 'te faltan ' + (n - r) + ' para la siguiente hora') + '</li>'; }).join('') + '</ul></div>';
     const un = user.faltas.filter((f) => !f.date && f.term === tid).length;
     if (un) h += '<p class="muted" style="margin-top:14px">' + un + ' falta(s) sin fecha cuentan en el total. Ponles fecha en "Faltas".</p>';
     return h;
@@ -203,7 +208,7 @@
     let h = '<div class="top"><h1>Faltas</h1></div><form id="add" class="card"><div class="sec">Apuntar una falta</div>' +
       '<div class="two"><div class="field"><label>Fecha</label><input type="date" name="date" value="' + today() + '" required></div><div class="field"><label>Horas</label><input type="number" name="hours" min="0" step="any" value="1"></div></div>' +
       '<div class="field"><label>Asignatura</label><select name="subject">' + subjectOpts(S, today()) + '</select><div class="muted" id="subhint">' + (subjectsOn(S, today()).all ? 'Ese día no hay clase: salen todas.' : 'Solo las de ese día.') + '</div></div>' +
-      '<div class="switch" style="margin-top:12px"><label for="rt">Es un retraso (no cuenta)</label><input id="rt" type="checkbox" name="retraso"></div><div class="switch"><label for="ju">Justificada</label><input id="ju" type="checkbox" name="justified"></div>' +
+      '<div class="switch" style="margin-top:12px"><label for="rt">' + lateLabel() + '</label><input id="rt" type="checkbox" name="retraso"></div><div class="switch"><label for="ju">Justificada</label><input id="ju" type="checkbox" name="justified"></div>' +
       '<button class="btn primary block" style="margin-top:10px">Añadir falta</button></form><h2>Registradas</h2>';
     h = h.replace('<h2>Registradas</h2>', '');
     const list = user.faltas.filter((f) => !fday || f.date === fday).sort((a, b) => ((b.date || '0') < (a.date || '0') ? -1 : 1));
@@ -219,6 +224,7 @@
       .forEach((b) => C.hourSlots(b).forEach((x) => out.push(x.start + ' – ' + x.end)));
     return out;
   }
+  function lateLabel() { const n = +(user.settings || {}).retrasosPorFalta; return n > 0 ? 'Es un retraso (cada ' + n + ' = 1 h de falta)' : 'Es un retraso (no cuenta)'; }
   function faltaCard(f, n) {
     const S = state(), tags = (f.type === 'retraso' ? '<span class="tag neutral">retraso</span>' : '') + (f.justified ? '<span class="tag ok">justificada</span>' : '');
     return '<div' + rise(Math.min(n, 8)) + '><div class="card row">' + avatar(S, f.subject) + '<div class="grow"><div class="name">' + esc(f.subject) + ' <span class="muted">· ' + fmt(f.hours) + ' h</span></div><div class="muted">' + (f.date ? nice(f.date) : 'sin fecha') + '</div>' + (slotTimes(S, f).length ? '<div class="hrs">' + slotTimes(S, f).map((t) => '<span>' + t + '</span>').join('') + '</div>' : '') + (tags ? '<div class="tags">' + tags + '</div>' : '') + '</div><div class="acts"><button class="btn small" data-edit="' + esc(f.id) + '">Editar</button><button class="btn small ghost" data-del="' + esc(f.id) + '" aria-label="Borrar falta">Borrar</button></div></div></div>';
@@ -227,7 +233,7 @@
     const subs = subjectsOf(S); if (f.subject && subs.indexOf(f.subject) < 0) subs.push(f.subject);
     return '<form id="edf" class="card editing" data-id="' + esc(f.id) + '"><div class="sec">Editar falta</div><div class="two"><div class="field"><label>Fecha</label><input type="date" name="date" value="' + esc(f.date || '') + '"></div><div class="field"><label>Horas</label><input type="number" name="hours" min="0" step="any" value="' + f.hours + '"></div></div>' +
       '<div class="field"><label>Asignatura</label><select name="subject">' + subs.map((x) => '<option' + (x === f.subject ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></div>' +
-      '<div class="switch" style="margin-top:12px"><label for="ert">Es un retraso (no cuenta)</label><input id="ert" type="checkbox" name="retraso"' + (f.type === 'retraso' ? ' checked' : '') + '></div><div class="switch"><label for="eju">Justificada</label><input id="eju" type="checkbox" name="justified"' + (f.justified ? ' checked' : '') + '></div>' +
+      '<div class="switch" style="margin-top:12px"><label for="ert">' + lateLabel() + '</label><input id="ert" type="checkbox" name="retraso"' + (f.type === 'retraso' ? ' checked' : '') + '></div><div class="switch"><label for="eju">Justificada</label><input id="eju" type="checkbox" name="justified"' + (f.justified ? ' checked' : '') + '></div>' +
       '<div class="btns"><button type="button" class="btn small" data-act="ecancel">Cancelar</button><button class="btn small primary">Guardar cambios</button></div></form>';
   }
   let adm = null, gNotice = null; // panel de admin y aviso global
@@ -299,11 +305,19 @@
       '<div class="btns"><button class="btn small primary" data-act="acct-new">Crear cuenta</button><button class="btn small" data-act="acct-login">Ya tengo cuenta: entrar</button></div></div>';
   }
   const acg = { u: '', p: '' };
+  /** Reglas del centro que cambian el cálculo. Si no las sabes, se usa lo más restrictivo. */
+  function rulesCard(S) {
+    const s = S.settings, multi = (S.terms || []).length > 1;
+    return '<div class="card"><div class="sec">Reglas de tu centro</div><p class="muted">Pregúntalo a tu tutor si no lo sabes. Mientras tanto se usa lo más estricto.</p>' +
+      (multi ? '<div class="field"><label>El límite se aplica</label><select data-sel="ambito"><option value="trimestre"' + (s.ambito !== 'curso' ? ' selected' : '') + '>En cada trimestre (o no lo sé)</option><option value="curso"' + (s.ambito === 'curso' ? ' selected' : '') + '>Sobre el curso entero</option></select><div class="muted">' + (s.ambito === 'curso' ? 'Se suman todos los trimestres en uno.' : 'Cada trimestre tiene su propio margen.') + '</div></div>' : '') +
+      '<div class="field"><label>Retrasos que hacen 1 h de falta</label><input type="number" data-num="retrasosPorFalta" min="0" max="50" step="1" inputmode="numeric" value="' + (+s.retrasosPorFalta || 0) + '"><div class="muted">0 = los retrasos no cuentan. Si no lo sabes, muchos centros usan 3.</div></div></div>';
+  }
   function viewAjustes() {
     const S = snapState(), s = S.settings, hasAlias = Object.keys(S.alias || {}).length;
     const sw = (k, label, hint) => '<div class="switch"><div><div style="font-weight:700">' + label + '</div><div class="muted">' + hint + '</div></div><input type="checkbox" data-set="' + k + '"' + (s[k] ? ' checked' : '') + '></div>';
     return '<div class="top"><h1>Ajustes</h1></div>' +
       '<div class="card"><div class="sec">Horario y calendario</div><p class="muted">Edítalo a mano o deja que tu IA lo haga por ti.</p><div class="btns"><button class="btn small primary" data-act="edit">Editar horario</button><button class="btn small" data-act="start-setup">Con mi IA</button><button class="btn small" data-act="start-update">Actualizar faltas con IA</button></div><p class="muted mini" style="margin:10px 0 0"><button class="link" data-act="edit-adv">Editor avanzado: unir asignaturas, nombre del centro</button></p></div>' +
+      rulesCard(S) +
       '<div class="card">' + (hasAlias ? sw('unificar', 'Unificar asignaturas', 'Algunas cuentan dentro de otra (ej. proyectos).') : '') + sw('justificadasCuentan', 'Las justificadas cuentan', 'Si lo apagas, no suman al límite.') + '</div>' +
       '<div class="card"><div class="two"><div class="field" style="margin-top:0"><label>Límite de faltas (%)</label><input type="number" data-num="limite" min="1" max="100" value="' + s.limite + '"></div>' +
       '<div class="field" style="margin-top:0"><label>Aviso si quedan (h) o menos</label><input type="number" data-num="aviso" min="0" step="any" value="' + s.aviso + '"></div></div></div>' +
@@ -348,8 +362,21 @@
     if (ed.hasConfig && ed.orig !== structKey(c)) h += '<p class="muted" style="margin:14px 2px 0">Al guardar, las horas totales de cada asignatura se recalculan con este horario y los festivos.</p>';
     return h + '<div class="cta"><div class="in"><button class="btn" data-act="ed-close">Cancelar</button><button class="btn primary"' + (r.ok ? '' : ' disabled') + ' data-act="ed-save">Guardar</button></div></div>';
   }
+  /** ¿Hace falta preguntar desde cuándo vale el horario nuevo? Solo si ya hay faltas y la semana cambia. */
+  const needsFrom = (cfg) => !!(user.config && (user.faltas || []).some((f) => f.date) && JSON.stringify(user.config.schedule || {}) !== JSON.stringify(cfg.schedule || {}));
+  let pend = null; // guardado pendiente de la pregunta "¿desde cuándo?"
+  function askFrom(cfg, finish) { pend = { cfg, finish, back: tab }; tab = 'desde'; render(); scrollTo(0, 0); }
+  function viewDesde() {
+    const last = (user.faltas || []).filter((f) => f.date).map((f) => f.date).sort().pop();
+    return '<div class="steps"><button class="back" data-act="desde-back">‹ Atrás</button><h1>¿Desde cuándo vale este horario?</h1></div>' +
+      '<p class="muted">Así tus faltas de antes siguen contando con el horario que tenías entonces.</p>' +
+      '<div class="card"><div class="sec">Ha cambiado el horario</div><p class="muted">Por ejemplo, se ha ido un profesor y han recolocado las clases.</p><div class="field"><label>El nuevo horario empieza el</label><input type="date" id="desde-d" value="' + today() + '"></div><button class="btn primary block" style="margin-top:12px" data-act="desde-ok">Guardar desde ese día</button></div>' +
+      '<div class="card"><div class="sec">Me había equivocado</div><p class="muted">El horario siempre fue este; lo estoy corrigiendo. Se recalcula todo el curso' + (last ? ', también las faltas hasta el ' + nice(last) : '') + '.</p><button class="btn block" style="margin-top:10px" data-act="desde-all">Corregir desde el principio</button></div>';
+  }
   function edSave() {
-    const prev = JSON.stringify(user), changed = ed.orig !== structKey(ed.cfg), cfg = ed.cfg;
+    if (needsFrom(ed.cfg) && !ed.from) return askFrom(ed.cfg, (from) => { ed.from = from || 'all'; edSave(); });
+    const prev = JSON.stringify(user), changed = ed.orig !== structKey(ed.cfg);
+    const cfg = C.withHistory(user.config, ed.cfg, ed.from && ed.from !== 'all' ? ed.from : null);
     if (changed) { cfg.totals = {}; cfg.totalsUnified = {}; }
     const hadAlias = user.config && Object.keys(user.config.alias || {}).length, hasAlias = Object.keys(cfg.alias).length;
     user.config = cfg; user.settings = Object.assign({ limite: 25, aviso: 2, justificadasCuentan: true }, user.settings);
@@ -434,7 +461,7 @@
   function saveSetup() {
     const r = sx.res, prev = JSON.stringify(user), keepFaltas = sx.mode === 'update' || r.faltas.length ? r.faltas : user.faltas;
     const unificar = Object.keys(r.config.alias).length > 0;
-    user = { config: r.config, settings: Object.assign({}, user.settings, { unificar, limite: r.limite != null ? r.limite : (user.settings.limite || 25) }), faltas: keepFaltas , acct: user.acct, skipCfg: user.skipCfg };
+    user = { config: r.config, settings: Object.assign({}, user.settings, r.reglas || {}, { unificar, limite: r.limite != null ? r.limite : (user.settings.limite || 25) }), faltas: keepFaltas , acct: user.acct, skipCfg: user.skipCfg };
     save(); tab = 'hoy'; viewTerm = null; render(); toast('Guardado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
   }
 
@@ -501,7 +528,9 @@
     periods.forEach((p) => Object.keys(p.schedule || {}).forEach((d) => p.schedule[d].forEach((b) => { b.subject = rn(b.subject); })));
     let main = base.schedule || {};
     if (qk.pi == null) main = schedule; else if (periods[qk.pi]) periods[qk.pi].schedule = schedule;
-    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, alias, totals: {}, totalsUnified: {} };
+    const history = JSON.parse(JSON.stringify(base.history || []));
+    history.forEach((x) => Object.keys(x.schedule || {}).forEach((d) => x.schedule[d].forEach((b) => { b.subject = rn(b.subject); })));
+    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, history, alias, totals: {}, totalsUnified: {} };
   }
   const qUsed = () => Array.from(new Set(Object.values(qk.grid).flatMap((g) => Object.values(g)))).filter(Boolean);
   function qTotalsFor(cfg, termId) { return C.computeTotals(Object.assign({}, cfg, { settings: Object.assign({}, C.DEF, { unificar: false }), faltas: [] }), termId); }
@@ -563,8 +592,9 @@
     }
     return h + '<div class="cta"><div class="in"><button class="btn" data-act="q-back">' + (st <= 1 ? 'Cancelar' : 'Atrás') + '</button>' + (st === 0 ? '' : '<button class="btn primary"' + (ok ? '' : ' disabled') + ' data-act="q-next">' + (st === 3 ? 'Guardar' : 'Siguiente') + '</button>') + '</div></div>';
   }
-  function qSave() {
-    const cfg = qCfg(), prev = JSON.stringify(user);
+  function qSave(from) {
+    if (from === undefined && needsFrom(qCfg())) return askFrom(qCfg(), (f) => qSave(f || null));
+    const cfg = C.withHistory(user.config, qCfg(), from || null), prev = JSON.stringify(user);
     if (qk.tmode === 'manual') { cfg.terms.forEach((t) => { const auto = qTotalsFor(cfg, t.id), o = {}; qUsed().forEach((s) => { const v = (qk.totals[t.id] || {})[s]; o[s] = v != null && !isNaN(v) ? +v : (auto[s] || 0); }); cfg.totals[t.id] = o; cfg.totalsUnified[t.id] = o; }); }
     if (window.FTAcct) FTAcct.stat(qk.fromShot ? (qk.edited ? 'ocr-editado' : 'ocr-ok') : 'manual');
     const ren = qk.ren || {};
@@ -605,7 +635,7 @@
 
   // ---------- simulador ----------
   function viewSim() {
-    const S = state(), day = simDay || (C.verdict(S, today()).free ? (C.nextClassDay(S, today()) || today()) : today()), v = C.verdict(S, day), lim = S.settings.limite;
+    const S = calc(), day = simDay || (C.verdict(S, today()).free ? (C.nextClassDay(S, today()) || today()) : today()), v = C.verdict(S, day), lim = S.settings.limite;
     let h = '<div class="steps"><button class="back" data-act="sim-close">‹ Atrás</button><h1>Simulador</h1></div><p class="muted">Marca a qué horas faltarías y mira cómo quedas. No se apunta nada hasta que lo confirmes.</p>' +
       '<div class="card"><div class="field" style="margin-top:0"><label>Día</label><input type="date" id="simday" value="' + day + '"></div></div>';
     if (v.free || !v.term) return h + '<div class="card muted">Ese día no hay clase' + (v.term ? '' : ' (fuera de los trimestres)') + '. Prueba con otra fecha.</div>';
@@ -631,6 +661,9 @@
     return '<div class="steps"><button class="back" data-act="inst-close">‹ Atrás</button><h1>Instalar en tu móvil</h1></div><p class="muted">Se instala sin tienda de apps, en 20 segundos. Abre más rápido y sin barra del navegador.</p>' +
       '<div class="btns" style="margin:4px 0 14px"><button class="btn small' + (instTab === 'ios' ? ' primary' : '') + '" data-inst="ios">iPhone</button><button class="btn small' + (instTab === 'android' ? ' primary' : '') + '" data-inst="android">Android</button></div><div class="card">' + (instTab === 'ios' ? ios : and) + '</div>';
   }
+  /** iPhone + Safari sin instalar + faltas sin cuenta ni copia reciente: riesgo real de perderlas. */
+  const iosRisk = () => /iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone() && /^https?:/.test(location.protocol) && !user.acct && (user.faltas || []).length > 0 && Date.now() - (+lsGet('ft.iosx') || 0) > 7 * 864e5;
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const hintOff = () => { try { return localStorage.getItem('ft.hint') === '1'; } catch (e) { return false; } };
   const flagOff = (k) => { try { return localStorage.getItem('ft.' + k) === '1'; } catch (e) { return false; } };
   const flagSet = (k) => { try { localStorage.setItem('ft.' + k, '1'); } catch (e) {} };
@@ -681,7 +714,7 @@
   }
 
   // ---------- render + animaciones ----------
-  const VIEWS = { hoy: viewHoy, resumen: viewResumen, faltas: viewFaltas, ajustes: viewAjustes, join: viewJoin, sim: viewSim, install: viewInstall, setup: viewSetup, editor: viewEditor, quick: viewQuick, admin: viewAdmin };
+  const VIEWS = { desde: viewDesde, hoy: viewHoy, resumen: viewResumen, faltas: viewFaltas, ajustes: viewAjustes, join: viewJoin, sim: viewSim, install: viewInstall, setup: viewSetup, editor: viewEditor, quick: viewQuick, admin: viewAdmin };
   function warnBar() {
     const el = document.getElementById('warnbar'); if (!el) return;
     const show = !user.config && tab !== 'setup' && tab !== 'quick' && tab !== 'editor' && tab !== 'join';
@@ -689,7 +722,7 @@
     if (show) el.innerHTML = '<div class="in"><span><b>Falta tu horario</b><span class="muted"> · sin él la app no calcula nada</span></span><button class="btn small primary" data-act="go-setup">Configurar</button></div>';
   }
   function render() {
-    document.body.classList.toggle('setup', tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
+    document.body.classList.toggle('setup', tab === 'desde' || tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
     app.innerHTML = VIEWS[tab]();
     document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
     requestAnimationFrame(() => requestAnimationFrame(animate));
@@ -721,7 +754,7 @@
     } else if (d.sim !== undefined) { const i = +d.sim, k = simSel.indexOf(i); if (k >= 0) simSel.splice(k, 1); else simSel.push(i); render();
     } else if (d.act === 'open-sim') { simDay = null; simSel = []; tab = 'sim'; render(); scrollTo(0, 0);
     } else if (d.act === 'sim-close') { tab = 'resumen'; render();
-    } else if (d.act === 'sim-all') { const v = C.verdict(state(), simDay || (C.verdict(state(), today()).free ? C.nextClassDay(state(), today()) : today())); simSel = v.slots.map((x, i) => i); render();
+    } else if (d.act === 'sim-all') { const v = C.verdict(calc(), simDay || (C.verdict(calc(), today()).free ? C.nextClassDay(calc(), today()) : today())); simSel = v.slots.map((x, i) => i); render();
     } else if (d.act === 'sim-none') { simSel = []; render();
     } else if (d.act === 'open-install') { tab = 'install'; render(); scrollTo(0, 0);
     } else if (d.act === 'inst-close') { tab = user.config ? 'ajustes' : 'setup'; render();
@@ -745,7 +778,7 @@
       else if (p[0] === 'term') c.terms.splice(+p[1], 1); else if (p[0] === 'hol') c.holidays.splice(+p[1], 1); else if (p[0] === 'ali') delete c.alias[p[1]];
       render();
     } else if (d.act === 'join-yes') {
-      const prev = JSON.stringify(user); user = { config: jn.config, settings: Object.assign({}, user.settings, { unificar: Object.keys(jn.config.alias).length > 0, limite: jn.limite || 25 }), faltas: jn.hasFaltas ? jn.faltas : (user.faltas || []) , acct: user.acct, skipCfg: user.skipCfg };
+      const prev = JSON.stringify(user); user = { config: jn.config, settings: Object.assign({}, user.settings, jn.reglas || {}, { unificar: Object.keys(jn.config.alias).length > 0, limite: jn.limite || 25 }), faltas: jn.hasFaltas ? jn.faltas : (user.faltas || []) , acct: user.acct, skipCfg: user.skipCfg };
       if (acPend) { user.acct = acPend; acPend = null; }
       save(); jn = null; tab = 'hoy'; render(); toast('Horario cargado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
     } else if (d.act === 'adm-open') { tab = 'admin'; render(); scrollTo(0, 0); if (!adm || !adm.users) admLoad();
@@ -842,7 +875,13 @@
     } else if (d.act === 'edit') { qk = user.config ? qFromCfg(user.config) : qNew(); qpaint = null; tab = 'quick'; render(); scrollTo(0, 0);
     } else if (d.act === 'edit-adv') { openEditor();
     } else if (d.act === 'ed-close') { ed = null; tab = user.config ? 'ajustes' : 'setup'; render();
+    } else if (d.act === 'ios-x') { try { localStorage.setItem('ft.iosx', String(Date.now())); } catch (e) {} render();
     } else if (d.act === 'ed-save') { edSave();
+    } else if (d.act === 'desde-ok' || d.act === 'desde-all') {
+      const v = d.act === 'desde-ok' ? ($('#desde-d') || {}).value : '';
+      if (d.act === 'desde-ok' && !/^\d{4}-\d\d-\d\d$/.test(v || '')) { toast('Elige una fecha'); return; }
+      const p = pend; pend = null; tab = p.back; p.finish(v || null);
+    } else if (d.act === 'desde-back') { const p = pend; pend = null; tab = p ? p.back : 'ajustes'; render(); scrollTo(0, 0);
     } else if (d.act === 'start-setup' || d.act === 'start-update') { sx = { mode: d.act === 'start-update' ? 'update' : 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'close') { tab = user.config ? 'ajustes' : 'hoy'; render();
     } else if (d.act === 'copy-prompt') {
@@ -962,6 +1001,7 @@
     if (qk && t.dataset.qtot) { const j = t.dataset.qtot.indexOf('|'), id = t.dataset.qtot.slice(0, j), s = t.dataset.qtot.slice(j + 1); (qk.totals[id] = qk.totals[id] || {})[s] = parseFloat(t.value); return; }
     if (t.id === 'simday') { simDay = t.value || null; simSel = []; render(); return; }
     if (t.id === 'fday') { fday = t.value; render(); return; }
+    if (t.dataset.sel) { user.settings = Object.assign({}, user.settings, { [t.dataset.sel]: t.value }); viewTerm = null; save(); render(); return; }
     if (t.dataset.set) { user.settings = Object.assign({}, user.settings, { [t.dataset.set]: t.checked }); save(); }
     else if (t.dataset.num) { const v = parseFloat(t.value); if (v >= 0) { user.settings = Object.assign({}, user.settings, { [t.dataset.num]: v }); save(); } }
     else if (t.id === 'imp' && t.files[0]) {

@@ -125,7 +125,9 @@ Ahora te pego mis faltas:`;
       festivos: (S.holidays || []).map((h) => ({ desde: h.from, hasta: h.to || h.from, nombre: h.label })),
       horario: sch,
       tramos: (S.periods || []).map((p) => ({ nombre: p.label || 'Tramo', desde: p.from, hasta: p.to, horario: schOf(p.schedule) })),
+      historial: (S.history || []).map((x) => ({ hasta: x.to, horario: schOf(x.schedule) })),
       unificar: Object.keys(S.alias || {}).map((k) => ({ asignatura: k, dentro_de: S.alias[k] })),
+      reglas: { ambito: (S.settings && S.settings.ambito) || 'trimestre', retrasos_por_falta: +((S.settings && S.settings.retrasosPorFalta) || 0), justificadas_cuentan: !(S.settings && S.settings.justificadasCuentan === false) },
       faltas: S.faltas.map((f) => ({ fecha: f.date, asignatura: f.subject, horas: f.hours, tipo: f.type, justificada: !!f.justified })),
       dudas: []
     }, null, 1);
@@ -215,6 +217,13 @@ Ahora te pego mis faltas:`;
     periods.sort((a, b) => (a.from < b.from ? -1 : 1));
     for (let i = 1; i < periods.length; i++) if (periods[i].from <= periods[i - 1].to) errors.push('Los tramos "' + periods[i - 1].label + '" y "' + periods[i].label + '" se solapan.');
     if (!subjects.size) errors.push('El horario no tiene ninguna clase.');
+    // historial: horarios anteriores, cada uno válido hasta "hasta" (se guarda al cambiar el horario a mitad de curso)
+    const history = [];
+    (Array.isArray(j.historial) ? j.historial : []).forEach((x, i) => {
+      if (!isDate(x && x.hasta)) return warnings.push('Horario anterior ' + (i + 1) + ': fecha no válida, lo ignoro.');
+      const sch = readSchedule(x.horario, 'Horario anterior ' + (i + 1) + ' ');
+      if (Object.keys(sch).length) history.push({ to: x.hasta, schedule: sch });
+    });
     // unificar
     const alias = {};
     (Array.isArray(j.unificar) ? j.unificar : []).forEach((u) => {
@@ -236,6 +245,14 @@ Ahora te pego mis faltas:`;
       faltas.push({ id: 'i' + i, date: f.fecha || null, term: term || null, subject: String(f.asignatura), hours: hours, type: f.tipo === 'retraso' ? 'retraso' : 'falta', justified: !!f.justificada, note: f.fecha ? '' : 'sin fecha' });
     });
     const limite = j.limite == null ? null : +j.limite;
+    // reglas del centro (opcionales): solo se aplican si vienen
+    let reglas = null;
+    if (j.reglas && typeof j.reglas === 'object') {
+      reglas = {};
+      if (j.reglas.ambito === 'curso' || j.reglas.ambito === 'trimestre') reglas.ambito = j.reglas.ambito;
+      const n = +j.reglas.retrasos_por_falta; if (n >= 0 && n <= 50) reglas.retrasosPorFalta = Math.floor(n);
+      if (typeof j.reglas.justificadas_cuentan === 'boolean') reglas.justificadasCuentan = j.reglas.justificadas_cuentan;
+    }
     if (limite !== null && !(limite > 0 && limite <= 100)) errors.push('El límite de faltas debe estar entre 1 y 100 (%).');
     (Array.isArray(j.dudas) ? j.dudas : []).forEach((d) => d && warnings.push('Duda de la IA: ' + d));
     if (errors.length) return { ok: false, errors, warnings };
@@ -245,8 +262,8 @@ Ahora te pego mis faltas:`;
       Object.keys(t.hours).forEach((nm) => { if (!subjects.has(nm)) warnings.push('Horas totales: "' + nm + '" no aparece en ningún horario.'); });
       totals[t.id] = t.hours; delete t.hours;
     });
-    return { ok: true, errors, warnings, limite, hasFaltas, faltas,
-      config: { center: String(j.centro || ''), terms, holidays, schedule, periods, alias, totals, totalsUnified: {} } };
+    return { ok: true, errors, warnings, limite, reglas, hasFaltas, faltas,
+      config: { center: String(j.centro || ''), terms, holidays, schedule, periods, history, alias, totals, totalsUnified: {} } };
   }
 
   const api = { buildPrompt, buildUpdatePrompt, buildImportPrompt, toExport, extractJSON, parseImport, DAYNAMES, FORMAT };
