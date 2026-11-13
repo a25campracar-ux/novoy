@@ -11,7 +11,8 @@ const KEY = (id) => 'c:' + id;
 const today = () => new Date().toISOString().slice(0, 10);
 
 /** Los datos que el panel puede ver de una cuenta. Nunca incluyen las faltas. */
-const card = (id, m) => ({ id, u: (m && m.u) || '', t: (m && m.t) || 0, c: (m && m.c) || 0, n: (m && m.n) || 0, blocked: !!(m && m.b), note: (m && m.note) || '' });
+const card = (id, m) => ({ id, u: (m && m.u) || '', t: (m && m.t) || 0, c: (m && m.c) || 0, n: (m && m.n) || 0, blocked: !!(m && m.b), note: (m && m.note) || '', adm: !!(m && m.adm) });
+const mainName = (env) => String(env.ADMIN_USER || 'c33').toLowerCase();
 
 async function readAll(kv) {
   const out = []; let cursor;
@@ -51,13 +52,16 @@ async function stats(kv) {
   };
 }
 
-/** Comprueba la contraseña como en un inicio de sesión normal y que sea la cuenta admin. */
+/** Comprueba la contraseña como en un inicio de sesión normal y que la cuenta sea admin.
+ *  Admin principal: la del nombre ADMIN_USER (c33). Otras: las que el principal marca como admin
+ *  desde el panel (metadata.adm). El rol va en la cuenta, no en el nombre: registrarse como
+ *  "admin" no da nada. Devuelve { who, main } o null. */
 async function asAdmin(kv, env, b) {
   if (!HEX.test(b.id || '') || !HEX.test(b.auth || '')) return null;
   const { value, metadata } = await kv.getWithMetadata(KEY(b.id), { type: 'json' });
-  if (!value || value.a !== b.auth) return null;
-  const who = (metadata && metadata.u) || value.u || '';
-  return who && who.toLowerCase() === String(env.ADMIN_USER || 'c33').toLowerCase() ? who : null;
+  if (!value || value.a !== b.auth || (metadata && metadata.b)) return null;
+  const who = (metadata && metadata.u) || value.u || '', main = !!who && who.toLowerCase() === mainName(env);
+  return main || (metadata && metadata.adm) ? { who, main } : null;
 }
 
 async function api(req, env, url) {
@@ -84,8 +88,8 @@ async function api(req, env, url) {
   }
 
   if (b.op === 'admin') {
-    const who = await asAdmin(kv, env, b);
-    if (!who) return J(403, { error: 'no-admin' });
+    const me = await asAdmin(kv, env, b);
+    if (!me) return J(403, { error: 'no-admin' });
     if (b.what === 'list') return J(200, { ok: 1, users: (await readAll(kv)).sort((x, y) => y.t - x.t) });
     if (b.what === 'stats') return J(200, { ok: 1, stats: await stats(kv) });
     if (b.what === 'export') {
@@ -103,9 +107,14 @@ async function api(req, env, url) {
       return J(200, { ok: 1 });
     }
     if (!HEX.test(b.target || '')) return J(400, { error: 'bad-target' });
-    if (b.target === b.id && (b.what === 'del' || b.what === 'block')) return J(400, { error: 'eres-tu' });
+    if (b.target === b.id && (b.what === 'del' || b.what === 'block' || b.what === 'role')) return J(400, { error: 'eres-tu' });
     const { value, metadata } = await kv.getWithMetadata(KEY(b.target), { type: 'json' });
     if (!value) return J(404, { error: 'no-existe' });
+    const tAdmin = !!(metadata && (metadata.adm || String(metadata.u || '').toLowerCase() === mainName(env)));
+    // solo el admin principal da o quita el rol, y toca a otros admins; al principal no lo toca nadie
+    if (String((metadata && metadata.u) || '').toLowerCase() === mainName(env) && b.what !== 'note') return J(403, { error: 'principal' });
+    if ((b.what === 'role' || (tAdmin && (b.what === 'del' || b.what === 'block'))) && !me.main) return J(403, { error: 'solo-principal' });
+    if (b.what === 'role') { const m = Object.assign({}, metadata, { adm: !(metadata && metadata.adm) }); await kv.put(KEY(b.target), JSON.stringify(value), { metadata: m }); return J(200, { ok: 1, user: card(b.target, m) }); }
     if (b.what === 'del') { await kv.delete(KEY(b.target)); return J(200, { ok: 1 }); }
     if (b.what === 'block' || b.what === 'note') {
       const m = Object.assign({}, metadata);
@@ -133,7 +142,7 @@ async function api(req, env, url) {
     if (!cur) return J(404, { error: 'no-existe' });
     if (cur.a !== b.auth) return J(403, { error: 'clave' });
     if (meta.b) return J(423, { error: 'bloqueada' });
-    if (b.op === 'get') return J(200, { ok: 1, data: cur.d, t: cur.t });
+    if (b.op === 'get') return J(200, { ok: 1, data: cur.d, t: cur.t, adm: !!(meta.adm || String(meta.u || '').toLowerCase() === mainName(env)) });
     if (b.op === 'rekey') { // nueva contraseña: nueva prueba y datos recifrados con la clave nueva
       if (!HEX.test(b.newAuth || '') || !okData) return J(400, { error: 'bad' });
       const t = Date.now();

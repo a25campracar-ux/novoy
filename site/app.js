@@ -318,7 +318,8 @@
       '<div class="btns"><button type="button" class="btn small" data-act="ecancel">Cancelar</button><button class="btn small primary">Guardar cambios</button></div></form>';
   }
   let adm = null, gNotice = null; // panel de admin y aviso global
-  const isAdmin = () => !!(user.acct && window.FTAcct && user.acct.u.toLowerCase() === FTAcct.ADMIN);
+  const isMainAdmin = () => !!(user.acct && window.FTAcct && user.acct.u.toLowerCase() === FTAcct.ADMIN);
+  const isAdmin = () => isMainAdmin() || !!(user.acct && user.acct.adm); // el servidor lo vuelve a comprobar siempre
   async function admApi(what, extra) {
     const A = window.FTAcct;
     return A.api(Object.assign({ op: 'admin', what, id: user.acct.id, auth: user.acct.auth }, extra || {}));
@@ -364,10 +365,10 @@
       '<div class="btns"><button class="btn small primary">Publicar aviso</button></div></form></div>';
     h += '<div class="top" style="margin-top:22px"><h2 style="margin:0">' + adm.users.length + ' cuenta' + (adm.users.length === 1 ? '' : 's') + '</h2></div>';
     h += adm.users.map((u) => '<div class="card row' + (u.blocked ? ' err' : '') + '"><div class="grow"><b>' + esc(u.u || '(sin nombre)') + '</b>' +
-      (u.blocked ? ' <span class="pill">bloqueada</span>' : '') +
+      (u.blocked ? ' <span class="pill">bloqueada</span>' : '') + (u.adm || u.u.toLowerCase() === FTAcct.ADMIN ? ' <span class="pill">admin</span>' : '') +
       '<div class="muted">' + (u.c ? 'alta ' + nice(new Date(u.c).toISOString().slice(0, 10)) : 'alta desconocida') + ' · últ. uso ' + ago(u.t) + ' · ' + kb(u.n) + '</div>' +
       (u.note ? '<div class="muted">Nota: ' + esc(u.note) + '</div>' : '') +
-      '</div><div class="btns"><button class="btn small" data-adm-note="' + u.id + '">Nota</button><button class="btn small" data-adm-block="' + u.id + '">' + (u.blocked ? 'Desbloquear' : 'Bloquear') + '</button><button class="btn small" data-adm-del="' + u.id + '">Borrar</button></div></div>').join('');
+      '</div><div class="btns"><button class="btn small" data-adm-note="' + u.id + '">Nota</button>' + (isMainAdmin() && u.u.toLowerCase() !== FTAcct.ADMIN ? '<button class="btn small" data-adm-role="' + u.id + '">' + (u.adm ? 'Quitar admin' : 'Hacer admin') + '</button>' : '') + '<button class="btn small" data-adm-block="' + u.id + '">' + (u.blocked ? 'Desbloquear' : 'Bloquear') + '</button><button class="btn small" data-adm-del="' + u.id + '">Borrar</button></div></div>').join('');
     return h;
   }
   function acctCard() {
@@ -417,7 +418,7 @@
         for (const v of A.passVariants(pRaw)) { k = await A.derive(uI, v); r = await A.api({ op: 'get', id: k.id, auth: k.auth }); if (r.ok || r.error !== 'clave') break; }
         if (r.ok) {
           const kb = await A.expKey(k.key), txt = await A.open(k.key, r.data); jn = SU.parseImport(txt);
-          const sess = { u: uI, id: k.id, auth: k.auth, k: kb, t: r.t || Date.now() };
+          const sess = { u: uI, id: k.id, auth: k.auth, k: kb, t: r.t || Date.now(), adm: !!r.adm };
           let vacia = false;
           try { const o = JSON.parse(txt); vacia = !!o && !Object.keys(o.horario || {}).some((dd) => (o.horario[dd] || []).length); } catch (er) {}
           acg.p = ''; acg.eye = false;
@@ -1026,9 +1027,14 @@
       const a2 = document.createElement('a'); a2.href = URL.createObjectURL(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }));
       a2.download = 'novoy-cuentas-' + new Date().toISOString().slice(0, 10) + '.json'; a2.click();
       toast('Copia descargada');
+    } else if (d.admRole) {
+      const r = await admApi('role', { target: d.admRole });
+      if (!r.ok) return toast(r.error === 'solo-principal' ? 'Solo la cuenta principal da el rol' : 'No se pudo');
+      const u = adm.users.find((x) => x.id === d.admRole); if (u) u.adm = r.user.adm;
+      render(); toast(r.user.adm ? (u ? u.u : 'La cuenta') + ' ya es admin' : 'Rol de admin quitado');
     } else if (d.admBlock) {
       const r = await admApi('block', { target: d.admBlock });
-      if (!r.ok) return toast(r.error === 'eres-tu' ? 'No puedes bloquearte a ti' : 'No se pudo');
+      if (!r.ok) return toast(r.error === 'eres-tu' ? 'No puedes bloquearte a ti' : r.error === 'principal' ? 'A la cuenta principal no se la toca' : r.error === 'solo-principal' ? 'Solo la cuenta principal puede con otros admins' : 'No se pudo');
       const u = adm.users.find((x) => x.id === d.admBlock); if (u) u.blocked = r.user.blocked;
       render(); toast(r.user.blocked ? 'Cuenta bloqueada' : 'Cuenta desbloqueada');
     } else if (d.admNote) {
