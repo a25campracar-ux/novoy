@@ -93,6 +93,30 @@ async function api(req, env, url) {
     return J(200, { ok: 1 });
   }
 
+  // catálogo compartido: lo que alguien mete con "Otro" (centro, ciclo, módulo). Se publica cuando lo confirman 2 alumnos distintos.
+  // Solo nombres de centros/ciclos/módulos: nunca horarios ni faltas. cid es un número al azar del móvil, no identifica a nadie.
+  if (b.op === 'cat-add' || b.op === 'cat-get') {
+    const KIND = ['centro', 'ciclo', 'modulo'], kind = String(b.kind || '');
+    if (KIND.indexOf(kind) < 0) return J(400, { error: 'bad' });
+    const nrm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 80);
+    const scope = nrm(b.scope || '').slice(0, 60); // p. ej. el centro de un ciclo, o el ciclo de un módulo
+    if (b.op === 'cat-add') {
+      const v = String(b.value || '').trim().slice(0, 80), n = nrm(v), cid = String(b.cid || '').slice(0, 24);
+      if (n.length < 2 || !/^[a-z0-9]{8,24}$/.test(cid)) return J(400, { error: 'bad' });
+      const k = 'cat:' + kind + ':' + scope + ':' + n, cur = (await kv.get(k, { type: 'json' })) || { v, ids: [] };
+      if (cur.ids.indexOf(cid) < 0 && cur.ids.length < 20) { cur.ids.push(cid); await kv.put(k, JSON.stringify(cur), { metadata: { v: cur.v, n: cur.ids.length } }); }
+      try { await bump(kv, 'otro-' + kind); } catch (e) {}
+      return J(200, { ok: 1, confirmed: cur.ids.length >= 2 });
+    }
+    const q = nrm(b.q || ''), out = []; let cursor;
+    do {
+      const r = await kv.list({ prefix: 'cat:' + kind + ':' + scope + ':' + q, limit: 100, cursor });
+      r.keys.forEach((x) => { if (x.metadata && x.metadata.n >= 2) out.push(x.metadata.v); });
+      cursor = r.list_complete || out.length >= 20 ? null : r.cursor;
+    } while (cursor);
+    return J(200, { ok: 1, items: out.slice(0, 20) }, { 'cache-control': 'public, max-age=300' });
+  }
+
   if (b.op === 'admin') {
     const me = await asAdmin(kv, env, b);
     if (!me) return J(403, { error: 'no-admin' });

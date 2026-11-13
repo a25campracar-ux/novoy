@@ -26,53 +26,58 @@
       "horario": { "lunes": [], "martes": [], "miercoles": [], "jueves": [], "viernes": [] } }
   ],
   "unificar": [ { "asignatura": "Proyecto (Pol)", "dentro_de": "Programacion" } ],
-  "faltas": [ { "fecha": "2026-10-02", "asignatura": "Matematicas", "horas": 2, "tipo": "falta", "justificada": false } ],
+  "no_cuentan": [ "Tutoria" ],
+  "reglas": { "ambito": "trimestre", "justificadas": "juntas", "limite_justificadas": 25, "semanas_curso": 33, "retrasos_por_falta": 0 },
+  "faltas": [ { "fecha": null, "asignatura": "Matematicas", "horas": 2, "tipo": "falta", "justificada": false } ],
   "dudas": [ "Lo que no se vea claro en las fotos" ]
 }`;
 
   function buildPrompt() {
-    return `Tarea: rellenar el JSON de configuracion de mi app de faltas "NoVoy", a partir de las fotos de mi horario y mi calendario escolar. Nada de rodeos.
+    return `Eres el asistente de configuracion de "NoVoy", una app que dice a un estudiante cuantas horas puede faltar a cada asignatura sin pasarse del limite de faltas de su centro.
 
-QUE HACER
-1. Te adjunto fotos, capturas o PDF de mi horario semanal y del calendario del curso. Leelos con atencion.
-2. Si falta algo, preguntamelo TODO DE UNA VEZ en un solo mensaje, no de una en una. Pregunta solo lo que no puedas deducir de las fotos.
-3. Cuando lo tengas, responde con dos lineas de resumen y despues el JSON en UN SOLO bloque de codigo. Nada mas.
-4. No inventes. Lo que no sepas va en "dudas", no te lo imagines.
+TU TRABAJO
+Hazme una encuesta corta, en pasos, y al final dame un JSON para pegar en la app.
 
-LO MINIMO QUE NECESITAS SABER
-- Fechas de inicio y fin del curso (o de cada trimestre).
-- Que porcentaje de faltas me permiten (casi siempre 25) y si se aplica por trimestre o sobre el curso entero.
-- Los dias sin clase: festivos, puentes, vacaciones de Navidad y Semana Santa.
+COMO PREGUNTAR
+- Un paso cada vez. En cada paso, como mucho 3 preguntas cortas y numeradas. Espera mi respuesta antes de seguir.
+- Habla claro y sencillo, como a alguien que no sabe nada de esto. Nada de palabras tecnicas.
+- Si te mando una foto o captura (horario, calendario, Moodle), leela tu y pregunta solo lo que no se vea.
+- Si no se algo, te digo "no lo se": entonces usa lo que pone en "SI NO LO SABE" y apuntalo en "dudas".
+- No inventes nada.
+- Al empezar, dime en una linea que son 6 pasos y que tardamos unos 3 minutos.
 
-COMO SE APLICA EL LIMITE (importante)
-- Si en mi centro el limite va sobre el total de cada asignatura en TODO el curso (lo normal en FP y ciclos), pon UN SOLO trimestre que cubra el curso entero.
-- Si va por trimestre, pon un trimestre por cada uno.
-- "horas_totales" es opcional pero es lo mas fiable que hay: si tengo un papel con las horas oficiales de cada modulo (99 h, 66 h...), ponlas ahi y la app usara esas en vez de calcularlas. Si no las tengo, omite el campo entero.
+LOS 6 PASOS
+1. Centro y estudios: nombre del centro, que estudio (por ejemplo DAW) y que curso (1o o 2o).
+2. Horario: pideme una foto o captura de mi horario semanal. Si no tengo, que te lo diga dia a dia (hora de inicio y fin, asignatura). Pregunta cuanto dura cada clase si no se ve.
+3. Calendario: fechas de inicio y fin de cada trimestre. Los festivos y vacaciones los pones tu (calendario escolar oficial de mi comunidad para este curso) y me los resumes en una linea para que los confirme.
+4. Reglas del centro (lo mas importante, explicalo con un ejemplo):
+   a) Que porcentaje de faltas me permiten (casi siempre 25%). SI NO LO SABE: 20.
+   b) Las faltas justificadas: ¿cuentan igual que las otras, no cuentan, o tienen su propio porcentaje? SI NO LO SABE: cuentan igual.
+   c) El limite, ¿se mira en cada trimestre o sobre el curso entero? SI NO LO SABE: trimestre.
+   d) ¿Cuantas semanas de clase tiene el curso? SI NO LO SABE: 33.
+   e) ¿Los retrasos suman faltas? (por ejemplo 3 retrasos = 1 hora). SI NO LO SABE: 0.
+5. Casos especiales, solo si aplican (pregunta con un si/no primero): alguna clase que no cuenta faltas (por ejemplo la tutoria), semanas de proyecto, o un horario que cambia a mitad de curso.
+6. Faltas que ya llevo: cuantas horas he faltado ya a cada asignatura este trimestre. SI NO LO SABE: 0 y avisame de que lo mire en el Moodle.
 
-SI EL HORARIO CAMBIA DURANTE EL CURSO
-Muchos ciclos concentran modulos por tramos: unas semanas una cosa y otras semanas otra.
-- "horario" es el horario principal, el que vale por defecto.
-- "tramos" son los periodos con un horario DISTINTO, cada uno con sus fechas. Fuera de esos tramos manda "horario".
-- Si mi horario es el mismo todo el curso, pon "tramos": [].
-- Si te doy una hoja de planificacion por semanas, uala para deducir los tramos y dime en el resumen que tramos has detectado.
+CUANDO TERMINES
+Dame 2 lineas de resumen y despues el JSON en UN SOLO bloque de codigo. Nada despues.
 
-REGLAS DEL FORMATO
-- Fechas AAAA-MM-DD, horas HH:MM en 24 h.
-- Dias: lunes, martes, miercoles, jueves, viernes (sin tildes). Un dia sin clase va con [].
-- "horas" son las horas lectivas del bloque: de 08:00 a 10:00 son 2. El recreo no cuenta; si parte un bloque, parte el bloque en dos.
-- Dentro de un dia, los bloques no pueden solaparse ni acabar antes de empezar.
-- Escribe cada asignatura SIEMPRE igual, con el mismo nombre exacto, en el horario, en los tramos, en "horas_totales" y en "faltas".
-- "festivos": una entrada por dia suelto o por periodo de vacaciones.
-- "unificar": solo si varias asignaturas cuentan como una para el porcentaje. Si no, [].
-- "faltas": dejalo en [] salvo que yo te pase mis faltas.
+REGLAS DEL JSON
+- Fechas AAAA-MM-DD, horas HH:MM en 24 h. Dias: lunes, martes, miercoles, jueves, viernes (sin tildes). Un dia sin clase va con [].
+- Pon un trimestre por cada trimestre real, aunque el limite sea sobre el curso entero (eso va en "reglas").
+- "horas" de un bloque son sus horas de clase: de 08:00 a 10:00 son 2. Si el recreo parte un bloque, parte el bloque en dos.
+- Escribe cada asignatura SIEMPRE con el mismo nombre en todo el JSON.
+- "reglas.justificadas": "juntas" (cuentan igual, mismo %), "no_cuentan" o "separadas" (tienen su propio %, que va en "limite_justificadas").
+- "faltas" de antes: una entrada por asignatura con "fecha": null y las horas que llevo.
+- "horas_totales" solo si tengo un papel oficial con las horas de cada modulo; si no, quita el campo.
+- "tramos", "unificar", "no_cuentan" y "proyecto": [] o null si no aplican.
 - No añadas ni quites campos.
 
-EL JSON
 \`\`\`json
 ${FORMAT}
 \`\`\`
 
-Empieza: leeme las fotos y pregunta de una vez lo que falte.`;
+Empieza con el paso 1.`;
   }
 
   function buildUpdatePrompt(snapshot) {
@@ -127,10 +132,11 @@ Ahora te pego mis faltas:`;
       tramos: (S.periods || []).map((p) => ({ nombre: p.label || 'Tramo', desde: p.from, hasta: p.to, horario: schOf(p.schedule) })),
       historial: (S.history || []).map((x) => ({ hasta: x.to, horario: schOf(x.schedule) })),
       unificar: Object.keys(S.alias || {}).map((k) => ({ asignatura: k, dentro_de: S.alias[k] })),
-      reglas: { ambito: (S.settings && S.settings.ambito) || 'trimestre', retrasos_por_falta: +((S.settings && S.settings.retrasosPorFalta) || 0), justificadas_cuentan: !(S.settings && S.settings.justificadasCuentan === false) },
+      reglas: (() => { const st = S.settings || {}, jm = st.justModo || (st.justificadasCuentan === false ? 'nocuentan' : 'juntas'); return { ambito: st.ambito || 'trimestre', retrasos_por_falta: +(st.retrasosPorFalta || 0), justificadas_cuentan: jm !== 'nocuentan', justificadas: jm === 'nocuentan' ? 'no_cuentan' : jm, limite_justificadas: +(st.limiteJust || st.limite || 25), semanas_curso: +(st.semanas || 33) }; })(),
       modulos: (S.subjects || []).map((m) => ({ id: m.id, nombre: m.name })),
       proyecto: S.project && S.project.name ? { nombre: S.project.name, semanas: +S.project.weeks || 0, horario: schOf(S.project.schedule), activo: (S.project.ranges || []).map((r) => (r.to ? { desde: r.from, hasta: r.to } : { desde: r.from })) } : null,
       no_cuentan: (S.nocount || []).slice(),
+      catalogo: S.catalog || null,
       desactivadas: Object.keys(S.disabled || {}).map((k) => { const o = { asignatura: k, en_su_lugar: S.disabled[k].cover }; if (S.disabled[k].on) o.desde = S.disabled[k].on; return o; }),
       faltas: S.faltas.map((f) => { const o = { fecha: f.date, asignatura: f.subject, horas: f.hours, tipo: f.type, justificada: !!f.justified }; if (f.start) o.inicio = f.start; if (f.id) o.id = f.id; return o; }),
       dudas: []
@@ -260,10 +266,10 @@ Ahora te pego mis faltas:`;
       if (!(hours >= 0 && hours <= 12)) return errors.push('Falta ' + (i + 1) + ': horas no válidas.');
       if (!subjects.has(f.asignatura) && !Object.keys(alias).length) warnings.push('Falta del ' + (f.fecha || 'sin fecha') + ': "' + f.asignatura + '" no está en el horario.');
       else if (!subjects.has(f.asignatura)) warnings.push('Falta del ' + (f.fecha || 'sin fecha') + ': "' + f.asignatura + '" no está en el horario.');
-      const term = f.fecha ? (terms.find((t) => f.fecha >= t.from && f.fecha <= t.to) || {}).id : (terms[0] || {}).id;
+      const tdy = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10), term = f.fecha ? (terms.find((t) => f.fecha >= t.from && f.fecha <= t.to) || {}).id : (terms.find((t) => tdy >= t.from && tdy <= t.to) || terms[0] || {}).id;
       if (f.fecha && !term) warnings.push('Falta del ' + f.fecha + ' (' + f.asignatura + '): cae fuera de los trimestres y no contará.');
       const st = f.inicio != null ? time(f.inicio) : null;
-      faltas.push({ id: typeof f.id === 'string' && f.id ? f.id : null, start: st || undefined, date: f.fecha || null, term: term || null, subject: String(f.asignatura), hours: hours, type: f.tipo === 'retraso' ? 'retraso' : 'falta', justified: !!f.justificada, note: f.fecha ? '' : 'sin fecha' });
+      faltas.push({ id: typeof f.id === 'string' && f.id ? f.id : null, start: st || undefined, date: f.fecha || null, term: term || null, subject: String(f.asignatura), hours: hours, type: f.tipo === 'retraso' ? 'retraso' : 'falta', justified: !!f.justificada, note: f.fecha ? '' : 'previas' });
     });
     const limite = j.limite == null ? null : +j.limite;
     // reglas del centro (opcionales): solo se aplican si vienen
@@ -273,6 +279,10 @@ Ahora te pego mis faltas:`;
       if (j.reglas.ambito === 'curso' || j.reglas.ambito === 'trimestre') reglas.ambito = j.reglas.ambito;
       const n = +j.reglas.retrasos_por_falta; if (n >= 0 && n <= 50) reglas.retrasosPorFalta = Math.floor(n);
       if (typeof j.reglas.justificadas_cuentan === 'boolean') reglas.justificadasCuentan = j.reglas.justificadas_cuentan;
+      const jm = { juntas: 'juntas', no_cuentan: 'nocuentan', nocuentan: 'nocuentan', separadas: 'separadas' }[strip(j.reglas.justificadas || '')];
+      if (jm) { reglas.justModo = jm; reglas.justificadasCuentan = jm !== 'nocuentan'; }
+      const lj = +j.reglas.limite_justificadas; if (lj > 0 && lj <= 100) reglas.limiteJust = lj;
+      const sw = +j.reglas.semanas_curso; if (sw >= 1 && sw <= 52) reglas.semanas = Math.round(sw);
     }
     if (limite !== null && !(limite > 0 && limite <= 100)) errors.push('El límite de faltas debe estar entre 1 y 100 (%).');
     (Array.isArray(j.dudas) ? j.dudas : []).forEach((d) => d && warnings.push('Duda de la IA: ' + d));
@@ -284,7 +294,7 @@ Ahora te pego mis faltas:`;
       totals[t.id] = t.hours; delete t.hours;
     });
     return { ok: true, errors, warnings, limite, reglas, hasFaltas, faltas,
-      config: { center: String(j.centro || ''), terms, holidays, schedule, periods, history, alias, totals, totalsUnified: {}, disabled, project, nocount: (Array.isArray(j.no_cuentan) ? j.no_cuentan : []).filter((x) => subjects.has(x)),
+      config: { center: String(j.centro || ''), terms, holidays, schedule, periods, history, alias, totals, totalsUnified: {}, disabled, project, nocount: (Array.isArray(j.no_cuentan) ? j.no_cuentan : []).filter((x) => subjects.has(x)), catalog: j.catalogo && typeof j.catalogo === 'object' ? j.catalogo : null,
         subjects: (Array.isArray(j.modulos) ? j.modulos : []).filter((m) => m && typeof m.id === 'string' && m.nombre).map((m) => ({ id: m.id, name: String(m.nombre) })) } };
   }
 

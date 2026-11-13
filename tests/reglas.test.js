@@ -77,11 +77,11 @@ const r = SU.parseImport(exp);
 assert.ok(r.ok, JSON.stringify(r.errors));
 assert.deepStrictEqual(r.config.history.map((x) => x.to), ['2026-11-15']);
 assert.strictEqual(r.config.history[0].schedule[1][0].subject, 'IPO');
-assert.deepStrictEqual(r.reglas, { ambito: 'curso', retrasosPorFalta: 3, justificadasCuentan: false });
+assert.deepStrictEqual(r.reglas, { ambito: 'curso', retrasosPorFalta: 3, justificadasCuentan: false, justModo: 'nocuentan', limiteJust: 25, semanas: 33 });
 // un JSON sin estos campos (el de la IA) sigue valiendo y no trae reglas
 const plain = SU.parseImport(SU.FORMAT);
 assert.ok(plain.ok, JSON.stringify(plain.errors));
-assert.strictEqual(plain.reglas, null);
+assert.strictEqual(plain.reglas.justModo, 'juntas'); // la plantilla de la IA ya trae reglas
 assert.deepStrictEqual(plain.config.history, []);
 
 console.log('reglas OK');

@@ -70,6 +70,10 @@
   }
   /** Contador anónimo: solo dice "una captura salió bien", sin id ni datos. */
   function stat(what) { try { return api({ op: 'stat', what }).catch(() => {}); } catch (e) {} }
+  /** Catálogo compartido: un número al azar de este móvil (no identifica a nadie) para contar confirmaciones distintas. */
+  function cid() { try { let c = localStorage.getItem('ft.cid'); if (!c) { c = Array.from(crypto.getRandomValues(new Uint8Array(8))).map((b) => b.toString(36)).join('').replace(/[^a-z0-9]/g, '').slice(0, 16).padEnd(8, '0'); localStorage.setItem('ft.cid', c); } return c; } catch (e) { return 'anon0000'; } }
+  function catAdd(kind, value, scope) { try { return api({ op: 'cat-add', kind, value, scope: scope || '', cid: cid() }).catch(() => ({})); } catch (e) { return Promise.resolve({}); } }
+  async function catGet(kind, q, scope) { try { const r = await api({ op: 'cat-get', kind, q, scope: scope || '' }); return (r && r.items) || []; } catch (e) { return []; } }
 
-  root.FTAcct = { cleanPass, passVariants, check, derive, seal, open, expKey, impKey, api, genUser, passChecks, userOk, notice, stat, ADMIN: 'c33' };
+  root.FTAcct = { cleanPass, passVariants, check, derive, seal, open, expKey, impKey, api, genUser, passChecks, userOk, notice, stat, catAdd, catGet, ADMIN: 'c33' };
 })(window);

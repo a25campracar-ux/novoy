@@ -201,6 +201,57 @@
   }
   const r1 = (x) => Math.round(x * 10) / 10;
   const statusOf = (m) => C.status(m, (user.settings && user.settings.aviso != null) ? +user.settings.aviso : C.DEF.aviso);
+  // ---------- alta guiada: centro → estudios → horario → calendario → reglas → faltas de antes ----------
+  const CAT = window.FTCat || null, WZN = 6;
+  let wz = null; // { centre: {id?, name, city?, prov?}, cycle: {code?, name, prov?} }
+  /** Barra de progreso del alta: "Paso 2 de 6". Solo mientras dura la primera vez. */
+  const wzBar = (n, back) => '<div class="steps">' + (back ? '<button class="back" data-act="' + back + '">‹ Atrás</button>' : '') + '<div class="wzp"><span>Paso ' + n + ' de ' + WZN + '</span><div class="prog"><i style="width:' + (n / WZN * 100) + '%"></i></div></div></div>';
+  function wzStart(edit) { wz = { centre: null, cycle: null, edit: !!edit }; ctQ = ''; ctDir = []; ctShared = []; tab = 'centro'; render(); scrollTo(0, 0); }
+  let ctQ = '', ctDir = [], ctShared = [], ctT = null, ctSeq = 0;
+  function ctResults() {
+    const q = ctQ.trim(), loc = CAT ? CAT.findCentres(q) : [], seen = new Set(loc.map((c) => CAT.norm(c.name)));
+    const dir = ctDir.filter((c) => !seen.has(CAT.norm(c.name)) && (seen.add(CAT.norm(c.name)), true));
+    const sh = ctShared.filter((n) => !seen.has(CAT.norm(n)) && (seen.add(CAT.norm(n)), true));
+    let h = loc.map((c) => '<button class="choice slim" data-ct="' + esc(JSON.stringify({ id: c.id, name: c.name, city: c.city })) + '"><span class="grow"><b>' + esc(c.name) + '</b><span>' + esc(c.city) + ' · con tus módulos y calendario</span></span><span class="arrow">›</span></button>').join('') +
+      dir.map((c) => '<button class="choice slim" data-ct="' + esc(JSON.stringify({ name: c.name, city: c.city, code: c.code })) + '"><span class="grow"><b>' + esc(c.name) + '</b><span>' + esc(c.city) + '</span></span><span class="arrow">›</span></button>').join('') +
+      sh.map((n) => '<button class="choice slim" data-ct="' + esc(JSON.stringify({ name: n, shared: true })) + '"><span class="grow"><b>' + esc(n) + '</b><span>Lo han añadido otros alumnos</span></span><span class="arrow">›</span></button>').join('');
+    if (q.length >= 3) h += '<button class="choice slim other" data-ct="' + esc(JSON.stringify({ name: q, prov: true })) + '"><span class="grow"><b>No está mi centro</b><span>Usar «' + esc(q) + '»</span></span><span class="arrow">›</span></button>';
+    else if (q.length) h += '<p class="muted mini">Escribe un poco más…</p>';
+    return h;
+  }
+  function viewCentro() {
+    return wzBar(1, user.config ? 'wz-exit' : '') + '<h1 class="big">¿Dónde estudias?</h1><p class="lead">Escribe el nombre de tu instituto.</p>' +
+      '<div class="field" style="margin-top:0"><input id="ct-q" value="' + esc(ctQ) + '" placeholder="Ej. Pedralbes" autocomplete="off" autocapitalize="words" enterkeyhint="search" aria-label="Nombre de tu instituto"></div>' +
+      '<div id="ct-res" style="margin-top:12px">' + ctResults() + '</div>' +
+      '<p class="muted mini center" style="margin-top:18px"><button class="link" data-act="wz-skip-centre">Prefiero no decirlo</button></p>';
+  }
+  function ctSearch() {
+    const q = ctQ.trim(), seq = ++ctSeq; clearTimeout(ctT);
+    const paint = () => { const el = $('#ct-res'); if (el && tab === 'centro') el.innerHTML = ctResults(); };
+    paint(); if (q.length < 3) { ctDir = []; ctShared = []; paint(); return; }
+    ctT = setTimeout(async () => {
+      const [d, sh] = await Promise.all([CAT ? CAT.searchDirectory(q) : [], window.FTAcct ? FTAcct.catGet('centro', q) : []]);
+      if (seq !== ctSeq) return; ctDir = d; ctShared = sh; paint();
+    }, 300);
+  }
+  function viewCiclo() {
+    const c = wz.centre || {}, cat = c.id && CAT ? CAT.centreById(c.id) : null, cyc = CAT ? Object.values(CAT.CYCLES) : [];
+    const mine = cat ? cyc.filter((x) => cat.cycles.indexOf(x.code) >= 0) : cyc;
+    let h = wzBar(2, 'wz-back-centre') + '<h1 class="big">¿Qué estudias?</h1><p class="lead">' + (c.name ? esc(c.name) + '. ' : '') + 'Elige tu ciclo. Ya tenemos sus módulos y sus horas.</p>';
+    h += mine.map((x) => '<button class="choice slim" data-cy="' + esc(x.code) + '"><span class="grow"><b>' + esc(x.short) + ' · ' + esc(x.name) + '</b><span>' + esc(x.grade) + ' · ' + x.modules.length + ' módulos</span></span><span class="arrow">›</span></button>').join('');
+    h += '<form id="cy-other" class="card" style="margin-top:14px"><div class="sec">¿No está tu ciclo?</div><div class="field" style="margin-top:6px"><input name="n" placeholder="Ej. Administració de sistemes (ASIX)" autocomplete="off" aria-label="Nombre de tu ciclo"></div><div class="btns"><button class="btn small">Usar este</button></div><p class="muted mini" style="margin:8px 0 0">Luego escribes tú los nombres de tus asignaturas.</p></form>';
+    return h;
+  }
+  /** Desde Ajustes: solo se cambia el centro y el ciclo, el horario se queda. */
+  function wzEditDone() { if (!wz || !wz.edit || !user.config) return false; user.config.catalog = wzCatalog(C.allSubjects(user.config)); wz = null; save(); tab = 'ajustes'; ajSec = 'horario'; render(); scrollTo(0, 0); toast('Centro y ciclo guardados'); return true; }
+  /** Lo nuevo que entra por «Otro» vale ya para ti; al catálogo compartido solo llega si otro alumno pone lo mismo. */
+  function shareOther(kind, value, scope) { if (window.FTAcct && value) FTAcct.catAdd(kind, value, scope); }
+  /** Curso que se deduce de los módulos pintados: el de la mayoría. */
+  function courseOf(subjects) {
+    const cy = wz && wz.cycle && wz.cycle.code; if (!cy || !CAT) return null;
+    const n = { 1: 0, 2: 0 }; subjects.forEach((x) => { const m = CAT.matchModule(cy, x); if (m) n[m.course]++; });
+    return n[1] === n[2] ? null : (n[2] > n[1] ? 2 : 1);
+  }
   // ---------- faltas de antes: contadores por asignatura (sustituye al copiar y pegar con la IA) ----------
   let prv = null; // { tid, real, vals, min, prev, warn, next }
   function prvOpen(next) {
@@ -215,7 +266,7 @@
   function viewPrevias() {
     if (!prv) { prvOpen('hoy'); return ''; }
     const S = calc(), t = S.terms.find((x) => x.id === prv.tid) || S.terms[0], names = Object.keys(prv.vals).sort();
-    let h = '<div class="steps"><button class="back" data-act="prv-close">‹ Atrás</button></div><h1 class="big">¿Cuántas horas has faltado ya?</h1><p class="lead">Desde el ' + nice(t.from) + ' hasta hoy. Si no te acuerdas, míralo en el Moodle.</p>';
+    let h = (wz ? wzBar(6, 'prv-close') : '<div class="steps"><button class="back" data-act="prv-close">‹ Atrás</button></div>') + '<h1 class="big">¿Cuántas horas has faltado ya?</h1><p class="lead">Desde el ' + nice(t.from) + ' hasta hoy. Si no te acuerdas, míralo en el Moodle.</p>';
     h += '<div class="card cnts">' + names.map((n) => '<div class="cnt-row">' + avatar(S, n) + '<b class="grow">' + esc(n) + '</b><button class="step" data-pv="' + esc(n) + '|-1" aria-label="Una hora menos en ' + esc(n) + '"' + (prv.vals[n] <= (prv.min[n] || 0) ? ' disabled' : '') + '>−</button><span class="pv">' + fmt(prv.vals[n]) + ' h</span><button class="step" data-pv="' + esc(n) + '|1" aria-label="Una hora más en ' + esc(n) + '">+</button></div>').join('') + '</div>';
     if (prv.warn) h += '<div class="card warn"><p><b>¿Seguro que no has faltado nada desde el ' + nice(t.from) + '?</b></p><p class="muted">Si pones 0 y no es verdad, NoVoy te dirá que puedes faltar cuando no.</p></div>';
     return h + '<div class="cta"><div class="in"><button class="btn primary" data-act="prv-save">' + (prv.warn ? 'Sí, no he faltado' : 'Listo') + '</button></div></div>';
@@ -226,8 +277,8 @@
     const before = JSON.stringify(user.faltas);
     user.faltas = user.faltas.filter((f) => !(f.note === 'previas' && !f.date && C.faltaTerm(calc(), f) === prv.tid));
     Object.keys(prv.vals).forEach((n) => { const extra = r1(prv.vals[n] - (prv.min[n] || 0)); if (extra > 0) user.faltas.push({ id: nid(), date: '', term: prv.real, subject: n, hours: extra, type: 'falta', justified: false, note: 'previas' }); });
-    flagSet('imphint'); const next = prv.next; prv = null; save(); tab = next === 'previas' ? 'hoy' : next; render(); scrollTo(0, 0);
-    toast('Guardado', () => { user.faltas = JSON.parse(before); save(); render(); });
+    flagSet('imphint'); const next = prv.next, wasWz = !!wz; prv = null; wz = null; save(); tab = next === 'previas' ? 'hoy' : next; render(); scrollTo(0, 0);
+    toast(wasWz ? 'Listo. Ya tienes tu NoVoy' : 'Guardado', () => { user.faltas = JSON.parse(before); save(); render(); });
   }
   /** data-miss: JSON con la fecha y una unidad por cada hora (asignatura, inicio, horas). */
   const missAttr = (day, slots) => esc(JSON.stringify({ d: day, u: slots.map((x) => [x.subject, x.start, x.hours]) }));
@@ -282,9 +333,10 @@
     const offNow = new Set(C.disabledOn(S, today()).map((x) => x.name)), offRows = sum.filter((x) => offNow.has(x.name));
     sum.filter((x) => !offNow.has(x.name)).sort((a, b) => a.margin - b.margin).forEach((x, n) => {
       h += '<div' + rise(n) + '><div class="card"><div class="row">' + avatar(S, x.name) + '<div class="grow"><div class="name">' + esc(x.name) + '</div><div class="muted">Llevas ' + fmt(x.absent) + ' de ' + fmt(x.limit) + '&nbsp;h</div></div><div class="right"><span class="tag big ' + x.status + '">' + (x.margin < 0 ? 'te pasas ' + fmt(-x.margin) + ' h' : 'te quedan ' + fmt(x.margin) + ' h') + '</span><div class="pct">' + cnt(x.pct) + '% de ' + lim + '%</div></div></div>' + meter(x.pct, null, lim, x.status) +
-        lastLine(x, rem[x.name] || 0) + '</div></div>';
+        (x.j ? '<p class="last ' + x.j.status + '">Justificadas: llevas ' + fmt(x.j.absent) + ' de ' + fmt(x.j.limit) + '&nbsp;h (' + fmt(x.j.pct) + '%)</p>' : '') + lastLine(x, rem[x.name] || 0) + '</div></div>';
     });
     const nc = (S.nocount || []).filter((k) => C.allSubjects(S).indexOf(k) >= 0);
+    h += catCheck(S, sum);
     if (nc.length) h += '<p class="muted mini" style="margin:14px 2px 0">' + nc.map(esc).join(', ') + ' no ' + (nc.length === 1 ? 'cuenta' : 'cuentan') + ' faltas. <button class="link" data-act="go-nocount">Cambiar</button></p>';
     if (offRows.length) h += '<div class="card"><div class="sec">Aún no se dan</div><ul class="list">' + offRows.map((x) => '<li><b>' + esc(x.name) + '</b> · ' + fmt(x.total) + ' h en total · podrás faltar ' + fmt(x.limit) + ' h</li>').join('') + '</ul><p class="muted">Actívalas en la pantalla Hoy cuando empiecen.</p></div>';
     const orph = C.orphans(S);
@@ -293,6 +345,18 @@
     if (n > 0 && Object.keys(late).length) h += '<div class="card"><div class="sec">Retrasos</div><p class="muted">Cada ' + n + ' retrasos cuentan 1 h de falta (ya sumada arriba).</p><ul class="list">' + Object.keys(late).sort().map((k) => { const r = late[k] % n; return '<li><b>' + esc(k) + '</b>: ' + late[k] + ' retraso' + (late[k] === 1 ? '' : 's') + ' · ' + (r === 0 ? 'el siguiente empieza otra cuenta' : 'te faltan ' + (n - r) + ' para la siguiente hora') + '</li>'; }).join('') + '</ul></div>';
     const un = user.faltas.filter((f) => !f.date && f.note !== 'previas' && f.term === tid).length;
     if (un) h += '<p class="muted" style="margin-top:14px">' + un + ' falta(s) sin fecha cuentan en el total. Ponles fecha en "Faltas".</p>';
+    return h;
+  }
+  /** Comprobación con el catálogo: horas de tu horario × semanas frente a las horas oficiales del módulo. */
+  function catCheck(S, sum) {
+    const cat = S.catalog, cy = cat && cat.cycle && cat.cycle.code; if (!cy || !CAT) return '';
+    const w = +S.settings.semanas || 33, weekly = {}, nc = S.nocount || [];
+    Object.keys(S.schedule || {}).forEach((d) => (S.schedule[d] || []).forEach((b) => { if (nc.indexOf(b.subject) < 0) { const k = C.canon(S, b.subject); weekly[k] = (weekly[k] || 0) + (+b.hours || 0); } }));
+    const ok = [], bad = [];
+    sum.forEach((x) => { const m = CAT.matchModule(cy, x.name); if (!m || !m.hours || !weekly[x.name]) return; const mine = Math.round(weekly[x.name] * w), d = Math.abs(mine - m.hours) / m.hours; if (d <= 0.1) ok.push(x.name); else if (d > 0.15) bad.push({ n: x.name, mine, off: m.hours }); });
+    let h = '';
+    if (bad.length) h += '<div class="card warn"><div class="sec">Revisa estas horas</div><ul class="list">' + bad.map((b) => '<li><b>' + esc(b.n) + '</b>: tu horario da ' + b.mine + ' h al curso y la oficial es ' + b.off + ' h.</li>').join('') + '</ul><p class="muted mini" style="margin-top:8px">Puede que falte o sobre una hora en tu rejilla, o que tu centro tenga horas extra.</p></div>';
+    if (ok.length) h += '<p class="muted mini" style="margin:14px 2px 0">✓ Coinciden con las horas oficiales: ' + ok.map(esc).join(', ') + '.</p>';
     return h;
   }
   const subjectsOf = (S) => C.allSubjects(S).slice().sort();
@@ -551,10 +615,15 @@
   }
   /** Reglas del centro que cambian el cálculo. Si no las sabes, se usa lo más restrictivo. */
   function rulesCard(S) {
-    const s = S.settings, multi = (S.terms || []).length > 1;
-    return '<div class="card"><div class="sec">Reglas de tu centro</div><p class="muted">Pregúntalo a tu tutor si no lo sabes. Mientras tanto se usa lo más estricto.</p>' +
-      (multi ? '<div class="field"><label>El límite se aplica</label><select data-sel="ambito"><option value="trimestre"' + (s.ambito !== 'curso' ? ' selected' : '') + '>En cada trimestre (o no lo sé)</option><option value="curso"' + (s.ambito === 'curso' ? ' selected' : '') + '>Sobre el curso entero</option></select><div class="muted">' + (s.ambito === 'curso' ? 'Se suman todos los trimestres en uno.' : 'Cada trimestre tiene su propio margen.') + '</div></div>' : '') +
-      '<div class="field"><label>Retrasos que hacen 1 h de falta</label><input type="number" data-num="retrasosPorFalta" min="0" max="50" step="1" inputmode="numeric" value="' + (+s.retrasosPorFalta || 0) + '"><div class="muted">0 = los retrasos no cuentan. Si no lo sabes, muchos centros usan 3.</div></div></div>';
+    const s = S.settings, jm = C.justMode(s), multi = (S.terms || []).length > 1;
+    const seg = (k, cur, opts) => '<div class="seg wide">' + opts.map((o) => '<button type="button" class="' + (String(cur) === String(o[0]) ? 'on' : '') + '" data-sset="' + k + '|' + o[0] + '">' + o[1] + '</button>').join('') + '</div>';
+    return '<div class="card rules"><div class="sec">Reglas de tu centro</div><p class="muted">Si no sabes alguna, pregúntalo a tu tutor.</p>' +
+      '<div class="q"><b>¿Cuánto puedes faltar?</b>' + seg('limite', s.limite, [[15, '15%'], [20, '20%'], [25, '25%'], [30, '30%']]) + '</div>' +
+      '<div class="q"><b>Las faltas justificadas…</b>' + seg('justModo', jm, [['juntas', 'Cuentan igual'], ['nocuentan', 'No cuentan'], ['separadas', 'Su propio %']]) +
+        (jm === 'separadas' ? '<span class="muted mini">Límite solo para las justificadas:</span>' + seg('limiteJust', s.limiteJust || 25, [[10, '10%'], [15, '15%'], [20, '20%'], [25, '25%'], [30, '30%']]) : '') + '</div>' +
+      (multi ? '<div class="q"><b>El límite se mira…</b>' + seg('ambito', s.ambito || 'trimestre', [['trimestre', 'Cada trimestre'], ['curso', 'Todo el curso']]) + '</div>' : '') +
+      '<div class="q"><b>¿Los retrasos suman?</b>' + seg('retrasosPorFalta', +s.retrasosPorFalta || 0, [[0, 'No'], [2, '2 = 1 h'], [3, '3 = 1 h'], [4, '4 = 1 h']]) + '</div>' +
+      '<div class="q"><b>Semanas de clase del curso</b><div class="two" style="grid-template-columns:110px 1fr;align-items:center"><input type="number" data-num="semanas" min="1" max="52" step="1" inputmode="numeric" value="' + (+s.semanas || 33) + '" aria-label="Semanas de clase del curso"><span class="muted mini">Lo normal son 33. Las horas de cada asignatura salen de tu horario × estas semanas.</span></div></div></div>';
   }
   /** Ajustes por apartados: primero la lista, luego un apartado con sus tarjetas. */
   let ajSec = null;
@@ -570,16 +639,16 @@
     const S = snapState(), s = S.settings, hasAlias = Object.keys(S.alias || {}).length;
     const sw = (k, label, hint) => '<div class="switch"><div><div style="font-weight:700">' + label + '</div><div class="muted">' + hint + '</div></div><input type="checkbox" data-set="' + k + '"' + (s[k] ? ' checked' : '') + '></div>';
     if (!ajSec || !AJ.some((x) => x[0] === ajSec)) {
-      const sub = { faltas: s.limite + '% · ' + (s.ambito === 'curso' ? 'curso entero' : 'por trimestre') + (+s.retrasosPorFalta ? ' · ' + s.retrasosPorFalta + ' retrasos = 1 h' : ''), cuenta: user.acct ? 'Conectado como ' + user.acct.u : null, horario: S.center || null };
+      const sub = { faltas: s.limite + '% · ' + (s.ambito === 'curso' ? 'curso entero' : 'por trimestre') + ' · justificadas: ' + { juntas: 'cuentan', nocuentan: 'no cuentan', separadas: (s.limiteJust || 25) + '% aparte' }[C.justMode(s)] + (+s.retrasosPorFalta ? ' · ' + s.retrasosPorFalta + ' retrasos = 1 h' : ''), cuenta: user.acct ? 'Conectado como ' + user.acct.u : null, horario: S.center || null };
       return '<div class="top"><h1>Ajustes</h1></div>' + AJ.map((x, i) => '<div' + rise(i) + '><button class="card sim-entry aj' + (x[0] === 'borrar' ? ' aj-bad' : '') + '" data-aj="' + x[0] + '"><span class="grow"><b>' + x[1] + '</b><span class="muted">' + esc(sub[x[0]] || x[2]) + '</span></span><span class="arrow">›</span></button></div>').join('');
     }
     const title = AJ.find((x) => x[0] === ajSec)[1];
     let h = '<div class="steps"><button class="back" data-aj="">‹ Ajustes</button><h1>' + title + '</h1></div>';
-    if (ajSec === 'horario') h += ('<div class="card"><div class="sec">Tu horario</div><p class="muted">Cambia una clase, el calendario o los festivos.</p><div class="btns"><button class="btn small primary" data-act="edit">Cambiar mi horario</button><label class="btn small" for="qshot">Subir otra foto</label><input id="qshot" type="file" accept="image/*" hidden></div><p class="muted mini" style="margin:10px 0 0"><button class="link" data-act="edit-adv">Editor avanzado: unir asignaturas, nombre del centro</button></p></div>') +
+    if (ajSec === 'horario') h += ('<div class="card"><div class="sec">Tu horario</div><p class="muted">Cambia una clase, el calendario o los festivos.</p><div class="btns"><button class="btn small primary" data-act="edit">Cambiar mi horario</button><label class="btn small" for="qshot">Subir otra foto</label><input id="qshot" type="file" accept="image/*" hidden><button class="btn small" data-act="start-ai">Con tu IA</button></div><p class="muted mini" style="margin:10px 0 0"><button class="link" data-act="edit-adv">Editor avanzado: unir asignaturas, nombre del centro</button></p></div>') +
+      '<div class="card"><div class="sec">Tu centro y tus estudios</div><p class="muted">' + esc(((S.catalog || {}).centre || {}).name || 'Sin elegir') + ' · ' + esc(((S.catalog || {}).cycle || {}).name || 'sin ciclo') + '</p><div class="btns"><button class="btn small" data-act="wz-edit">Cambiar</button></div></div>' +
       '<div class="card"><div class="sec">Faltas de antes</div><p class="muted">Las que tenías antes de usar NoVoy.</p><div class="btns"><button class="btn small" data-act="prv-open">Cambiar</button></div></div>';
-    else if (ajSec === 'faltas') h += rulesCard(S) + ('<div class="card">' + (hasAlias ? sw('unificar', 'Unificar asignaturas', 'Algunas cuentan dentro de otra (ej. proyectos).') : '') + sw('justificadasCuentan', 'Las justificadas cuentan', 'Si lo apagas, no suman al límite.') + '</div>' +
-      '<div class="card"><div class="two"><div class="field" style="margin-top:0"><label>Límite de faltas (%)</label><input type="number" data-num="limite" min="1" max="100" value="' + s.limite + '"></div>' +
-      '<div class="field" style="margin-top:0"><label>Aviso si quedan (h) o menos</label><input type="number" data-num="aviso" min="0" step="any" value="' + s.aviso + '"></div></div></div>');
+    else if (ajSec === 'faltas') h += rulesCard(S) + (hasAlias ? '<div class="card">' + sw('unificar', 'Unificar asignaturas', 'Algunas cuentan dentro de otra (ej. proyectos).') + '</div>' : '') +
+      '<div class="card"><div class="field" style="margin-top:0"><label>Avisar en ámbar cuando queden (h) o menos</label><input type="number" data-num="aviso" min="0" step="any" value="' + s.aviso + '"></div></div>';
     else if (ajSec === 'clase') h += ('<div class="card share"><div class="sec">Pásalo a tu clase</div><p class="muted">Un enlace con tu horario y calendario (sin tus faltas). Tus compañeros lo abren y ya está configurado.</p><div class="btns"><a class="btn small primary" id="sh-wa" target="_blank" rel="noopener">WhatsApp</a><button class="btn small" data-act="share">Compartir / copiar enlace</button></div></div>');
     else if (ajSec === 'cuenta') h += acctCard() + ('<div class="card"><div class="sec">Copia de seguridad</div><p class="muted">Tus datos solo viven en este móvil. El enlace de copia lleva tu horario y tus faltas: guárdalo en tus mensajes y, si cambias de móvil, ábrelo para restaurar todo. No lo compartas con nadie.</p><div class="btns"><button class="btn small primary" data-act="backup-link">Copiar mi enlace de copia</button><button class="btn small" id="exp">Exportar archivo</button><label class="btn small" for="imp">Importar</label><input id="imp" type="file" accept="application/json" hidden></div></div>');
     else if (ajSec === 'app') h += ((standalone() ? '' : '<div class="card"><div class="sec">Instálala en tu móvil</div><p class="muted">Icono en la pantalla de inicio, como una app.</p><div class="btns"><button class="btn small primary" data-act="open-install">Cómo instalarla</button></div></div>')) + ('<div class="card"><div class="btns" style="margin-top:0"><button class="btn small" id="theme">Claro / oscuro</button><button class="btn small" data-act="refresh">Actualizar app</button></div><p class="muted" style="margin-top:10px">«Actualizar app» borra la caché de la app por si algo no se ve actualizado. No toca tus faltas ni tu horario.</p><p class="muted">' + esc(S.center || '') + '</p></div>');
@@ -668,18 +737,34 @@
     if (!upd && !sx.ai && (sx.scr === 'reg' || sx.scr === 'login')) return viewAcctStep();
     let cta = '';
     if (st === 1 && !upd && !sx.ai) {
-      // elegir cómo meter el horario: foto primero, pintar después. Nada más.
-      let h0 = '<div class="steps">' + (user.config || user.skipCfg ? '<button class="back" data-act="close">‹ Atrás</button>' : '') + '</div>' +
-        '<h1 class="big">Tu horario</h1><p class="lead">Haz una foto o una captura de tu horario. Yo lo relleno.</p>' +
+      // elegir cómo meter el horario: una pregunta y la web te dice qué camino usar
+      const top = wz ? wzBar(3, 'wz-back-cycle') : '<div class="steps">' + (user.config || user.skipCfg ? '<button class="back" data-act="close">‹ Atrás</button>' : '') + '</div>';
+      const card = (act, ic, t, sub, best, main) => (act === 'photo' ? '<label class="choice' + (main ? ' main' : '') + '" for="qshot">' : '<button class="choice' + (main ? ' main' : '') + '" data-act="how-' + act + '">') + '<span class="ic" aria-hidden="true">' + ic + '</span><span class="grow"><b>' + t + '</b><span>' + sub + '</span><span class="best">Mejor si ' + best + '</span></span><span class="arrow">›</span>' + (act === 'photo' ? '</label>' : '</button>');
+      let h0 = top + '<h1 class="big">Tu horario</h1><p class="lead">Elige cómo lo pones. Si dudas, la de arriba.</p>' +
         '<input id="qshot" type="file" accept="image/*" hidden>' +
-        '<label class="choice main" for="qshot"><span class="ic" aria-hidden="true">📷</span><span class="grow"><b>Subir foto del horario</b><span>La foto no sale de tu móvil</span></span><span class="arrow">›</span></label>' +
-        '<button class="choice" data-act="q-start"><span class="ic" aria-hidden="true">✏️</span><span class="grow"><b>Pintarlo yo</b><span>Tocas las horas de tu semana</span></span><span class="arrow">›</span></button>' +
+        card('photo', '📷', 'Con una foto', 'Lo leo yo. La foto no sale de tu móvil', 'tienes el horario en el Moodle, en un PDF o en papel', true) +
+        card('paint', '✏️', 'Pintándolo', 'Tocas las horas de tu semana', 'tu horario es sencillo o la foto no sale bien', false) +
+        card('ai', '💬', 'Con tu IA', 'ChatGPT, Gemini o Claude te hacen unas preguntas', 'tu horario cambia durante el curso, tienes proyectos o grupos', false) +
         (!user.config && !user.acct && hasAcct() ? '<p class="muted mini center" style="margin-top:22px"><button class="link" data-act="go-login">Ya tengo cuenta: entrar</button></p>' : '') +
         (user.config ? '' : '<p class="muted mini center" style="margin-top:10px"><button class="link" data-act="skip-cfg">Ahora no, solo quiero mirar</button></p>');
       return h0;
     }
     let h = '<div class="steps">' + (user.config || user.skipCfg ? '<button class="back" data-act="close">‹ Atrás</button>' : '<button class="back" data-act="ai-back">‹ Atrás</button>') + '<div class="prog" role="progressbar" aria-valuemin="1" aria-valuemax="' + total + '" aria-valuenow="' + st + '"><i style="width:' + st / total * 100 + '%"></i></div></div>';
-    if (st === 1) {
+    const aiNew = !upd;
+    if (aiNew && st === 1) {
+      h = (wz ? wzBar(3, 'ai-back') : h) + '<h1 class="big">Con tu IA</h1><p class="lead">Tu IA te hace unas preguntas (unos 3 minutos) y al final te da un texto para pegar aquí.</p>' +
+        '<ol class="how big3"><li><span><b>Copia el mensaje</b> con el botón de abajo.</span></li><li><span><b>Pégalo en tu IA</b> y contesta. Si no sabes algo, dile «no lo sé».</span></li><li><span><b>Pega aquí</b> lo que te responda.</span></li></ol>' +
+        '<details><summary>Ver el mensaje</summary><textarea readonly id="pt" aria-label="Mensaje para tu IA">' + esc(promptText()) + '</textarea></details>';
+      cta = '<button class="btn" data-act="ai-back">Volver</button><button class="btn primary" data-act="copy-prompt">' + (sx.copied ? 'Copiado · Siguiente' : 'Copiar el mensaje') + '</button>';
+    } else if (aiNew && st === 2) {
+      h = (wz ? wzBar(3, 'ai-prev') : h) + '<h1 class="big">Abre tu IA y pégalo</h1><p class="lead">Vale la versión gratis. Contesta a sus preguntas; cuando acabe te dará un bloque de texto.</p>' +
+        '<div class="btns"><a class="btn" href="https://chatgpt.com" target="_blank" rel="noopener">ChatGPT</a><a class="btn" href="https://gemini.google.com" target="_blank" rel="noopener">Gemini</a><a class="btn" href="https://claude.ai" target="_blank" rel="noopener">Claude</a></div>' +
+        '<p class="muted" style="margin-top:14px">Puedes mandarle también una foto de tu horario: así te pregunta menos.</p>';
+      cta = '<button class="btn primary" data-act="next">Ya tengo su respuesta</button>';
+    } else if (aiNew && st === 3) {
+      h = (wz ? wzBar(3, 'ai-prev') : h) + '<h1 class="big">Pega aquí su respuesta</h1><p class="lead">Todo lo que te ha dado, tal cual. Yo saco lo que hace falta.</p><div class="field"><textarea id="paste" placeholder="Pega aquí" aria-label="Respuesta de tu IA">' + esc(sx.text) + '</textarea></div><div class="btns"><button class="btn small" data-act="paste">Pegar</button></div>';
+      cta = '<button class="btn primary" data-act="review">Revisar</button>';
+    } else if (st === 1) {
       h += '<div class="verdict verde">' + mascot('verde') + '<div><b>' + (imp ? 'Pasa tus faltas a NoVoy' : upd ? 'Actualiza con tu IA' : 'Configúralo en 2 minutos') + '</b><p>' + (imp ? 'Copia estas instrucciones, pégalas en tu IA y detrás pega tus faltas tal cual las tengas.' : upd ? 'Cuéntale qué faltas has tenido y ella lo apunta.' : 'Tu IA lee las fotos de tu horario y tu calendario. Tú solo revisas.') + '</p></div></div>' +
         '<p style="margin-top:18px">Primero copia las instrucciones. Tu IA sabrá exactamente qué hacer.</p>' +
         '<details><summary>Ver el texto</summary><textarea readonly id="pt" aria-label="Instrucciones para tu IA">' + esc(promptText()) + '</textarea><p class="muted">Si no se copia solo, mantén pulsado el texto y elige Copiar.</p></details>' +
@@ -716,7 +801,15 @@
     const r = sx.res, prev = JSON.stringify(user), keepFaltas = sx.mode === 'update' || r.faltas.length ? r.faltas : user.faltas;
     const unificar = Object.keys(r.config.alias).length > 0;
     user = { config: r.config, settings: Object.assign({}, user.settings, r.reglas || {}, { unificar, limite: r.limite != null ? r.limite : (user.settings.limite || 25) }), faltas: keepFaltas , acct: user.acct, skipCfg: user.skipCfg };
-    save(); tab = 'hoy'; viewTerm = null; render(); toast('Guardado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
+    if (wz) user.config.catalog = wzCatalog(C.allSubjects(user.config));
+    const fresh = !!wz; wz = null; save(); tab = 'hoy'; viewTerm = null;
+    if (fresh && !user.faltas.length) { prvOpen('hoy'); return; }
+    render(); toast('Guardado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
+  }
+  /** Lo que se guarda del catálogo en tu configuración: tu centro, tu ciclo y el curso deducido. */
+  function wzCatalog(subjects) {
+    if (!wz) return null;
+    return { centre: wz.centre ? { id: wz.centre.id || null, name: wz.centre.name, code: wz.centre.code || null, prov: !!wz.centre.prov } : null, cycle: wz.cycle ? { code: wz.cycle.code || null, name: wz.cycle.name, prov: !!wz.cycle.prov } : null, course: courseOf(subjects) };
   }
 
   // ---------- asistente rápido: captura o rejilla de pintar ----------
@@ -726,7 +819,20 @@
   };
   let qk = null, qpaint = null, qdrag = false, qmode = null;
   const QDAYS = [[1, 'L'], [2, 'M'], [3, 'X'], [4, 'J'], [5, 'V']], QN = { 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes' };
-  const qNew = () => ({ step: 1, start: '08:00', dur: 60, rows: 6, brk: 3, brkMin: 20, limite: 25, unit: 'full', subjects: [], grid: {}, photo: null, custom: null, adding: true, editing: -1, fromShot: false, busy: null, err: '', terms: JSON.parse(JSON.stringify(TPL.terms)), holidays: JSON.parse(JSON.stringify(TPL.holidays)), tmode: 'auto', totals: {} });
+  const qNew0 = () => ({ step: 1, start: '08:00', dur: 60, rows: 6, brk: 3, brkMin: 20, limite: 25, justModo: 'juntas', limiteJust: 25, semanas: 33, ambito: 'trimestre', retrasos: 0, unit: 'full', subjects: [], grid: {}, photo: null, custom: null, adding: true, editing: -1, fromShot: false, busy: null, err: '', terms: JSON.parse(JSON.stringify(TPL.terms)), holidays: JSON.parse(JSON.stringify(TPL.holidays)), tmode: 'auto', totals: {} });
+  /** Rejilla nueva. Si vienes del alta con tu ciclo, la paleta ya trae tus módulos y el calendario tu centro. */
+  function qNew() {
+    const q = qNew0();
+    if (CAT) q.holidays = JSON.parse(JSON.stringify(CAT.CAT_2627));
+    if (wz && wz.cycle && wz.cycle.code && CAT && CAT.CYCLES[wz.cycle.code]) { q.subjects = CAT.CYCLES[wz.cycle.code].modules.map((m) => m.short); q.adding = false; }
+    return q;
+  }
+  /** Al pasar del horario al calendario: con el curso deducido, el calendario real de tu centro si lo tenemos. */
+  function qCalFromCentre() {
+    const c = wz && wz.centre && wz.centre.id && CAT ? CAT.centreById(wz.centre.id) : null, crs = courseOf(qUsed());
+    if (c && crs && c.terms && c.terms[crs] && !qk.calSet) { qk.terms = JSON.parse(JSON.stringify(c.terms[crs])); qk.holidays = JSON.parse(JSON.stringify(c.holidays)); qk.calFrom = c.name; }
+    qk.calSet = true;
+  }
   const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
   function qRows() {
     if (qk.custom) return qk.custom;
@@ -792,7 +898,7 @@
     return Object.assign(qNew(), {
       custom: rows.length ? rows : null, grid, subjects, adding: false, unit: exact ? 'full' : 'real',
       terms: cfg.terms.map((t) => ({ id: t.id, label: t.label, from: t.from, to: t.to })),
-      tmode: Object.keys(cfg.totals || {}).length ? 'manual' : 'auto', totals: JSON.parse(JSON.stringify(cfg.totals || {})), disabled: JSON.parse(JSON.stringify(cfg.disabled || {})), proj: qProjGrid(cfg, rows), nocount: (cfg.nocount || []).slice(), ask: Object.assign({ proj: !!cfg.project, late: Object.keys(cfg.disabled || {}).length > 0, nocount: (cfg.nocount || []).length > 0 }, cfg.ask || {}), ambito: (user.settings || {}).ambito || 'trimestre', retrasos: +(user.settings || {}).retrasosPorFalta || 0, projName: (cfg.project && cfg.project.name) || 'Proyecto', projWeeks: cfg.project && cfg.project.weeks != null ? cfg.project.weeks : 4,
+      tmode: Object.keys(cfg.totals || {}).length ? 'manual' : 'auto', totals: JSON.parse(JSON.stringify(cfg.totals || {})), disabled: JSON.parse(JSON.stringify(cfg.disabled || {})), proj: qProjGrid(cfg, rows), nocount: (cfg.nocount || []).slice(), ask: Object.assign({ proj: !!cfg.project, late: Object.keys(cfg.disabled || {}).length > 0, nocount: (cfg.nocount || []).length > 0 }, cfg.ask || {}), ambito: (user.settings || {}).ambito || 'trimestre', retrasos: +(user.settings || {}).retrasosPorFalta || 0, justModo: C.justMode(Object.assign({}, C.DEF, user.settings)), limiteJust: +(user.settings || {}).limiteJust || 25, semanas: +(user.settings || {}).semanas || 33, catalog: cfg.catalog || null, projName: (cfg.project && cfg.project.name) || 'Proyecto', projWeeks: cfg.project && cfg.project.weeks != null ? cfg.project.weeks : 4,
       holidays: (cfg.holidays || []).map((h) => ({ label: h.label, from: h.from, to: h.to })),
       limite: (user.settings && user.settings.limite) || 25, base: cfg, pi: pi == null ? null : pi
     });
@@ -850,7 +956,7 @@
   }
   function viewQuick() {
     const st = qk.step, total = 3;
-    let h = '<div class="steps"><button class="back" data-act="q-exit">‹ Atrás</button>' + (st ? '<div class="prog" role="progressbar" aria-valuemin="1" aria-valuemax="' + total + '" aria-valuenow="' + st + '"><i style="width:' + st / total * 100 + '%"></i></div>' : '') + '</div>', ok = true;
+    let h = wz && st ? wzBar(st + 2, st === 1 ? 'q-exit' : 'q-back') : '<div class="steps"><button class="back" data-act="q-exit">‹ Atrás</button>' + (st ? '<div class="prog" role="progressbar" aria-valuemin="1" aria-valuemax="' + total + '" aria-valuenow="' + st + '"><i style="width:' + st / total * 100 + '%"></i></div>' : '') + '</div>', ok = true;
     const sel = (key, opts, cur) => '<select data-qf="' + key + '">' + opts.map((o) => '<option value="' + o[0] + '"' + (String(o[0]) === String(cur) ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>';
     if (st === 0) {
       if (qk.busy) return h + '<h1>Leyendo tu horario…</h1><p class="muted" id="qmsg" style="margin-top:6px">' + esc(qk.busy.msg) + '</p><div class="prog" style="margin-top:18px"><i id="qbar" style="width:' + Math.round(qk.busy.p * 100) + '%"></i></div><p class="muted" style="margin-top:14px">La primera vez descarga el lector (unos 10 MB). Tu foto no sale del móvil.</p>';
@@ -859,9 +965,12 @@
     if (st === 1) {
       ok = qUsed().length > 0;
       const rows = qRows();
-      h += '<h1>' + (qk.fromShot ? 'Revisa tu horario' : 'Tu horario') + '</h1><p class="muted" style="margin-top:6px">' + (qk.fromShot ? 'Esto es lo que he leído. Corrige lo que no esté bien.' : 'Añade tus asignaturas, elige una y pinta sus casillas.') + '</p>' +
+      h += '<h1>' + (qk.fromShot ? 'Revisa tu horario' : 'Tu horario') + '</h1><p class="muted" style="margin-top:6px">' + (qk.fromShot ? 'Esto es lo que he leído. Corrige lo que no esté bien.' : qk.subjects.length && !qk.adding ? 'Toca un módulo y luego sus horas en la semana.' : 'Añade tus asignaturas, elige una y pinta sus casillas.') + '</p>' +
         (qk.photo ? '<details class="qph"' + (qk.fromShot ? ' open' : '') + '><summary>Tu captura</summary><img src="' + qk.photo + '" alt="Captura de tu horario"></details>' : '');
-      h += '<div class="pals">' + qk.subjects.map((s, i) => '<button class="pal' + (qpaint === s ? ' on' : '') + (qCover(s) ? ' pal-off' : '') + '" data-pal="' + i + '" style="--c:' + AVC[i % AVC.length] + '">' + esc(s) + (qCover(s) ? ' <span class="mini">desactivada</span>' : '') + ((qk.nocount || []).indexOf(s) >= 0 && qYes('nocount') ? ' <span class="mini">no cuenta</span>' : '') + '</button>').join('') + (qYes('proj') ? '<button class="pal pj' + (qpaint === QP ? ' on' : '') + '" data-act="q-proj">' + esc(qk.projName || 'Proyecto') + ' <span class="mini">franjas</span></button>' : '') + '<button class="pal er' + (qpaint === '' ? ' on' : '') + '" data-pal="-1">Borrar</button><button class="pal add" data-act="q-add">+ Asignatura</button></div>';
+      const cy = (wz && wz.cycle && wz.cycle.code) || (qk.catalog && qk.catalog.cycle && qk.catalog.cycle.code) || null, used = qUsed(), crs = cy ? courseOf(used) : null;
+      const showPal = (x) => { if (!cy || !crs || qk.showAll || used.indexOf(x) >= 0) return true; const m = CAT && CAT.matchModule(cy, x); return !m || m.course === crs; };
+      const hidden = qk.subjects.filter((x) => !showPal(x)).length;
+      h += '<div class="pals">' + qk.subjects.map((s, i) => !showPal(s) ? '' : '<button class="pal' + (qpaint === s ? ' on' : '') + (qCover(s) ? ' pal-off' : '') + '" data-pal="' + i + '" style="--c:' + AVC[i % AVC.length] + '">' + esc(s) + (qCover(s) ? ' <span class="mini">desactivada</span>' : '') + ((qk.nocount || []).indexOf(s) >= 0 && qYes('nocount') ? ' <span class="mini">no cuenta</span>' : '') + '</button>').join('') + (qYes('proj') ? '<button class="pal pj' + (qpaint === QP ? ' on' : '') + '" data-act="q-proj">' + esc(qk.projName || 'Proyecto') + ' <span class="mini">franjas</span></button>' : '') + (hidden || qk.showAll ? '<button class="pal add" data-act="q-showall">' + (qk.showAll ? 'Solo las de ' + crs + 'º' : '+ ' + hidden + ' de ' + (crs === 2 ? '1r' : '2º') + ' curso') + '</button>' : '') + '<button class="pal er' + (qpaint === '' ? ' on' : '') + '" data-pal="-1">Borrar</button><button class="pal add" data-act="q-add">+ Otra asignatura</button></div>';
       if (qpaint === QP) h += '<div class="card" style="margin-top:4px"><div class="sec">Semanas de proyecto</div><p class="muted">Marca en la rejilla las horas que se convierten en proyecto cuando hay semana de proyecto. Tus asignaturas se quedan debajo. Luego lo activas desde Hoy con un toque.</p><div class="two"><div class="field"><label>Nombre</label><input data-qf="projName" value="' + esc(qk.projName || 'Proyecto') + '" autocomplete="off"></div><div class="field"><label>Semanas en el curso</label><input type="number" min="0" max="40" step="1" inputmode="numeric" data-qf="projWeeks" value="' + (qk.projWeeks != null ? qk.projWeeks : 4) + '"></div></div><p class="muted mini">Con las semanas se calculan sus horas totales (' + fmt(qProjHours() * (qk.projWeeks != null ? qk.projWeeks : 4)) + ' h). Si sabes las oficiales, ponlas en «Horas totales».</p>' + (qProjHours() ? '<button type="button" class="btn small danger" style="margin-top:8px" data-act="q-proj-clear">Quitar las franjas de proyecto</button>' : '') + '</div>';
       if (qk.editing >= 0 && qk.subjects[qk.editing] != null) h += '<form id="q-ren" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>Cambiar nombre</label><input name="n" value="' + esc(qk.subjects[qk.editing]) + '" autocomplete="off" required></div><div class="btns" style="margin-top:10px"><button class="btn small primary">Guardar</button><button type="button" class="btn small danger" data-q-del="' + qk.editing + '">Quitar asignatura</button></div>' + qNoCountBox(qk.subjects[qk.editing]) + qOffBox(qk.subjects[qk.editing]) + '</form>';
       if (qk.adding || !qk.subjects.length) h += '<form id="q-sub" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>' + (qk.subjects.length ? 'Nueva asignatura' : 'Empieza por tus asignaturas') + '</label><input name="s" placeholder="Ej. Programación" autocomplete="off" enterkeyhint="next" aria-label="Asignaturas"></div><p class="muted" style="margin-top:6px">Escribe una y pulsa Enter para crear la siguiente.</p><div class="btns" style="margin-top:10px"><button class="btn small primary">Añadir</button>' + (qk.subjects.length ? '<button type="button" class="btn small" data-act="q-add-done">Listo</button>' : '') + '</div></form>';
@@ -875,7 +984,7 @@
       h += '<details class="more"' + (moreOn ? ' open' : '') + '><summary>Casos especiales: tutoría, proyectos, cambios de horario</summary>' + qAsk() + qTramos() + '</details>';
     } else if (st === 2) {
       ok = qk.terms.length > 0 && qk.terms.every((t) => t.from && t.to && t.from <= t.to);
-      h += '<h1>Calendario</h1><div class="card warn"><p>Plantilla orientativa de Catalunya 2026-27. <b>Revisa las fechas con tu centro</b>: cada uno puede cambiarlas.</p></div>' +
+      h += '<h1 class="big">Tu calendario</h1><p class="lead">' + (qk.calFrom ? 'Estas son las fechas de ' + esc(qk.calFrom) + '. Mira que estén bien.' : 'Pon las fechas de tus trimestres. Los festivos de Catalunya ya están.') + '</p>' + (qk.calFrom ? '' : '<div class="card warn"><p>Las fechas son de ejemplo. <b>Cámbialas por las de tu centro</b> (salen en el Moodle o en la web del instituto).</p></div>') +
         '<div class="card"><div class="sec">Trimestres</div>' + qk.terms.map((t, i) => '<div class="qt"><input data-qt="' + i + '|label" value="' + esc(t.label) + '" aria-label="Nombre"><div class="two"><input type="date" data-qt="' + i + '|from" value="' + t.from + '" aria-label="Desde"><input type="date" data-qt="' + i + '|to" value="' + t.to + '" aria-label="Hasta"></div><button class="x" data-q-term="' + i + '" aria-label="Quitar ' + esc(t.label) + '">×</button></div>').join('') + '<button class="btn small" style="margin-top:10px" data-act="q-addterm">Añadir trimestre</button></div>' +
         '<div class="card"><div class="sec">Festivos y vacaciones</div>' + (qk.holidays.length ? qk.holidays.slice().sort((a, b) => (a.from < b.from ? -1 : 1)).map((x) => '<div class="item"><span class="grow">' + esc(x.label) + '<span class="muted"> · ' + nice(x.from) + (x.to && x.to !== x.from ? ' → ' + nice(x.to) : '') + '</span></span><button class="x" data-q-hol="' + qk.holidays.indexOf(x) + '" aria-label="Quitar ' + esc(x.label) + '">×</button></div>').join('') : '<p class="muted">Ninguno.</p>') +
         '<form id="q-hol" style="margin-top:12px;border-top:1px solid var(--line);padding-top:4px"><div class="two"><div class="field"><label>Desde</label><input type="date" name="from" required></div><div class="field"><label>Hasta (opcional)</label><input type="date" name="to"></div></div><div class="field"><label>Nombre (opcional)</label><input name="label" placeholder="Ej. Día de libre disposición"></div><button class="btn small block" style="margin-top:12px">Añadir festivo</button></form></div>';
@@ -883,10 +992,14 @@
       const cfg = qCfg(), chk = SU.parseImport(SU.toExport(Object.assign({}, cfg, { settings: { limite: qk.limite }, faltas: [] })));
       ok = chk.ok;
       const keys = QDAYS.map(([d]) => d).filter((d) => cfg.schedule[d]);
-      h += '<h1>Casi listo</h1><div class="card"><div class="sec">Tu horario</div>' + keys.map((d) => '<div class="day"><b>' + QN[d] + '</b><span class="muted">' + cfg.schedule[d].map((b) => esc(b.subject) + (b.hours > 1 ? ' ×' + fmt(b.hours) : '')).join(' · ') + '</span></div>').join('') + '</div>' +
-        '<div class="card"><div class="sec">Reglas de tu centro</div><p class="muted mini">Si no lo sabes, déjalo así: es lo más estricto. Lo puedes cambiar en Ajustes.</p><div class="field"><label>Límite de faltas</label>' + sel('limite', [10, 15, 20, 25, 30].map((n) => [n, n + '%']), qk.limite) + '</div>' +
-          (cfg.terms.length > 1 ? '<div class="field"><label>El límite se aplica</label>' + sel('ambito', [['trimestre', 'En cada trimestre (o no lo sé)'], ['curso', 'Sobre el curso entero']], qk.ambito || 'trimestre') + '</div>' : '') +
-          '<div class="field"><label>¿Los retrasos suman faltas?</label>' + sel('retrasos', [[0, 'No'], [2, 'Sí, 2 retrasos = 1 h'], [3, 'Sí, 3 retrasos = 1 h'], [4, 'Sí, 4 retrasos = 1 h'], [5, 'Sí, 5 retrasos = 1 h']], qk.retrasos || 0) + '</div></div>' +
+      const seg = (k, opts) => '<div class="seg wide">' + opts.map((o) => '<button type="button" class="' + (String(qk[k]) === String(o[0]) ? 'on' : '') + '" data-qset="' + k + '|' + o[0] + '">' + o[1] + '</button>').join('') + '</div>';
+      h += '<h1 class="big">Reglas de tu centro</h1><p class="lead">Si no sabes alguna, déjala como está: es lo más seguro. Se puede cambiar luego.</p>' +
+        '<div class="card rules"><div class="q"><b>¿Cuánto puedes faltar?</b>' + seg('limite', [[15, '15%'], [20, '20%'], [25, '25%'], [30, '30%']]) + '</div>' +
+        '<div class="q"><b>Las faltas justificadas…</b>' + seg('justModo', [['juntas', 'Cuentan igual'], ['nocuentan', 'No cuentan'], ['separadas', 'Su propio %']]) +
+          (qk.justModo === 'separadas' ? '<span class="muted mini">Límite solo para las justificadas:</span>' + seg('limiteJust', [[10, '10%'], [15, '15%'], [20, '20%'], [25, '25%'], [30, '30%']]) : '') + '</div>' +
+        (cfg.terms.length > 1 ? '<div class="q"><b>El límite se mira…</b>' + seg('ambito', [['trimestre', 'Cada trimestre'], ['curso', 'Todo el curso']]) + '</div>' : '') +
+        '<div class="q"><b>¿Los retrasos suman?</b>' + seg('retrasos', [[0, 'No'], [2, '2 = 1 h'], [3, '3 = 1 h'], [4, '4 = 1 h']]) + '</div>' +
+        '<div class="q"><b>Semanas de clase del curso</b><div class="two" style="grid-template-columns:110px 1fr;align-items:center"><input type="number" min="1" max="52" step="1" inputmode="numeric" data-qf="semanas" value="' + (qk.semanas || 33) + '" aria-label="Semanas de clase del curso"><span class="muted mini">Lo normal son 33. Cámbialo solo si tu centro dice otra cosa.</span></div></div></div>' +
         '<details class="more"><summary>Ajustes avanzados</summary><div class="field"><label>Horas totales de cada asignatura</label></div><div class="btns" style="margin-top:0"><button class="btn small' + (qk.tmode === 'auto' ? ' primary' : '') + '" data-act="q-tmode" data-m="auto">Calcular con mi horario</button><button class="btn small' + (qk.tmode === 'manual' ? ' primary' : '') + '" data-act="q-tmode" data-m="manual">Las sé yo</button></div>' +
         (qk.tmode === 'manual' ? cfg.terms.map((t) => { const auto = qTotalsFor(cfg, t.id); return '<div class="sec" style="margin-top:14px">' + esc(t.label) + '</div>' + qUsed().map((s) => { const v = (qk.totals[t.id] || {})[s]; return '<div class="item"><span class="grow">' + esc(s) + '</span><input class="num" type="number" min="0" step="any" inputmode="decimal" data-qtot="' + esc(t.id) + '|' + esc(s) + '" value="' + (v != null ? v : (auto[s] || 0)) + '" aria-label="Horas de ' + esc(s) + ' en ' + esc(t.label) + '"></div>'; }).join(''); }).join('') : '<p class="muted" style="margin-top:10px">Se calculan solas contando tus clases y los festivos.</p>') + '</details>';
       if (!chk.ok) h += '<div class="card err"><ul class="list">' + chk.errors.map((e) => '<li>' + esc(e) + '</li>').join('') + '</ul></div>';
@@ -903,9 +1016,11 @@
     if (window.FTAcct) FTAcct.stat(qk.fromShot ? (qk.edited ? 'ocr-editado' : 'ocr-ok') : 'manual');
     const ren = qk.ren || {};
     const faltas = (user.faltas || []).map((f) => (ren[f.subject] != null ? Object.assign({}, f, { subject: ren[f.subject] }) : f));
-    user = { config: cfg, settings: Object.assign({ aviso: 2, justificadasCuentan: true }, user.settings, { ambito: qk.ambito || 'trimestre', retrasosPorFalta: +qk.retrasos || 0, limite: qk.limite, unificar: Object.keys(cfg.alias || {}).length > 0 && user.settings ? user.settings.unificar : false }), faltas: faltas, acct: user.acct, skipCfg: user.skipCfg };
-    save(); qk = null; tab = 'hoy'; viewTerm = null;
-    if (fresh && !user.faltas.length) { prvOpen('hoy'); return; } // siguiente paso del alta: las faltas que ya llevas
+    cfg.catalog = wz ? wzCatalog(qUsed()) : (qk.catalog || (user.config && user.config.catalog) || null);
+    user = { config: cfg, since: user.since, okDay: user.okDay, settings: Object.assign({ aviso: 2, justificadasCuentan: true }, user.settings, { ambito: qk.ambito || 'trimestre', retrasosPorFalta: +qk.retrasos || 0, limite: qk.limite, justModo: qk.justModo || 'juntas', justificadasCuentan: (qk.justModo || 'juntas') !== 'nocuentan', limiteJust: +qk.limiteJust || 25, semanas: +qk.semanas || 33, unificar: Object.keys(cfg.alias || {}).length > 0 && user.settings ? user.settings.unificar : false }), faltas: faltas, acct: user.acct, skipCfg: user.skipCfg };
+    save(); qk = null; tab = 'hoy'; viewTerm = null; const wasWz = !!wz;
+    if ((fresh || wasWz) && !user.faltas.length) { prvOpen('hoy'); return; }
+    wz = null; // siguiente paso del alta: las faltas que ya llevas
     render(); scrollTo(0, 0);
     toast('Horario guardado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
   }
@@ -1035,7 +1150,7 @@
   }
 
   // ---------- render + animaciones ----------
-  const VIEWS = { previas: viewPrevias, intro: viewIntro, desde: viewDesde, hoy: viewHoy, resumen: viewResumen, faltas: viewFaltas, ajustes: viewAjustes, join: viewJoin, sim: viewSim, install: viewInstall, setup: viewSetup, editor: viewEditor, quick: viewQuick, admin: viewAdmin };
+  const VIEWS = { centro: viewCentro, ciclo: viewCiclo, previas: viewPrevias, intro: viewIntro, desde: viewDesde, hoy: viewHoy, resumen: viewResumen, faltas: viewFaltas, ajustes: viewAjustes, join: viewJoin, sim: viewSim, install: viewInstall, setup: viewSetup, editor: viewEditor, quick: viewQuick, admin: viewAdmin };
   function warnBar() {
     const el = document.getElementById('warnbar'); if (!el) return;
     const show = !user.config && tab !== 'setup' && tab !== 'quick' && tab !== 'editor' && tab !== 'join';
@@ -1061,7 +1176,7 @@
     if (sp) { const bar = document.querySelector('.i-dots i.on'); if (bar) bar.style.animationDelay = sp + 'ms'; }
     iTimer = setTimeout(() => { iScene++; render(); }, (REDUCED ? 3500 : 3000) + sp); }
   function render() {
-    document.body.classList.toggle('setup', tab === 'intro' || tab === 'previas' || tab === 'desde' || tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
+    document.body.classList.toggle('setup', tab === 'intro' || tab === 'centro' || tab === 'ciclo' || tab === 'previas' || tab === 'desde' || tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
     app.innerHTML = VIEWS[tab]();
     document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
     requestAnimationFrame(() => requestAnimationFrame(animate));
@@ -1081,7 +1196,7 @@
 
   // ---------- eventos ----------
   const wb = document.getElementById('warnbar');
-  if (wb) wb.addEventListener('click', (e) => { if (e.target.closest('[data-act="go-setup"]')) { sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0); } });
+  if (wb) wb.addEventListener('click', (e) => { if (e.target.closest('[data-act="go-setup"]')) { sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; if (!user.config && CAT) { wzStart(); return; } tab = 'setup'; render(); scrollTo(0, 0); } });
   $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { if (b.dataset.tab === 'ajustes') ajSec = null; if (b.dataset.tab === 'faltas') { fwk = null; fcell = null; } tab = b.dataset.tab; render(); scrollTo(0, 0); } });
   const nid = () => 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   app.addEventListener('click', async (e) => {
@@ -1106,6 +1221,19 @@
     } else if (d.act === 'prv-close') { tab = (prv && prv.next) || 'hoy'; prv = null; render(); scrollTo(0, 0);
     } else if (d.pv) { const i = d.pv.lastIndexOf('|'), n = d.pv.slice(0, i), k = +d.pv.slice(i + 1); prv.vals[n] = Math.max(prv.min[n] || 0, Math.min(999, (prv.vals[n] || 0) + k)); prv.warn = false; render();
     } else if (d.act === 'prv-save') { prvSave();
+    } else if (d.ct) { let c; try { c = JSON.parse(d.ct); } catch (er) { return; } wz = wz || {}; wz.centre = c; if (c.prov) shareOther('centro', c.name); tab = 'ciclo'; render(); scrollTo(0, 0);
+    } else if (d.act === 'wz-skip-centre') { wz = wz || {}; wz.centre = null; tab = 'ciclo'; render(); scrollTo(0, 0);
+    } else if (d.act === 'wz-back-cycle') { tab = 'ciclo'; render(); scrollTo(0, 0);
+    } else if (d.act === 'wz-back-centre') { tab = 'centro'; render(); scrollTo(0, 0);
+    } else if (d.act === 'wz-edit') { wzStart(true);
+    } else if (d.act === 'wz-exit') { wz = null; tab = user.config ? 'ajustes' : 'setup'; render(); scrollTo(0, 0);
+    } else if (d.cy) { const x = CAT && CAT.CYCLES[d.cy]; wz = wz || {}; wz.cycle = x ? { code: x.code, name: x.short + ' · ' + x.name } : null; if (wzEditDone()) return; sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
+    } else if (d.act === 'q-showall') { qk.showAll = !qk.showAll; render();
+    } else if (d.qset) { const i = d.qset.indexOf('|'), k = d.qset.slice(0, i), v = d.qset.slice(i + 1); qk[k] = /^-?\d+(\.\d+)?$/.test(v) ? +v : v; render();
+    } else if (d.sset) { const i = d.sset.indexOf('|'), k = d.sset.slice(0, i), v = d.sset.slice(i + 1); user.settings = Object.assign({}, user.settings, { [k]: /^-?\d+(\.\d+)?$/.test(v) ? +v : v }); if (k === 'justModo') user.settings.justificadasCuentan = v !== 'nocuentan'; viewTerm = null; save(); render();
+    } else if (d.act === 'how-photo') { const el = $('#qshot'); if (el) el.click();
+    } else if (d.act === 'how-paint') { qk = qNew(); qpaint = null; tab = 'quick'; render(); scrollTo(0, 0);
+    } else if (d.act === 'how-ai') { sx.ai = true; sx.step = 1; render(); scrollTo(0, 0);
     } else if (d.act === 'go-nocount') { qk = qFromCfg(user.config); qk.askOpen = true; qk.moreOpen = true; const ni = qk.subjects.findIndex((x) => (qk.nocount || []).indexOf(x) >= 0); qpaint = ni >= 0 ? qk.subjects[ni] : null; qk.editing = ni; tab = 'quick'; render(); scrollTo(0, 0);
     } else if (d.act === 'pj-on' || d.act === 'pj-off') {
       const prev = JSON.stringify(user), p = user.config.project, day = today(); p.ranges = p.ranges || [];
@@ -1201,10 +1329,10 @@
     } else if (d.act === 'acct-open') { acg.p = ''; acg.p2 = ''; sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'reg' }; tab = 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'acct-later') { try { localStorage.setItem('ft.accx', String(Date.now())); } catch (er) {} sx.scr = 'method'; tab = user.config ? 'hoy' : 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'skip-cfg') { user.skipCfg = true; save(); tab = 'hoy'; render(); scrollTo(0, 0);
-    } else if (d.act === 'go-setup') { sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
+    } else if (d.act === 'go-setup') { sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; if (!user.config && CAT) { wzStart(); return; } tab = 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'acct-dice') { acg.u = window.FTAcct.genUser(); acg.p = ($('#ac-p') || {}).value || ''; render();
     } else if (d.act === 'intro-replay') { iScene = 0; render();
-    } else if (d.act === 'intro-go') { clearTimeout(iTimer); flagSet('intro'); tab = 'setup'; render(); scrollTo(0, 0);
+    } else if (d.act === 'intro-go') { clearTimeout(iTimer); flagSet('intro'); if (!user.config && CAT) { wzStart(); return; } tab = 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'ac-mode') { acg.mode = d.m; acg.p = ''; acg.p2 = ''; render();
     } else if (d.act === 'ac-eye') { acg.p = ($('#ac-p') || {}).value || ''; acg.p2 = ($('#ac-p2') || {}).value || ''; const fu = $('#acf #ac-u'); if (fu) { if ($('#acf').dataset.mode === 'login') acg.uLogin = fu.value; else acg.u = fu.value; } acg.eye = !acg.eye; render();
     } else if (d.acx !== undefined) { acx = d.acx || null; acxFail = false; render(); const i = $('#acx-p') || $('#acx-n'); if (i) i.focus();
@@ -1263,10 +1391,12 @@
     } else if (d.act === 'q-addp') { qk.addp = !qk.addp; render();
     } else if (d.act === 'q-add') { qk.adding = !qk.adding; qk.editing = -1; render();
     } else if (d.act === 'ai-go') { sx.ai = true; render(); scrollTo(0, 0);
+    } else if (d.act === 'start-ai') { sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: true, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
+    } else if (d.act === 'ai-prev') { sx.step = Math.max(1, sx.step - 1); render(); scrollTo(0, 0);
     } else if (d.act === 'ai-back') { sx.ai = false; sx.copied = false; render();
     } else if (d.act === 'q-exit') { qk = null; tab = user.config ? 'ajustes' : 'setup'; render();
     } else if (d.act === 'q-back') { if (qk.step <= 1) { qk = null; tab = user.config ? 'ajustes' : 'setup'; } else qk.step--; render(); scrollTo(0, 0);
-    } else if (d.act === 'q-next') { if (qk.step === 3) qSave(); else { qk.step++; render(); scrollTo(0, 0); }
+    } else if (d.act === 'q-next') { if (qk.step === 3) qSave(); else { if (qk.step === 1) qCalFromCentre(); qk.step++; render(); scrollTo(0, 0); }
     } else if (d.ask) { const [k, v] = d.ask.split('|'); qk.ask = Object.assign({}, qk.ask, { [k]: v === '1' }); if (k === 'proj' && v !== '1' && qpaint === QP) qpaint = null; render();
     } else if (d.act === 'q-ask-open') { qk.askOpen = !qk.askOpen; render();
     } else if (d.act === 'q-add-done') { qk.adding = false; render();
@@ -1333,6 +1463,10 @@
       const label = String(f.get('label')).trim(); ed.cfg.terms.push({ id: (label.toLowerCase().replace(/[^a-z0-9]+/g, '') || 't') + ed.cfg.terms.length, label, from: f.get('from'), to: f.get('to') }); ed.cfg.terms.sort((a, b) => (a.from < b.from ? -1 : 1)); render();
     } else if (id === 'f-hol') {
       ed.cfg.holidays.push({ from: f.get('from'), to: f.get('to') || f.get('from'), label: String(f.get('label')).trim() }); render();
+    } else if (id === 'cy-other') {
+      const n = String(f.get('n') || '').trim(); if (n.length < 2) return toast('Escribe el nombre de tu ciclo');
+      wz = wz || {}; wz.cycle = { name: n, prov: true }; shareOther('ciclo', n, wz.centre ? wz.centre.name : ''); if (wzEditDone()) return;
+      sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
     } else if (id === 'q-sub') {
       let last = null; String(f.get('s') || '').split(/[,\n;]+/).map((x) => x.trim()).filter(Boolean).forEach((x) => { if (!qk.subjects.some((y) => y.toLowerCase() === x.toLowerCase())) qk.subjects.push(x); last = qk.subjects.find((y) => y.toLowerCase() === x.toLowerCase()); }); if (last) qpaint = last; qk.adding = true; render();
       // Enter crea la asignatura y deja el teclado abierto para la siguiente
@@ -1376,6 +1510,7 @@
     }
   });
   app.addEventListener('input', (e) => {
+    if (e.target.id === 'ct-q') { ctQ = e.target.value; ctSearch(); return; }
     if (e.target.id === 'ac-p' || e.target.id === 'ac-p2') {
       if (e.target.id === 'ac-p') acg.p = e.target.value; else acg.p2 = e.target.value;
       const ul = document.querySelector('.acc-chk'), A = window.FTAcct; if (!ul || !A) return;
@@ -1401,7 +1536,7 @@
       if (mm(rows[i].e) <= mm(rows[i].s)) { toast('Esa hora termina antes de empezar'); return render(); }
       qk.custom = rows; render(); return;
     }
-    if (qk && t.dataset.qf) { const k = t.dataset.qf; qk[k] = ['dur', 'rows', 'brk', 'brkMin', 'limite', 'projWeeks', 'retrasos'].includes(k) ? +t.value : t.value; if (k === 'projName' || k === 'projWeeks') { render(); return; } if (k === 'rows' || k === 'brk') render(); else if (k === 'dur' || k === 'brkMin') render(); return; }
+    if (qk && t.dataset.qf) { const k = t.dataset.qf; qk[k] = ['dur', 'rows', 'brk', 'brkMin', 'limite', 'projWeeks', 'retrasos', 'semanas'].includes(k) ? +t.value : t.value; if (k === 'projName' || k === 'projWeeks') { render(); return; } if (k === 'rows' || k === 'brk') render(); else if (k === 'dur' || k === 'brkMin') render(); return; }
     if (qk && t.dataset.qt) { const [i, k] = t.dataset.qt.split('|'); qk.terms[+i][k] = t.value; if (k !== 'label') render(); return; }
     if (qk && t.dataset.qtot) { const j = t.dataset.qtot.indexOf('|'), id = t.dataset.qtot.slice(0, j), s = t.dataset.qtot.slice(j + 1); (qk.totals[id] = qk.totals[id] || {})[s] = parseFloat(t.value); return; }
     if (t.id === 'simday') { simDay = t.value || null; simSel = []; render(); return; }
@@ -1417,6 +1552,7 @@
   });
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   fixAlias();
+  if (tab === 'setup' && !user.config && CAT && !location.hash) { wz = { centre: null, cycle: null }; tab = 'centro'; }
   render();
   if (window.FTAcct) FTAcct.notice().then((n) => { if (n && n.text) { gNotice = n; render(); } });
   readLink();

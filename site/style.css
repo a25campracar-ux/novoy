@@ -270,3 +270,14 @@ h1.big{font-size:30px;letter-spacing:-.03em;line-height:1.1;margin-top:6px}
 .seg.terms{display:inline-flex;margin:0 0 8px}
 .hint1{margin-top:18px}
 .pct{margin-top:5px;font-size:13px;font-weight:700;color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* alta guiada */
+.wzp{flex:1;display:flex;flex-direction:column;gap:6px}.wzp span{font-size:12.5px;font-weight:800;color:var(--mute);letter-spacing:.02em;text-transform:uppercase}
+.choice.slim{padding:13px 16px;border-radius:18px;margin-bottom:8px;box-shadow:none}.choice.slim b{font-size:16.5px}
+.choice.other{border-style:dashed}
+.choice .best{margin-top:4px;color:var(--ink)!important;font-size:13px!important;font-weight:700!important;opacity:.75}
+.seg.wide{display:flex;flex-wrap:wrap;border:0;border-radius:0;overflow:visible;gap:6px;margin-top:8px}
+.seg.wide button{flex:1 1 auto;border:1.5px solid var(--line);border-radius:12px;padding:9px 10px;font-size:14px;color:var(--ink);background:var(--card)}
+.seg.wide button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.rules .q{padding:12px 0;border-bottom:1px solid var(--line)}.rules .q:last-child{border-bottom:0}.rules .q>b{display:block;font-size:16px}
+.rules .q .mini{display:block;margin-top:10px}
+ol.how.big3 li{margin-bottom:10px;font-size:16px}

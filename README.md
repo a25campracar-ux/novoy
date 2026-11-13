@@ -12,6 +12,11 @@ faltas llevas, pero no lo que de verdad quieres saber a las siete y media de la 
 ## Qué hace
 
 - **Semáforo diario.** Verde, amarillo o rojo según el margen que te quede hoy, asignatura por asignatura.
+- **Alta guiada en 6 pasos.** Centro (directorio oficial de la Generalitat), estudios (catálogo de ciclos con sus módulos), horario (foto, pintar o IA), calendario, reglas y faltas de antes.
+- **Fórmula del centro.** Las horas de cada asignatura salen de tu horario × las semanas del curso (33 por defecto), repartidas por trimestre. El calendario solo sirve para repartirlas: nunca da más horas que la fórmula.
+- **Justificadas en 3 modos.** Cuentan igual, no cuentan, o tienen su propio porcentaje.
+- **Comprobación con las horas oficiales.** Si tu rejilla no cuadra con las horas del módulo, te avisa.
+- **Configurar con tu IA.** Un mensaje que convierte a tu IA en una encuesta de 6 pasos y devuelve el JSON para pegar.
 - **Configuración con una foto.** Subes la foto de tu horario y lo lee con OCR en el propio móvil.
 - **Faltas de antes con contadores.** Al terminar el alta pones cuántas horas llevas en cada asignatura.
 - **Pregunta de un toque.** Si el último día de clase no apuntaste nada, te pregunta si fuiste a todo.

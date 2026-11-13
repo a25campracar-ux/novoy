@@ -1,7 +1,9 @@
 /* Lógica pura (sin DOM). Funciona en navegador (window.FTCore) y en Node (require). */
 (function (root) {
   'use strict';
-  const DEF = { limite: 25, aviso: 2, unificar: false, justificadasCuentan: true, ambito: 'trimestre', retrasosPorFalta: 0 };
+  const DEF = { limite: 25, aviso: 2, unificar: false, justificadasCuentan: true, ambito: 'trimestre', retrasosPorFalta: 0, semanas: 33, justModo: null, limiteJust: 25 };
+  /** Cómo cuentan las justificadas: 'juntas' (mismo %), 'nocuentan' o 'separadas' (su propio %). */
+  const justMode = (s) => (s.justModo === 'juntas' || s.justModo === 'nocuentan' || s.justModo === 'separadas' ? s.justModo : (s.justificadasCuentan === false ? 'nocuentan' : 'juntas'));
 
   const r1 = (n) => Math.round(n * 10) / 10, r2 = (n) => Math.round(n * 100) / 100;
   const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -28,11 +30,12 @@
     if (f.date) return termOf(state, f.date);
     return state.terms.some((t) => t.id === f.term) ? f.term : (state.terms[0] || {}).id;
   }
-  function absentByTerm(state, term) {
-    const s = Object.assign({}, DEF, state.settings), out = {}, late = {};
+  function absentByTerm(state, term, justOnly) {
+    const s = Object.assign({}, DEF, state.settings), out = {}, late = {}, jm = justMode(s);
     for (const f of state.faltas) {
       if (faltaTerm(state, f) !== term) continue;
-      if (f.justified && !s.justificadasCuentan) continue;
+      if (justOnly) { if (f.justified && f.type !== 'retraso') { const k = canon(state, f.subject); out[k] = (out[k] || 0) + f.hours; } continue; }
+      if (f.justified && jm !== 'juntas') continue;
       const k = canon(state, f.subject);
       if (f.type === 'retraso') { late[k] = (late[k] || 0) + 1; continue; }
       out[k] = (out[k] || 0) + f.hours;
@@ -46,7 +49,7 @@
   function latesByTerm(state, term) {
     const s = Object.assign({}, DEF, state.settings), out = {};
     for (const f of state.faltas) {
-      if (f.type !== 'retraso' || faltaTerm(state, f) !== term || (f.justified && !s.justificadasCuentan)) continue;
+      if (f.type !== 'retraso' || faltaTerm(state, f) !== term || (f.justified && justMode(s) !== 'juntas')) continue;
       const k = canon(state, f.subject); out[k] = (out[k] || 0) + 1;
     }
     return out;
@@ -69,7 +72,40 @@
     return Object.assign({}, state, { terms: [t], totals: sumFixed(state.totals), totalsUnified: sumFixed(state.totalsUnified),
       faltas: (state.faltas || []).map((f) => Object.assign({}, f, { term: 'curso' })) });
   }
+  /** Días lectivos (lunes a viernes sin festivos) de todos los trimestres. */
+  function lectiveDays(state) {
+    let n = 0;
+    (state.terms || []).forEach((t) => { for (let d = parse(t.from); ymd(d) <= t.to; d.setDate(d.getDate() + 1)) { const k = ymd(d), w = d.getDay(); if (w > 0 && w < 6 && !(state.holidays || []).some((h) => k >= h.from && k <= (h.to || h.from))) n++; } });
+    return n;
+  }
+  /** semanas oficiales / semanas del calendario, como mucho 1. */
+  function weeksFactor(state) {
+    const s = Object.assign({}, DEF, state.settings), w = +s.semanas; if (!(w > 0) || s.formula === 'calendario') return 1;
+    const key = JSON.stringify([state.terms, state.holidays, w]); if (weeksFactor.k === key) return weeksFactor.v;
+    const days = lectiveDays(state), v = days ? Math.min(1, (w * 5) / days) : 1;
+    weeksFactor.k = key; weeksFactor.v = v; return v;
+  }
   /** Horas totales de un trimestre calculadas con horario + festivos (si no hay totales fijados). */
+  /** Horas de clase de un trimestre contando el calendario día a día (sin escalar). */
+  function rawCount(state, t) {
+    const out = {};
+    for (let d = parse(t.from); ymd(d) <= t.to; d.setDate(d.getDate() + 1)) dayClasses(state, ymd(d), true).forEach((c) => { const k = c.canon; out[k] = r2((out[k] || 0) + c.hours); });
+    return out;
+  }
+  /** Por asignatura: (horas semanales × semanas del curso) / (horas que da el calendario en todo el curso), como mucho 1. */
+  function nominalFactors(state) {
+    const s = Object.assign({}, DEF, state.settings), w = +s.semanas;
+    if (!(w > 0) || s.formula === 'calendario') return { '*': 1 };
+    const key = JSON.stringify([state.terms, state.holidays, state.schedule, state.periods, state.history, state.nocount, state.disabled, state.alias, s.unificar, w]);
+    if (nominalFactors.k === key) return nominalFactors.v;
+    const all = {}, weekly = {};
+    (state.terms || []).forEach((t) => { const c = rawCount(state, t); Object.keys(c).forEach((k) => { all[k] = (all[k] || 0) + c[k]; }); });
+    const nc = state.nocount || [];
+    Object.keys(state.schedule || {}).forEach((d) => (state.schedule[d] || []).forEach((b) => { if (nc.indexOf(b.subject) >= 0) return; const k = canon(state, b.subject); weekly[k] = (weekly[k] || 0) + (+b.hours || 0); }));
+    const v = { '*': weeksFactor(state) };
+    Object.keys(all).forEach((k) => { if (weekly[k] && all[k]) v[k] = Math.min(1, (weekly[k] * w) / all[k]); });
+    nominalFactors.k = key; nominalFactors.v = v; return v;
+  }
   function computeTotals(state, term) {
     const t = state.terms.find((x) => x.id === term), out = {};
     if (!t) return out;
@@ -78,6 +114,10 @@
     for (let d = parse(t.from); ymd(d) <= t.to; d.setDate(d.getDate() + 1)) {
       dayClasses(state, ymd(d), true).forEach((c) => { const k = c.canon; out[k] = r2((out[k] || 0) + c.hours); });
     }
+    // Fórmula del centro: horas semanales × semanas del curso (33 por normativa), no los días del calendario.
+    // El calendario da más semanas de las oficiales (38 frente a 33), así que se escala a la baja; nunca al alza.
+    const fx = nominalFactors(state);
+    Object.keys(out).forEach((k) => { const f = fx[k] != null ? fx[k] : fx['*']; if (f < 1) out[k] = r2(out[k] * f); });
     const p = state.project;
     if (p && p.name && +p.weeks > 0 && projectWeekHours(p) > 0) {
       // no se sabe qué semanas serán: total del curso = semanas × horas por semana, repartido según los días lectivos del trimestre
@@ -93,11 +133,17 @@
     const fixed = ((s.unificar ? state.totalsUnified : state.totals) || {})[term] || {};
     // las horas fijadas a mano mandan; el resto de asignaturas se calcula con el horario
     const totals = Object.assign(computeTotals(state, term), fixed);
-    const abs = absentByTerm(state, term), nc = state.nocount || [];
+    const abs = absentByTerm(state, term), nc = state.nocount || [], sep = justMode(s) === 'separadas', jab = sep ? absentByTerm(state, term, true) : {};
     return Object.keys(totals).filter((name) => nc.indexOf(name) < 0).map((name) => {
       const total = totals[name], absent = abs[name] || 0;
       const limit = total * s.limite / 100, margin = r1(limit - absent);
-      return { name, total, absent, pct: r1(absent / total * 100), limit: r1(limit), margin, status: status(margin, s.aviso), off: offOn(state, name, todayStr()) };
+      const o = { name, total, absent, pct: r1(absent / total * 100), limit: r1(limit), margin, status: status(margin, s.aviso), off: offOn(state, name, todayStr()) };
+      if (sep) { // justificadas con su propio límite: el estado es el peor de los dos
+        const ja = jab[name] || 0, jl = total * (+s.limiteJust || s.limite) / 100, jm = r1(jl - ja);
+        o.j = { absent: ja, limit: r1(jl), margin: jm, pct: r1(ja / total * 100), status: status(jm, s.aviso) };
+        if (RANK[o.j.status] > RANK[o.status]) o.status = o.j.status;
+      }
+      return o;
     });
   }
   /** Clases de un día. */
@@ -343,6 +389,6 @@
     for (let i = 0; i < 40; i++) { d.setDate(d.getDate() + 1); const k = ymd(d); if (dayClasses(state, k).length) return k; }
     return null;
   }
-  const api = { splitAtBreaks, projectOn, projectWeekHours, offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
+  const api = { justMode, weeksFactor, nominalFactors, lectiveDays, splitAtBreaks, projectOn, projectWeekHours, offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
