@@ -128,7 +128,8 @@ Ahora te pego mis faltas:`;
       historial: (S.history || []).map((x) => ({ hasta: x.to, horario: schOf(x.schedule) })),
       unificar: Object.keys(S.alias || {}).map((k) => ({ asignatura: k, dentro_de: S.alias[k] })),
       reglas: { ambito: (S.settings && S.settings.ambito) || 'trimestre', retrasos_por_falta: +((S.settings && S.settings.retrasosPorFalta) || 0), justificadas_cuentan: !(S.settings && S.settings.justificadasCuentan === false) },
-      faltas: S.faltas.map((f) => ({ fecha: f.date, asignatura: f.subject, horas: f.hours, tipo: f.type, justificada: !!f.justified })),
+      modulos: (S.subjects || []).map((m) => ({ id: m.id, nombre: m.name })),
+      faltas: S.faltas.map((f) => { const o = { fecha: f.date, asignatura: f.subject, horas: f.hours, tipo: f.type, justificada: !!f.justified }; if (f.start) o.inicio = f.start; if (f.id) o.id = f.id; return o; }),
       dudas: []
     }, null, 1);
   }
@@ -242,7 +243,8 @@ Ahora te pego mis faltas:`;
       else if (!subjects.has(f.asignatura)) warnings.push('Falta del ' + (f.fecha || 'sin fecha') + ': "' + f.asignatura + '" no está en el horario.');
       const term = f.fecha ? (terms.find((t) => f.fecha >= t.from && f.fecha <= t.to) || {}).id : (terms[0] || {}).id;
       if (f.fecha && !term) warnings.push('Falta del ' + f.fecha + ' (' + f.asignatura + '): cae fuera de los trimestres y no contará.');
-      faltas.push({ id: 'i' + i, date: f.fecha || null, term: term || null, subject: String(f.asignatura), hours: hours, type: f.tipo === 'retraso' ? 'retraso' : 'falta', justified: !!f.justificada, note: f.fecha ? '' : 'sin fecha' });
+      const st = f.inicio != null ? time(f.inicio) : null;
+      faltas.push({ id: typeof f.id === 'string' && f.id ? f.id : null, start: st || undefined, date: f.fecha || null, term: term || null, subject: String(f.asignatura), hours: hours, type: f.tipo === 'retraso' ? 'retraso' : 'falta', justified: !!f.justificada, note: f.fecha ? '' : 'sin fecha' });
     });
     const limite = j.limite == null ? null : +j.limite;
     // reglas del centro (opcionales): solo se aplican si vienen
@@ -263,7 +265,8 @@ Ahora te pego mis faltas:`;
       totals[t.id] = t.hours; delete t.hours;
     });
     return { ok: true, errors, warnings, limite, reglas, hasFaltas, faltas,
-      config: { center: String(j.centro || ''), terms, holidays, schedule, periods, history, alias, totals, totalsUnified: {} } };
+      config: { center: String(j.centro || ''), terms, holidays, schedule, periods, history, alias, totals, totalsUnified: {},
+        subjects: (Array.isArray(j.modulos) ? j.modulos : []).filter((m) => m && typeof m.id === 'string' && m.nombre).map((m) => ({ id: m.id, name: String(m.nombre) })) } };
   }
 
   const api = { buildPrompt, buildUpdatePrompt, buildImportPrompt, toExport, extractJSON, parseImport, DAYNAMES, FORMAT };

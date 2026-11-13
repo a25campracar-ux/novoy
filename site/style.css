@@ -197,3 +197,5 @@ body.warn #app{padding-bottom:168px}
 .nums span{font-size:11px;color:var(--mute);font-weight:600}
 .pill{font-size:11px;font-weight:700;background:var(--r-soft);color:var(--rojo);border-radius:999px;padding:1px 8px;vertical-align:2px}
 .notice{border-color:var(--amarillo);background:var(--a-soft)}
+
+.aj{margin:8px 0}.aj-bad b{color:var(--rojo)}

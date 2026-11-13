@@ -80,8 +80,9 @@
   /** Resumen por asignatura: total, faltadas, %, límite, margen, estado. */
   function summary(state, term) {
     const s = Object.assign({}, DEF, state.settings);
-    const fixed = (s.unificar ? state.totalsUnified : state.totals) || {};
-    const totals = fixed[term] || computeTotals(state, term);
+    const fixed = ((s.unificar ? state.totalsUnified : state.totals) || {})[term] || {};
+    // las horas fijadas a mano mandan; el resto de asignaturas se calcula con el horario
+    const totals = Object.assign(computeTotals(state, term), fixed);
     const abs = absentByTerm(state, term);
     return Object.keys(totals).map((name) => {
       const total = totals[name], absent = abs[name] || 0;
@@ -122,6 +123,73 @@
     return out;
   }
   const RANK = { verde: 0, amarillo: 1, rojo: 2 };
+  const uid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  /** Quita de las horas fijadas las asignaturas y trimestres que ya no existen. Nunca borra las que siguen. */
+  function pruneTotals(cfg) {
+    const subs = allSubjects(cfg), canonAll = subs.concat(Object.values(cfg.alias || {})), terms = (cfg.terms || []).map((t) => t.id);
+    const clean = (fx) => { const o = {}; Object.keys(fx || {}).forEach((tid) => { if (terms.indexOf(tid) < 0) return; const x = {}; Object.keys(fx[tid] || {}).forEach((k) => { if (canonAll.indexOf(k) >= 0) x[k] = fx[tid][k]; }); if (Object.keys(x).length) o[tid] = x; }); return o; };
+    return Object.assign({}, cfg, { totals: clean(cfg.totals), totalsUnified: clean(cfg.totalsUnified) });
+  }
+  /** Renombra asignaturas en todo el horario (principal, tramos e historial), uniones y horas fijadas. */
+  function renameSubjects(cfg, ren) {
+    if (!ren || !Object.keys(ren).length) return cfg;
+    const c = JSON.parse(JSON.stringify(cfg)), rn = (x) => (ren[x] != null ? ren[x] : x);
+    const sch = (o) => Object.keys(o || {}).forEach((d) => (o[d] || []).forEach((b) => { b.subject = rn(b.subject); }));
+    sch(c.schedule); (c.periods || []).forEach((p) => sch(p.schedule)); (c.history || []).forEach((h) => sch(h.schedule));
+    const al = {}; Object.keys(c.alias || {}).forEach((k) => { const a = rn(k), b = rn(c.alias[k]); if (a !== b) al[a] = b; }); c.alias = al;
+    ['totals', 'totalsUnified'].forEach((key) => Object.keys(c[key] || {}).forEach((tid) => { const o = {}; Object.keys(c[key][tid]).forEach((k) => { o[rn(k)] = c[key][tid][k]; }); c[key][tid] = o; }));
+    (c.subjects || []).forEach((m) => { m.name = rn(m.name); });
+    return c;
+  }
+  /**
+   * Pone en orden los datos guardados (se llama al cargar y al guardar):
+   * - cada asignatura tiene un id fijo en cfg.subjects ({ id, name }); renombrar cambia el nombre, no el id
+   * - cada falta tiene id único y `sid` (id de su asignatura); si la asignatura se renombró, la falta la sigue
+   * - cada falta es UNA unidad: una hora de clase (o lo que dure la casilla). Las de varias horas se parten
+   *   en unidades, una por cada hora de esa asignatura ese día, aunque sean seguidas.
+   * Nunca borra faltas: si su asignatura ya no está en el horario, se queda (ver orphans()).
+   */
+  function normalize(cfg, faltas) {
+    if (!cfg) return { cfg, faltas: faltas || [] };
+    const c = Object.assign({}, cfg), reg = (cfg.subjects || []).map((m) => ({ id: m.id, name: m.name })).filter((m) => m.id && m.name);
+    const byName = (n) => reg.find((m) => m.name === n), byId = (i) => reg.find((m) => m.id === i);
+    allSubjects(c).forEach((n) => { if (!byName(n)) reg.push({ id: uid('m'), name: n }); });
+    const seen = new Set(), out = [];
+    (faltas || []).forEach((f0) => {
+      const f = Object.assign({}, f0);
+      if (f.sid && byId(f.sid)) f.subject = byId(f.sid).name;          // la asignatura se renombró: la falta la sigue
+      else { let m = byName(f.subject); if (!m) { m = { id: uid('m'), name: f.subject }; reg.push(m); } f.sid = m.id; }
+      const units = unitsOf(c, f, out);
+      units.forEach((u, i) => { const g = Object.assign({}, f, u); if (i || !g.id || seen.has(g.id)) g.id = uid('f'); seen.add(g.id); out.push(g); });
+    });
+    // el registro guarda las asignaturas del horario y las que aún tienen faltas
+    const live = new Set(allSubjects(c).concat(out.map((f) => f.subject)));
+    c.subjects = reg.filter((m) => live.has(m.name));
+    return { cfg: c, faltas: out };
+  }
+  /** Parte una falta en unidades de una clase. Devuelve [{ hours, start? }, …]. */
+  function unitsOf(cfg, f, taken) {
+    if (f.type === 'retraso') return [{ hours: 0 }];
+    const total = +f.hours || 0;
+    if (f.start && total <= 1.0001) return [{ hours: total }];
+    let slots = [];
+    if (f.date) {
+      const used = new Set(taken.filter((x) => x.date === f.date && x.subject === f.subject && x.start).map((x) => x.start));
+      (scheduleOn(cfg, f.date)[weekday(f.date)] || []).filter((b) => b.subject === f.subject).forEach((b) => hourSlots(b).forEach((x) => { if (!used.has(x.start)) slots.push(x); }));
+    }
+    if (total <= 1.0001 && !slots.length) return [{ hours: total }];
+    const res = []; let left = r2(total);
+    while (left > 0.0001) {
+      const sl = slots.shift(), h = r2(Math.min(left, sl ? sl.hours : 1));
+      res.push(sl ? { hours: h, start: sl.start } : { hours: h }); left = r2(left - h);
+    }
+    return res.length ? res : [{ hours: 0 }];
+  }
+  /** Faltas cuya asignatura ya no aparece en ningún horario (para reasignarlas, nunca se borran solas). */
+  function orphans(state) {
+    const subs = allSubjects(state);
+    return (state.faltas || []).filter((f) => subs.indexOf(f.subject) < 0);
+  }
   /** Parte un bloque en tramos de 1 h (el último puede ser fraccionario). Reparte con el recreo si el bloque es más largo que sus horas. */
   function hourSlots(b) {
     const mm = (t) => +t.slice(0, 2) * 60 + +t.slice(3), hh = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
@@ -184,6 +252,6 @@
     for (let i = 0; i < 40; i++) { d.setDate(d.getDate() + 1); const k = ymd(d); if (dayClasses(state, k).length) return k; }
     return null;
   }
-  const api = { DEF, ymd, parse, weekday, scheduleOn, withHistory, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
+  const api = { DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
