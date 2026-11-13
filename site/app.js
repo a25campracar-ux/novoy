@@ -189,13 +189,23 @@
       '<button class="btn primary block" style="margin-top:10px">Añadir falta</button></form><h2>Registradas</h2>';
     h = h.replace('<h2>Registradas</h2>', '');
     const list = user.faltas.filter((f) => !fday || f.date === fday).sort((a, b) => ((b.date || '0') < (a.date || '0') ? -1 : 1));
-    h += '<div class="top" style="margin-top:22px"><h2 style="margin:0">Registradas</h2></div><div class="filter"><div class="field" style="margin:0;flex:1"><label>Filtrar por día</label><input type="date" id="fday" value="' + (fday || '') + '"></div>' + (fday ? '<button class="btn small" data-act="fclear">Ver todas</button>' : '') + '</div>';
+    h += '<div class="top" style="margin-top:22px"><h2 style="margin:0">' + (user.faltas.length === 1 ? 'Registrada 1 falta' : 'Registradas ' + user.faltas.length + ' faltas') + '</h2></div><div class="filter"><div class="field" style="margin:0;flex:1"><label>Filtrar por día</label><input type="date" id="fday" value="' + (fday || '') + '"></div>' + (fday ? '<button class="btn small" data-act="fclear">Ver todas</button>' : '') + '</div>';
     h += list.length ? list.map((f, n) => f.id === efId ? editForm(S, f) : faltaCard(f, n)).join('') : '<p class="muted">' + (fday ? 'Ese día no hay faltas apuntadas.' : 'Aún no hay faltas. Qué sospechoso.') + '</p>';
     return h;
   }
+  /** Tramo horario de esa clase según el horario, p.ej. "11:30 – 12:30". */
+  function slotTime(S, f) {
+    if (!f.date || !/^\d{4}-\d\d-\d\d$/.test(f.date)) return '';
+    const bl = (S.schedule[C.weekday(f.date)] || []).filter((b) => b.subject === f.subject);
+    if (!bl.length) return '';
+    if (bl.length === 1) return bl[0].start + ' – ' + bl[0].end;
+    const tot = bl.reduce((a, b) => a + (+b.hours || 0), 0);
+    if (Math.abs(tot - (+f.hours || 0)) < 0.01) return bl[0].start + ' – ' + bl[bl.length - 1].end;
+    return bl.map((b) => b.start + '–' + b.end).join(', ');
+  }
   function faltaCard(f, n) {
     const S = state(), tags = (f.type === 'retraso' ? '<span class="tag neutral">retraso</span>' : '') + (f.justified ? '<span class="tag ok">justificada</span>' : '');
-    return '<div' + rise(Math.min(n, 8)) + '><div class="card row">' + avatar(S, f.subject) + '<div class="grow"><div class="name">' + esc(f.subject) + ' <span class="muted">· ' + fmt(f.hours) + ' h</span></div><div class="muted">' + (f.date ? nice(f.date) : 'sin fecha') + '</div>' + (tags ? '<div class="tags">' + tags + '</div>' : '') + '</div><div class="acts"><button class="btn small" data-edit="' + esc(f.id) + '">Editar</button><button class="btn small ghost" data-del="' + esc(f.id) + '" aria-label="Borrar falta">Borrar</button></div></div></div>';
+    return '<div' + rise(Math.min(n, 8)) + '><div class="card row">' + avatar(S, f.subject) + '<div class="grow"><div class="name">' + esc(f.subject) + ' <span class="muted">· ' + fmt(f.hours) + ' h</span></div><div class="muted">' + (f.date ? nice(f.date) : 'sin fecha') + (slotTime(S, f) ? ' · ' + slotTime(S, f) : '') + '</div>' + (tags ? '<div class="tags">' + tags + '</div>' : '') + '</div><div class="acts"><button class="btn small" data-edit="' + esc(f.id) + '">Editar</button><button class="btn small ghost" data-del="' + esc(f.id) + '" aria-label="Borrar falta">Borrar</button></div></div></div>';
   }
   function editForm(S, f) {
     const subs = subjectsOf(S); if (f.subject && subs.indexOf(f.subject) < 0) subs.push(f.subject);
@@ -301,7 +311,8 @@
       '<div class="field"><label>Contraseña</label><input id="ac-p" type="password" value="' + esc(acg.p) + '" autocomplete="new-password" aria-label="Contraseña"></div>' +
       '<ul class="list acc-chk">' + checks.map((c) => '<li>' + (c[1] ? '✅' : '◻️') + ' ' + c[0] + '</li>').join('') + '</ul></div>' +
       '<div class="card warn"><div class="sec">Apunta la contraseña ahora</div><p>No pedimos correo, así que <b>no hay forma de recuperarla</b>. Guárdala en tu gestor:</p><ul class="list"><li><b>iPhone</b>: app <b>Contraseñas</b> (o «Guardar contraseña» cuando te lo ofrezca Safari).</li><li><b>Android</b>: <b>Gestor de contraseñas de Google</b> (Ajustes › Google › Autocompletar).</li></ul><p class="muted">Al crearla te damos también un enlace de copia para guardar en tus mensajes.</p></div>' +
-      '<p class="muted mini" style="text-align:center;margin-top:16px"><button class="link" data-act="go-login">Ya tengo cuenta: entrar</button> · <button class="link" data-act="skip-reg">Ahora no</button></p>';
+      '<p class="muted mini" style="text-align:center;margin-top:16px"><button class="link" data-act="go-login">Ya tengo cuenta: entrar</button> · <button class="link" data-act="skip-reg">Ahora no</button></p>' +
+      '<div class="btns share-row"><button class="btn small" data-act="share-app"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10.5 13.5"/><path d="M21 3 14.5 21l-4-7.5L3 9.5z"/></svg>Compartir</button></div>';
     return h + '<div class="cta"><div class="in"><button class="btn primary" data-act="acct-new">Crear cuenta</button></div></div>';
   }
   function viewSetup() {
@@ -614,6 +625,11 @@
       const prev = JSON.stringify(user); user = { config: jn.config, settings: Object.assign({}, user.settings, { unificar: Object.keys(jn.config.alias).length > 0, limite: jn.limite || 25 }), faltas: jn.hasFaltas ? jn.faltas : (user.faltas || []) , acct: user.acct, skipCfg: user.skipCfg };
       if (acPend) { user.acct = acPend; acPend = null; }
       save(); jn = null; tab = 'hoy'; render(); toast('Horario cargado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
+    } else if (d.act === 'share-app') {
+      const url = location.href.split('#')[0].split('?')[0];
+      const msg = '¿Cuántas clases puedes saltarte sin pasarte del límite? NoVoy te lo dice de un vistazo. Sin correo y sin tienda de apps:\n' + url;
+      if (navigator.share) { try { await navigator.share({ text: msg }); return; } catch (err) { if (err && err.name === 'AbortError') return; } }
+      toast((await copy(msg)) ? 'Enlace copiado. Pégalo en el grupo' : 'No se pudo copiar');
     } else if (d.act === 'go-reg') { acg.p = ''; sx.scr = 'reg'; render(); scrollTo(0, 0);
     } else if (d.act === 'go-login') { acg.p = ''; sx.scr = 'login'; render(); scrollTo(0, 0);
     } else if (d.act === 'skip-reg') { sx.scr = 'method'; render(); scrollTo(0, 0);

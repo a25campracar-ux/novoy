@@ -184,3 +184,5 @@ details.more{margin-top:12px;border:1px solid var(--line);border-radius:16px;pad
 body.setup #warnbar{display:none}
 body.warn #toast{bottom:calc(142px + env(safe-area-inset-bottom))}
 body.warn #app{padding-bottom:168px}
+.share-row{justify-content:center}
+.share-row .btn{flex:0 0 33%;max-width:33%;gap:6px}
