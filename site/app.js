@@ -14,7 +14,16 @@
   let user = tidy(load());
   try { if (user.config) localStorage.setItem(KEY, JSON.stringify(user)); } catch (e) {} // guarda ya la versión con ids y unidades
   /** Ids fijos de asignaturas y faltas, y cada falta partida en unidades de una clase. */
-  function tidy(u) { if (u && u.config) { const n = C.normalize(u.config, u.faltas || []); u.config = n.cfg; u.faltas = n.faltas; } return u; }
+  function tidy(u) { if (u && u.config) { const n = C.normalize(u.config, u.faltas || []); u.config = n.cfg; u.faltas = n.faltas; tutAuto(u.config); if (!u.since) u.since = C.ymd(new Date()); } return u; }
+  /** La tutoría no forma parte del currículum: no cuenta faltas. Se marca sola una vez; luego manda lo que elija el alumno. */
+  function tutAuto(cfg) {
+    if (!cfg || cfg.tutChecked) return;
+    cfg.tutChecked = true;
+    const tut = C.allSubjects(cfg).filter((s) => /^(tut|tutor|tutoria|tutoría)(\b|$)/i.test(String(s).trim()));
+    if (!tut.length) return;
+    cfg.nocount = Array.from(new Set((cfg.nocount || []).concat(tut)));
+    cfg.ask = Object.assign({}, cfg.ask, { nocount: true });
+  }
   function load() {
     try { const r = localStorage.getItem(KEY); if (r) return JSON.parse(r); } catch (e) {}
     const seed = window.FT_SEED; return seed ? JSON.parse(JSON.stringify(seed)) : { config: null, settings: {}, faltas: [] };
@@ -115,32 +124,110 @@
   function emptyView(title, txt) {
     return '<div class="top"><h1>' + title + '</h1></div>' +
       '<div class="verdict verde">' + mascot('verde') + '<div><span class="who">NoVoy dice</span><b>Aún no sé tu horario</b><p>' + txt + '</p></div></div>' + noticeCard() +
-      '<div class="card"><div class="sec">Configúralo cuando quieras</div><p class="muted">Son un par de minutos: una captura, pintarlo tú o tu IA.</p><div class="btns"><button class="btn small primary" data-act="go-setup">Configurar mi horario</button></div></div>';
+      '<div class="card"><div class="sec">Pon tu horario</div><p class="muted">Con una foto o pintándolo. Tarda un par de minutos.</p><div class="btns"><button class="btn small primary" data-act="go-setup">Poner mi horario</button></div></div>';
   }
   function viewHoy() {
-    if (!user.config) return emptyView('Hoy', 'Sin horario no puedo decirte si puedes faltar. Esto es solo un vistazo a la app vacía.');
-    const S = calc(), day = today(), v = C.verdict(S, day), lim = S.settings.limite;
+    if (!user.config) return emptyView('Hoy', 'Sin tu horario no puedo decirte si puedes faltar.');
+    const S = calc(), day = today(), v = C.verdict(S, day);
     const hol = (S.holidays || []).find((h) => day >= h.from && day <= (h.to || h.from));
-    let h = '<div class="top"><span class="date">' + nice(day) + '</span><span class="chip">' + esc((S.terms.find((t) => t.id === v.term) || {}).label || 'Fuera de trimestre') + '</span></div>'
-    h += offBubble(S, day);
+    let h = '<div class="top"><span class="date">' + cap(nice(day)) + '</span><span class="chip">' + esc((S.terms.find((t) => t.id === v.term) || {}).label || 'Fuera de curso') + '</span></div>';
+    h += askYesterday(S, day) + offBubble(S, day);
     if (v.free || !v.term) {
-      const why = hol ? hol.label : (!v.term ? 'Estás fuera de los trimestres configurados' : 'No hay clase');
-      h += '<div class="verdict verde">' + mascot('verde') + '<div><span class="who">NoVoy dice</span><b>Día libre</b><p>' + esc(why) + '. Nada que esconder.</p></div></div>';
+      const why = hol ? hol.label : (!v.term ? 'Hoy no es día de curso' : 'Hoy no tienes clase');
+      h += '<div class="verdict verde">' + mascot('verde') + '<div><span class="who">NoVoy dice</span><b>Día libre</b><p>' + esc(why) + '.</p></div></div>';
       const nx = C.nextClassDay(S, day), nv = nx && C.verdict(S, nx);
-      if (nv && nv.term) h += '<h2>Próximo día: ' + nice(nx) + '</h2>' + classCards(nv, lim, nx, false);
+      if (nv && nv.term) h += '<h2>Si faltas el ' + nice(nx) + '</h2>' + subjectCards(S, nv, nx, false);
     } else {
       const worst = v.items.filter((i) => i.status === v.status && !i.unknown)[0];
       const T = { verde: 'Puedes faltar', amarillo: 'Mejor no', rojo: 'Hoy no' }[v.status];
       const q = v.status === 'verde' ? quip('verde', day) : (worst ? worst.name + ': ' : '') + quip(v.status, day);
-      h += '<div class="verdict ' + v.status + '">' + mascot(v.status) + '<div><span class="who">NoVoy dice</span><b>' + T + '</b><p>' + esc(q) + '</p></div></div>' + allDay(v, day) + '<h2>Hora a hora</h2>' + classCards(v, lim, day, true);
+      h += '<div class="verdict ' + v.status + '">' + mascot(v.status) + '<div><span class="who">NoVoy dice</span><b>' + T + '</b><p>' + esc(q) + '</p></div></div>' + allDay(v, day) + '<h2>Si faltas hoy</h2>' + subjectCards(S, v, day, true);
     }
-    h += noticeCard();
-    if (!flagOff('imphint')) h += '<div class="card feat"><div class="sec">¿Ya llevas faltas de antes?</div><p class="muted">Si las tienes apuntadas en notas, una tabla o el Moodle, tu IA las pasa aquí de una vez. Copias, pegas y listo.</p><div class="btns"><button class="btn small primary" data-act="start-import">Pasar mis faltas</button><button class="btn small" data-act="imp-x">Ahora no</button></div></div>';
-    if (user.acct && !flagOff('lnkhint')) h += '<div class="card"><div class="sec">Por si olvidas la contraseña</div><p class="muted">No pedimos correo, así que no se puede recuperar. Guárdate el enlace de copia en tus mensajes: con él vuelves a tener todo.</p><div class="btns"><button class="btn small primary" data-act="backup-link">Copiar mi enlace</button><button class="btn small" data-act="lnk-x">Ya lo tengo</button></div></div>';
-    if (!standalone() && !hintOff() && /^https?:/.test(location.protocol)) h += '<div class="card hint"><div class="grow"><b>Instálala en tu móvil</b><span class="muted">Se abre como una app. Son 20 segundos.</span></div><button class="btn small primary" data-act="open-install">Cómo</button><button class="x" data-act="hint-x" aria-label="Cerrar">×</button></div>';
-    if (iosRisk()) h += '<div class="card warn"><div class="sec">Tus faltas pueden borrarse</div><p>En iPhone, si NoVoy no está instalada, Safari puede borrar sus datos cuando pasas unos días sin abrirla.</p><div class="btns"><button class="btn small primary" data-act="open-install">Instalarla (20 s)</button><button class="btn small" data-act="ios-x">Recuérdamelo en 7 días</button></div></div>';
-    if (bkDue()) h += '<div class="card hint"><div class="grow"><b>Guarda tu copia</b><span class="muted">Si pierdes el móvil, pierdes tus faltas.</span></div><button class="btn small primary" data-act="goto-backup">Guardar</button><button class="x" data-act="bk-x" aria-label="Cerrar">×</button></div>';
-    return h;
+    return h + noticeCard() + oneHint();
+  }
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  /** Un solo aviso a la vez, el más importante. Si hay cinco, nadie lee ninguno. */
+  function oneHint() {
+    const accSnooze = Date.now() - (+lsGet('ft.accx') || 0) < 7 * 864e5;
+    if (iosRisk()) return '<div class="card warn hint1"><div class="sec">Tus faltas pueden borrarse</div><p>En iPhone, si no la instalas, Safari borra sus datos si pasas días sin abrirla.</p><div class="btns"><button class="btn small primary" data-act="open-install">Instalarla</button><button class="btn small" data-act="ios-x">Más tarde</button></div></div>';
+    if (!user.faltas.length && !flagOff('imphint')) return '<div class="card feat hint1"><div class="sec">¿Ya has faltado antes de hoy?</div><p class="muted">Ponlo y el cálculo será el de verdad.</p><div class="btns"><button class="btn small primary" data-act="prv-open">Poner mis faltas</button><button class="btn small" data-act="imp-x">No he faltado</button></div></div>';
+    if (!user.acct && hasAcct() && !accSnooze) return '<div class="card hint hint1"><div class="grow"><b>Guarda tu horario</b><span class="muted">Si cambias de móvil, no pierdes nada.</span></div><button class="btn small primary" data-act="acct-open">Guardar</button><button class="x" data-act="acct-later" aria-label="Ahora no">×</button></div>';
+    if (!standalone() && !hintOff() && /^https?:/.test(location.protocol)) return '<div class="card hint hint1"><div class="grow"><b>Ponla en tu pantalla de inicio</b><span class="muted">Se abre como una app.</span></div><button class="btn small primary" data-act="open-install">Cómo</button><button class="x" data-act="hint-x" aria-label="Cerrar">×</button></div>';
+    if (!user.acct && bkDue()) return '<div class="card hint hint1"><div class="grow"><b>Guarda tu copia</b><span class="muted">Si pierdes el móvil, pierdes tus faltas.</span></div><button class="btn small primary" data-act="goto-backup">Guardar</button><button class="x" data-act="bk-x" aria-label="Cerrar">×</button></div>';
+    if (user.acct && !flagOff('lnkhint')) return '<div class="card hint1"><div class="sec">Por si olvidas la contraseña</div><p class="muted">Guarda este enlace en tus mensajes. Con él lo recuperas todo.</p><div class="btns"><button class="btn small primary" data-act="backup-link">Copiar mi enlace</button><button class="btn small" data-act="lnk-x">Ya lo tengo</button></div></div>';
+    return '';
+  }
+  /** Último día con clase antes de hoy (hasta una semana atrás). */
+  function lastClassDay(S, day) {
+    for (let i = 1; i <= 7; i++) { const k = addDays(day, -i); if (C.dayClasses(S, k).length) return { k, i }; }
+    return null;
+  }
+  /** Si el último día de clase no apuntaste nada, una pregunta de un toque. Así el número no se queda viejo. */
+  function askYesterday(S, day) {
+    const p = lastClassDay(S, day); if (!p) return '';
+    if (p.k < (user.since || day) || p.k <= (user.okDay || '') || !C.termOf(S, p.k)) return '';
+    if (user.faltas.some((f) => f.date === p.k)) return '';
+    const when = p.i === 1 ? 'Ayer' : 'El ' + DAYS[C.parse(p.k).getDay()];
+    return '<div class="card ask-y"><b>' + when + ', ¿fuiste a todas las clases?</b><div class="btns"><button class="btn small primary" data-yok="' + p.k + '">Sí, a todas</button><button class="btn small" data-yno="' + p.k + '">Falté a alguna</button></div></div>';
+  }
+  /** Una tarjeta por asignatura (no por hora): cuánto te queda si faltas, y un botón. */
+  function subjectCards(S, v, day, canMark) {
+    const lim = S.settings.limite, groups = [], by = {};
+    v.slots.forEach((x) => { const k = x.canon || x.subject; if (!by[k]) { by[k] = { name: k, slots: [] }; groups.push(by[k]); } by[k].slots.push(x); });
+    const sum = Object.fromEntries(C.summary(S, v.term).map((x) => [x.name, x]));
+    const isTaken = (x) => user.faltas.some((f) => f.date === day && f.start === x.start && f.subject === x.subject && f.type !== 'retraso');
+    return groups.map((g, n) => {
+      const st0 = g.slots.map((x) => x.start), times = st0.length > 1 ? st0.slice(0, -1).join(', ') + ' y ' + st0[st0.length - 1] : st0[0], hrs = g.slots.reduce((a, x) => a + x.hours, 0);
+      const sub = '<div class="muted">' + times + ' · ' + fmt(hrs) + ' h</div>';
+      if (g.slots[0].unknown) return '<div' + rise(Math.min(n, 8)) + '><div class="card slot"><div class="row">' + avatar(S, g.name) + '<div class="grow"><div class="name">' + esc(g.name) + '</div>' + sub + '</div><span class="tag">sin datos</span></div></div></div>';
+      const cur = sum[g.name], free = g.slots.filter((x) => !isTaken(x)), done = g.slots.length - free.length;
+      let right, bar, btns = '';
+      if (canMark && !free.length) {
+        // ya apuntada hoy: se ve el margen que queda ahora, y se puede quitar
+        right = '<span class="tag ' + (cur ? cur.status : 'verde') + '">✓ apuntada</span>';
+        bar = cur ? meter(cur.pct, null, lim, cur.status) : '';
+        btns = '<p class="muted mini" style="margin:8px 0 0">Te quedan ' + fmt(cur ? Math.max(0, cur.margin) : 0) + ' h. <button class="link" data-unmiss="' + esc(JSON.stringify({ d: day, u: g.slots.map((x) => [x.subject, x.start]) })) + '">Quitar</button></p>';
+      } else {
+        const miss = canMark ? free : g.slots, mh = miss.reduce((a, x) => a + x.hours, 0);
+        const left = cur ? r1(cur.limit - cur.absent - mh) : 0, st = statusOf(left);
+        right = '<span class="tag ' + st + '">' + (left < 0 ? 'te pasas ' + fmt(-left) + ' h' : 'te quedan ' + fmt(left) + ' h') + '</span>';
+        bar = cur ? meter(cur.pct, r1(((cur.absent + mh) / cur.total) * 100), lim, st) : '';
+        if (canMark) btns = '<div class="btns"><button class="btn small dark" data-miss="' + missAttr(day, free) + '">' + (free.length > 1 ? 'Falté a todo' : 'Falté') + '</button>' +
+          (free.length > 1 ? free.map((x) => '<button class="btn small" data-miss="' + missAttr(day, [x]) + '">Solo ' + x.start + '</button>').join('') : '') + '</div>' +
+          (done ? '<p class="muted mini" style="margin:8px 0 0">Ya apuntada ' + done + ' de ' + g.slots.length + ' horas.</p>' : '');
+      }
+      return '<div' + rise(Math.min(n, 8)) + '><div class="card slot"><div class="row">' + avatar(S, g.name) + '<div class="grow"><div class="name">' + esc(g.name) + '</div>' + sub + '</div><div class="right">' + right + '</div></div>' + bar + btns + '</div></div>';
+    }).join('');
+  }
+  const r1 = (x) => Math.round(x * 10) / 10;
+  const statusOf = (m) => C.status(m, (user.settings && user.settings.aviso != null) ? +user.settings.aviso : C.DEF.aviso);
+  // ---------- faltas de antes: contadores por asignatura (sustituye al copiar y pegar con la IA) ----------
+  let prv = null; // { tid, real, vals, min, prev, warn, next }
+  function prvOpen(next) {
+    const S = calc(); if (!S) return;
+    const tid = curTerm(S), real = tid === 'curso' ? (C.termOf(state(), today()) || state().terms[0].id) : tid;
+    const sum = C.summary(S, tid), mine = {};
+    user.faltas.forEach((f) => { if (f.note === 'previas' && !f.date && C.faltaTerm(S, f) === tid) { const k = C.canon(S, f.subject); mine[k] = (mine[k] || 0) + (+f.hours || 0); } });
+    const vals = {}, min = {};
+    sum.forEach((x) => { vals[x.name] = r1(x.absent); min[x.name] = r1(Math.max(0, x.absent - (mine[x.name] || 0))); });
+    prv = { tid, real, vals, min, prev: mine, warn: false, next: next || 'hoy' }; tab = 'previas'; render(); scrollTo(0, 0);
+  }
+  function viewPrevias() {
+    if (!prv) { prvOpen('hoy'); return ''; }
+    const S = calc(), t = S.terms.find((x) => x.id === prv.tid) || S.terms[0], names = Object.keys(prv.vals).sort();
+    let h = '<div class="steps"><button class="back" data-act="prv-close">‹ Atrás</button></div><h1 class="big">¿Cuántas horas has faltado ya?</h1><p class="lead">Desde el ' + nice(t.from) + ' hasta hoy. Si no te acuerdas, míralo en el Moodle.</p>';
+    h += '<div class="card cnts">' + names.map((n) => '<div class="cnt-row">' + avatar(S, n) + '<b class="grow">' + esc(n) + '</b><button class="step" data-pv="' + esc(n) + '|-1" aria-label="Una hora menos en ' + esc(n) + '"' + (prv.vals[n] <= (prv.min[n] || 0) ? ' disabled' : '') + '>−</button><span class="pv">' + fmt(prv.vals[n]) + ' h</span><button class="step" data-pv="' + esc(n) + '|1" aria-label="Una hora más en ' + esc(n) + '">+</button></div>').join('') + '</div>';
+    if (prv.warn) h += '<div class="card warn"><p><b>¿Seguro que no has faltado nada desde el ' + nice(t.from) + '?</b></p><p class="muted">Si pones 0 y no es verdad, NoVoy te dirá que puedes faltar cuando no.</p></div>';
+    return h + '<div class="cta"><div class="in"><button class="btn primary" data-act="prv-save">' + (prv.warn ? 'Sí, no he faltado' : 'Listo') + '</button></div></div>';
+  }
+  function prvSave() {
+    const all0 = Object.keys(prv.vals).every((k) => !prv.vals[k]);
+    if (all0 && !prv.warn) { prv.warn = true; render(); return; }
+    const before = JSON.stringify(user.faltas);
+    user.faltas = user.faltas.filter((f) => !(f.note === 'previas' && !f.date && C.faltaTerm(calc(), f) === prv.tid));
+    Object.keys(prv.vals).forEach((n) => { const extra = r1(prv.vals[n] - (prv.min[n] || 0)); if (extra > 0) user.faltas.push({ id: nid(), date: '', term: prv.real, subject: n, hours: extra, type: 'falta', justified: false, note: 'previas' }); });
+    flagSet('imphint'); const next = prv.next; prv = null; save(); tab = next === 'previas' ? 'hoy' : next; render(); scrollTo(0, 0);
+    toast('Guardado', () => { user.faltas = JSON.parse(before); save(); render(); });
   }
   /** data-miss: JSON con la fecha y una unidad por cada hora (asignatura, inicio, horas). */
   const missAttr = (day, slots) => esc(JSON.stringify({ d: day, u: slots.map((x) => [x.subject, x.start, x.hours]) }));
@@ -174,47 +261,36 @@
     const sl = v.slots.filter((x) => !x.unknown); if (!sl.length) return '';
     return '<button class="btn block day-btn" data-miss="' + missAttr(day, sl) + '">Falté todo el día</button>';
   }
-  function classCards(v, lim, day, canMark) {
-    return v.slots.map((i, n) => {
-      const sub = i.subject !== i.canon ? ' <span class="muted">· cuenta en ' + esc(i.canon) + '</span>' : '';
-      const tm = '<div class="tm"><b>' + i.start + '</b><span>' + i.end + '</span></div>';
-      if (i.unknown) return '<div' + rise(Math.min(n, 8)) + '><div class="card slot"><div class="row">' + tm + '<div class="grow"><div class="name">' + esc(i.subject) + '</div><div class="muted">Sin horas totales para esta asignatura</div></div></div></div></div>';
-      const word = i.status === 'rojo' ? 'te pasas ' + fmt(Math.abs(i.margin)) + ' h' : 'te quedan ' + fmt(i.margin) + ' h';
-      return '<div' + rise(Math.min(n, 8)) + '><div class="card slot"><div class="row">' + tm + '<div class="grow"><div class="name">' + esc(i.subject) + (i.hours < 1 ? ' <span class="muted">· ' + fmt(i.hours) + ' h</span>' : '') + '</div><div class="muted">' + (sub ? 'cuenta en ' + esc(i.canon) : 'si faltas a esta hora') + '</div></div>' +
-        '<div class="right"><div class="num">' + cnt(i.now) + '% → ' + cnt(i.after) + '%</div><span class="tag ' + i.status + '">' + word + '</span></div></div>' + meter(i.now, i.after, lim, i.status) +
-        (canMark ? '<div class="btns"><button class="btn small" data-miss="' + missAttr(day, [i]) + '">Falté a esta hora</button></div>' : '') + '</div></div>';
-    }).join('');
-  }
   function curTerm(S) { return (viewTerm && S.terms.some((t) => t.id === viewTerm) ? viewTerm : null) || C.termOf(S, today()) || (S.terms.filter((t) => t.from <= today()).pop() || S.terms[0]).id; }
   function lastLine(x, rem) {
     let t = '';
-    if (x.margin < 0) t = 'Ya te has pasado ' + fmt(-x.margin) + ' h del límite.';
-    else if (!rem) return '';
-    else if (rem <= x.margin) t = 'Quedan ' + fmt(rem) + ' h de clase y caben en tu margen: ya no puedes pasarte.';
-    else if (x.margin === 0) t = 'Quedan ' + fmt(rem) + ' h de clase. No tienes margen: cualquier falta te pasa.';
-    else t = 'Quedan ' + fmt(rem) + ' h de clase. Última falta posible: ' + fmt(x.margin) + ' h más; la siguiente ya te pasa.';
-    return '<p class="last ' + x.status + '">' + t + '</p>';
+    if (x.margin < 0) t = 'Te has pasado ' + fmt(-x.margin) + ' h del límite.';
+    else if (rem && rem <= x.margin) t = 'A salvo: aunque faltes a todo lo que queda, no te pasas.';
+    else if (x.margin === 0) t = 'Sin margen: una falta más y te pasas.';
+    else return '';
+    return '<p class="last ' + (rem && rem <= x.margin && x.margin >= 0 ? 'verde' : x.status) + '">' + t + '</p>';
   }
   function viewResumen() {
-    if (!user.config) return emptyView('Resumen', 'Aquí verás el porcentaje de cada asignatura y cuántas horas te quedan.');
+    if (!user.config) return emptyView('Resumen', 'Aquí verás cuántas horas te quedan en cada asignatura.');
     const S = calc(), lim = S.settings.limite, tid = curTerm(S), sum = C.summary(S, tid);
     let h = '<div class="top"><h1>Resumen</h1></div>';
-    if (S.terms.length > 1) h += '<div class="btns" style="margin:0 0 4px">' + S.terms.map((t) => '<button class="btn small' + (t.id === tid ? ' primary' : '') + '" data-term="' + esc(t.id) + '">' + esc(t.label) + '</button>').join('') + '</div>';
+    if (S.terms.length > 1) h += '<div class="seg terms">' + S.terms.map((t) => '<button class="' + (t.id === tid ? 'on' : '') + '" data-term="' + esc(t.id) + '">' + esc(t.label.replace(/ trimestre$/, ' trim.')) + '</button>').join('') + '</div>';
     const rem = C.remaining(S, tid, today());
-    h += '<button class="card sim-entry" data-act="open-sim"><span class="grow"><b>Simulador</b><span class="muted">¿Y si falto mañana? Míralo antes de decidir.</span></span><span class="arrow">›</span></button>';
-    h += '<p class="muted">Máximo permitido: ' + lim + '% de faltas por asignatura.</p>';
+    h += '<p class="muted">Puedes faltar hasta el ' + lim + '% de cada asignatura.</p>';
     if (!sum.length) h += '<div class="card muted">Este trimestre aún no tiene horas.</div>';
     const offNow = new Set(C.disabledOn(S, today()).map((x) => x.name)), offRows = sum.filter((x) => offNow.has(x.name));
     sum.filter((x) => !offNow.has(x.name)).sort((a, b) => a.margin - b.margin).forEach((x, n) => {
-      h += '<div' + rise(n) + '><div class="card"><div class="row">' + avatar(S, x.name) + '<div class="grow"><div class="name">' + esc(x.name) + '</div></div><div class="right"><div class="num">' + cnt(x.pct) + '%</div><span class="tag ' + x.status + '">' + (x.margin < 0 ? 'pasado ' + fmt(-x.margin) + ' h' : 'margen ' + fmt(x.margin) + ' h') + '</span></div></div>' + meter(x.pct, null, lim, x.status) +
-        '<div class="stats"><div><b>' + fmt(x.total) + ' h</b><span>Totales</span></div><div><b>' + fmt(x.limit) + ' h</b><span>Puedes faltar</span></div><div><b>' + fmt(x.absent) + ' h</b><span>Has faltado</span></div><div class="' + x.status + '"><b>' + (x.margin < 0 ? '−' : '') + fmt(Math.abs(x.margin)) + ' h</b><span>' + (x.margin < 0 ? 'Te pasas' : 'Margen') + '</span></div></div>' + lastLine(x, rem[x.name] || 0) + '</div></div>';
+      h += '<div' + rise(n) + '><div class="card"><div class="row">' + avatar(S, x.name) + '<div class="grow"><div class="name">' + esc(x.name) + '</div><div class="muted">Llevas ' + fmt(x.absent) + ' de ' + fmt(x.limit) + ' h</div></div><div class="right"><span class="tag big ' + x.status + '">' + (x.margin < 0 ? 'te pasas ' + fmt(-x.margin) + ' h' : 'te quedan ' + fmt(x.margin) + ' h') + '</span></div></div>' + meter(x.pct, null, lim, x.status) +
+        lastLine(x, rem[x.name] || 0) + '</div></div>';
     });
+    const nc = (S.nocount || []).filter((k) => C.allSubjects(S).indexOf(k) >= 0);
+    if (nc.length) h += '<p class="muted mini" style="margin:14px 2px 0">' + nc.map(esc).join(', ') + ' no ' + (nc.length === 1 ? 'cuenta' : 'cuentan') + ' faltas. <button class="link" data-act="go-nocount">Cambiar</button></p>';
     if (offRows.length) h += '<div class="card"><div class="sec">Aún no se dan</div><ul class="list">' + offRows.map((x) => '<li><b>' + esc(x.name) + '</b> · ' + fmt(x.total) + ' h en total · podrás faltar ' + fmt(x.limit) + ' h</li>').join('') + '</ul><p class="muted">Actívalas en la pantalla Hoy cuando empiecen.</p></div>';
     const orph = C.orphans(S);
     if (orph.length) h += '<div class="card warn"><div class="sec">Faltas sin asignatura</div><p>' + orph.length + ' falta' + (orph.length === 1 ? '' : 's') + ' de ' + Array.from(new Set(orph.map((f) => f.subject))).map(esc).join(', ') + ' ya no ' + (orph.length === 1 ? 'está' : 'están') + ' en tu horario. No se han borrado: edítalas en «Faltas» para pasarlas a otra asignatura.</p></div>';
     const n = +S.settings.retrasosPorFalta, late = n > 0 ? C.latesByTerm(S, tid) : {};
     if (n > 0 && Object.keys(late).length) h += '<div class="card"><div class="sec">Retrasos</div><p class="muted">Cada ' + n + ' retrasos cuentan 1 h de falta (ya sumada arriba).</p><ul class="list">' + Object.keys(late).sort().map((k) => { const r = late[k] % n; return '<li><b>' + esc(k) + '</b>: ' + late[k] + ' retraso' + (late[k] === 1 ? '' : 's') + ' · ' + (r === 0 ? 'el siguiente empieza otra cuenta' : 'te faltan ' + (n - r) + ' para la siguiente hora') + '</li>'; }).join('') + '</ul></div>';
-    const un = user.faltas.filter((f) => !f.date && f.term === tid).length;
+    const un = user.faltas.filter((f) => !f.date && f.note !== 'previas' && f.term === tid).length;
     if (un) h += '<p class="muted" style="margin-top:14px">' + un + ' falta(s) sin fecha cuentan en el total. Ponles fecha en "Faltas".</p>';
     return h;
   }
@@ -316,7 +392,7 @@
   function lateLabel() { const n = +(user.settings || {}).retrasosPorFalta; return n > 0 ? 'Es un retraso (cada ' + n + ' = 1 h de falta)' : 'Es un retraso (no cuenta)'; }
   function faltaCard(f, n) {
     const S = state(), tags = (f.type === 'retraso' ? '<span class="tag neutral">retraso</span>' : '') + (f.justified ? '<span class="tag ok">justificada</span>' : '');
-    return '<div' + rise(Math.min(n, 8)) + '><div class="card row">' + avatar(S, f.subject) + '<div class="grow"><div class="name">' + esc(f.subject) + (f.hours !== 1 && f.type !== 'retraso' ? ' <span class="muted">· ' + fmt(f.hours) + ' h</span>' : '') + '</div><div class="muted">' + (f.date ? nice(f.date) : 'sin fecha') + (f.start ? ' · ' + f.start : '') + '</div>' + (orphanSet().has(f.id) ? '<div class="tags"><span class="tag amarillo">ya no está en tu horario</span></div>' : '') + (tags ? '<div class="tags">' + tags + '</div>' : '') + '</div><div class="acts"><button class="btn small" data-edit="' + esc(f.id) + '">Editar</button><button class="btn small ghost" data-del="' + esc(f.id) + '" aria-label="Borrar falta">Borrar</button></div></div></div>';
+    return '<div' + rise(Math.min(n, 8)) + '><div class="card row">' + avatar(S, f.subject) + '<div class="grow"><div class="name">' + esc(f.subject) + (f.hours !== 1 && f.type !== 'retraso' ? ' <span class="muted">· ' + fmt(f.hours) + ' h</span>' : '') + '</div><div class="muted">' + (f.date ? nice(f.date) : f.note === 'previas' ? 'de antes de usar NoVoy' : 'sin fecha') + (f.start ? ' · ' + f.start : '') + '</div>' + (orphanSet().has(f.id) ? '<div class="tags"><span class="tag amarillo">ya no está en tu horario</span></div>' : '') + (tags ? '<div class="tags">' + tags + '</div>' : '') + '</div><div class="acts"><button class="btn small" data-edit="' + esc(f.id) + '">Editar</button><button class="btn small ghost" data-del="' + esc(f.id) + '" aria-label="Borrar falta">Borrar</button></div></div></div>';
   }
   function editForm(S, f) {
     const subs = subjectsOf(S); if (f.subject && subs.indexOf(f.subject) < 0) subs.push(f.subject);
@@ -420,7 +496,7 @@
       if (mode === 'new') {
         const k = await A.derive(uI, A.cleanPass(pRaw)), kb = await A.expKey(k.key);
         const r = await A.api({ op: 'new', id: k.id, auth: k.auth, u: uI, data: await A.seal(k.key, SU.toExport(snapState())) });
-        if (r.ok) { user.acct = { u: uI, id: k.id, auth: k.auth, k: kb, t: Date.now() }; acg.p = ''; acg.p2 = ''; acg.eye = false; save(); if (sx.scr === 'reg') { sx.scr = 'method'; scrollTo(0, 0); } toast('Cuenta creada. Guarda la contraseña en tu gestor'); }
+        if (r.ok) { user.acct = { u: uI, id: k.id, auth: k.auth, k: kb, t: Date.now() }; acg.p = ''; acg.p2 = ''; acg.eye = false; save(); if (sx.scr === 'reg') { sx.scr = 'method'; if (user.config) tab = 'hoy'; scrollTo(0, 0); } toast('Cuenta creada. Ya no pierdes nada'); }
         else toast(r.error === 'existe' ? 'Ese usuario ya está cogido. Prueba el dado 🎲' : /^(sin-blobs|blobs-caido|sin-kv|almacen-caido)$/.test(r.error) ? 'El servidor de cuentas no está listo todavía' : 'No se pudo crear. Prueba otra vez');
       } else {
         let r = null, k = null;
@@ -482,12 +558,12 @@
   /** Ajustes por apartados: primero la lista, luego un apartado con sus tarjetas. */
   let ajSec = null;
   const AJ = [
-    ['horario', 'Horario y calendario', 'Tu semana, trimestres y festivos'],
-    ['faltas', 'Faltas y límite', 'Porcentaje, retrasos y qué cuenta'],
+    ['horario', 'Horario', 'Tu semana, trimestres y festivos'],
+    ['faltas', 'Reglas de tu centro', 'Límite, retrasos y justificadas'],
     ['clase', 'Pásalo a tu clase', 'Un enlace con tu horario, sin tus faltas'],
-    ['cuenta', 'Cuenta y copia de seguridad', 'Para no perder tus faltas'],
+    ['cuenta', 'Cuenta y copia', 'Para no perder tus faltas'],
     ['app', 'App', 'Instalar, tema y actualizar'],
-    ['borrar', 'Empezar de cero', 'Borrar faltas o todo']
+    ['borrar', 'Empezar de cero', 'Borrar tus faltas o todo']
   ];
   function viewAjustes() {
     const S = snapState(), s = S.settings, hasAlias = Object.keys(S.alias || {}).length;
@@ -498,7 +574,8 @@
     }
     const title = AJ.find((x) => x[0] === ajSec)[1];
     let h = '<div class="steps"><button class="back" data-aj="">‹ Ajustes</button><h1>' + title + '</h1></div>';
-    if (ajSec === 'horario') h += ('<div class="card"><div class="sec">Horario y calendario</div><p class="muted">Edítalo a mano o deja que tu IA lo haga por ti.</p><div class="btns"><button class="btn small primary" data-act="edit">Editar horario</button><button class="btn small" data-act="start-setup">Con mi IA</button><button class="btn small" data-act="start-update">Actualizar faltas con IA</button></div><p class="muted mini" style="margin:10px 0 0"><button class="link" data-act="edit-adv">Editor avanzado: unir asignaturas, nombre del centro</button></p></div>');
+    if (ajSec === 'horario') h += ('<div class="card"><div class="sec">Tu horario</div><p class="muted">Cambia una clase, el calendario o los festivos.</p><div class="btns"><button class="btn small primary" data-act="edit">Cambiar mi horario</button><label class="btn small" for="qshot">Subir otra foto</label><input id="qshot" type="file" accept="image/*" hidden></div><p class="muted mini" style="margin:10px 0 0"><button class="link" data-act="edit-adv">Editor avanzado: unir asignaturas, nombre del centro</button></p></div>') +
+      '<div class="card"><div class="sec">Faltas de antes</div><p class="muted">Las que tenías antes de usar NoVoy.</p><div class="btns"><button class="btn small" data-act="prv-open">Cambiar</button></div></div>';
     else if (ajSec === 'faltas') h += rulesCard(S) + ('<div class="card">' + (hasAlias ? sw('unificar', 'Unificar asignaturas', 'Algunas cuentan dentro de otra (ej. proyectos).') : '') + sw('justificadasCuentan', 'Las justificadas cuentan', 'Si lo apagas, no suman al límite.') + '</div>' +
       '<div class="card"><div class="two"><div class="field" style="margin-top:0"><label>Límite de faltas (%)</label><input type="number" data-num="limite" min="1" max="100" value="' + s.limite + '"></div>' +
       '<div class="field" style="margin-top:0"><label>Aviso si quedan (h) o menos</label><input type="number" data-num="aviso" min="0" step="any" value="' + s.aviso + '"></div></div></div>');
@@ -571,35 +648,37 @@
   /** Pantalla 1 del asistente: crear cuenta (o entrar), antes de tocar el horario. */
   function viewAcctStep() {
     const A = window.FTAcct, login = sx.scr === 'login';
-    let h = '<div class="steps">' + (login ? '<button class="back" data-act="go-reg">‹ Atrás</button>' : '') + '</div>';
+    let h = '<div class="steps"><button class="back" data-act="' + (user.config ? 'acct-later' : 'skip-reg') + '">‹ Atrás</button></div>';
     if (login) {
-      h += '<h1>Entrar en tu cuenta</h1><p class="muted" style="margin-top:6px">Recupera tu horario y tus faltas en este móvil.</p>' +
+      h += '<h1 class="big">Entrar</h1><p class="lead">Recupera tu horario y tus faltas en este móvil.</p>' +
         '<div class="card">' + accForm('login', false) + '</div>' +
         '<div class="card"><div class="sec">¿Sin cuenta pero con copia?</div><p class="muted">Si guardaste tu enlace de copia o un archivo, también sirve.</p><textarea id="rl" rows="2" style="min-height:64px" placeholder="Pega aquí tu enlace de copia" aria-label="Enlace de copia"></textarea><div class="btns" style="margin-top:10px"><button class="btn small" data-act="restore-link">Restaurar enlace</button><label class="btn small" for="imp">Importar archivo</label><input id="imp" type="file" accept="application/json" hidden></div></div>';
       return h + '<div class="cta"><div class="in"><button class="btn primary" type="submit" form="acf">Entrar</button></div></div>';
     }
-    h += '<div class="verdict verde">' + mascot('verde') + '<div><b>Primero, tu cuenta</b><p>Sin correo ni datos personales. Sirve para recuperar tus faltas si cambias de móvil o borras la app.</p></div></div>' +
+    h += '<h1 class="big">Guarda tu horario</h1><p class="lead">Crea una cuenta para no perder tus faltas si cambias de móvil. Sin correo.</p>' +
       '<div class="card">' + accForm('new', false) + '</div>' +
-      '<div class="card warn"><div class="sec">Apunta la contraseña ahora</div><p>No pedimos correo, así que <b>no hay forma de recuperarla</b>. Guárdala en tu gestor:</p><ul class="list"><li><b>iPhone</b>: app <b>Contraseñas</b> (o «Guardar contraseña» cuando te lo ofrezca Safari).</li><li><b>Android</b>: <b>Gestor de contraseñas de Google</b> (Ajustes › Google › Autocompletar).</li></ul><p class="muted">Al crearla te damos también un enlace de copia para guardar en tus mensajes.</p></div>' +
-      '<p class="muted mini" style="text-align:center;margin-top:16px"><button class="link" data-act="go-login">Ya tengo cuenta: entrar</button> · <button class="link" data-act="skip-reg">Ahora no</button></p>' +
-      '<div class="btns share-row"><button class="btn small" data-act="share-app"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10.5 13.5"/><path d="M21 3 14.5 21l-4-7.5L3 9.5z"/></svg>Compartir</button></div>';
-    return h + '<div class="cta"><div class="in"><button class="btn primary" type="submit" form="acf">Crear cuenta</button></div></div>';
+      '<div class="card warn"><div class="sec">Apunta la contraseña</div><p>Sin correo <b>no se puede recuperar</b>. Deja que el móvil la guarde cuando te lo pregunte.</p></div>' +
+      '<p class="muted mini center" style="margin-top:16px"><button class="link" data-act="go-login">Ya tengo cuenta: entrar</button></p>';
+    return h + '<div class="cta"><div class="in"><button class="btn" data-act="' + (user.config ? 'acct-later' : 'skip-reg') + '">Ahora no</button><button class="btn primary" type="submit" form="acf">Crear cuenta</button></div></div>';
   }
   function viewSetup() {
     const imp = sx.mode === 'import', upd = sx.mode === 'update' || imp, total = 4, st = sx.step;
-    if (!sx.scr) sx.scr = (!upd && !user.acct && !user.config && hasAcct()) ? 'reg' : 'method';
+    if (!sx.scr) sx.scr = 'method';
     if (!upd && !sx.ai && (sx.scr === 'reg' || sx.scr === 'login')) return viewAcctStep();
-    let h = '<div class="steps">' + (user.config || user.skipCfg ? '<button class="back" data-act="close">‹ Atrás</button>' : (hasAcct() ? '<button class="back" data-act="go-reg">‹ Atrás</button>' : '')) + '<div class="prog" role="progressbar" aria-valuemin="1" aria-valuemax="' + total + '" aria-valuenow="' + st + '"><i style="width:' + st / total * 100 + '%"></i></div></div>';
     let cta = '';
     if (st === 1 && !upd && !sx.ai) {
-      h += '<div class="verdict verde">' + mascot('verde') + '<div><b>Ahora tu horario</b><p>Elige cómo prefieres meterlo. Se tarda un par de minutos.</p></div></div>' +
+      // elegir cómo meter el horario: foto primero, pintar después. Nada más.
+      let h0 = '<div class="steps">' + (user.config || user.skipCfg ? '<button class="back" data-act="close">‹ Atrás</button>' : '') + '</div>' +
+        '<h1 class="big">Tu horario</h1><p class="lead">Haz una foto o una captura de tu horario. Yo lo relleno.</p>' +
         '<input id="qshot" type="file" accept="image/*" hidden>' +
-        '<div class="card feat"><div class="sec">Pintarlo yo</div><p class="muted">Tocas las casillas de tu semana y les pones nombre. Lo más rápido si tu horario es sencillo.</p><button class="btn primary small" style="margin-top:10px" data-act="q-start">Pintarlo yo</button></div>' +
-        '<div class="card"><div class="sec">Con mi IA</div><p class="muted">Le das fotos de tu horario y ella lo rellena.</p><button class="btn small" style="margin-top:10px" data-act="ai-go">Configurar con mi IA</button></div>' +
-        (user.config ? '' : '<p class="muted mini" style="text-align:center;margin-top:18px"><button class="link" data-act="skip-cfg">Ahora no, quiero ver la app primero</button></p>' +
-          (!user.acct && hasAcct() ? '<p class="muted mini" style="text-align:center;margin-top:8px"><button class="link" data-act="go-reg">Crear cuenta</button></p>' : ''));
-      cta = '<label class="btn primary" for="qshot">Subir captura</label>';
-    } else if (st === 1) {
+        '<label class="choice main" for="qshot"><span class="ic" aria-hidden="true">📷</span><span class="grow"><b>Subir foto del horario</b><span>La foto no sale de tu móvil</span></span><span class="arrow">›</span></label>' +
+        '<button class="choice" data-act="q-start"><span class="ic" aria-hidden="true">✏️</span><span class="grow"><b>Pintarlo yo</b><span>Tocas las horas de tu semana</span></span><span class="arrow">›</span></button>' +
+        (!user.config && !user.acct && hasAcct() ? '<p class="muted mini center" style="margin-top:22px"><button class="link" data-act="go-login">Ya tengo cuenta: entrar</button></p>' : '') +
+        (user.config ? '' : '<p class="muted mini center" style="margin-top:10px"><button class="link" data-act="skip-cfg">Ahora no, solo quiero mirar</button></p>');
+      return h0;
+    }
+    let h = '<div class="steps">' + (user.config || user.skipCfg ? '<button class="back" data-act="close">‹ Atrás</button>' : '<button class="back" data-act="ai-back">‹ Atrás</button>') + '<div class="prog" role="progressbar" aria-valuemin="1" aria-valuemax="' + total + '" aria-valuenow="' + st + '"><i style="width:' + st / total * 100 + '%"></i></div></div>';
+    if (st === 1) {
       h += '<div class="verdict verde">' + mascot('verde') + '<div><b>' + (imp ? 'Pasa tus faltas a NoVoy' : upd ? 'Actualiza con tu IA' : 'Configúralo en 2 minutos') + '</b><p>' + (imp ? 'Copia estas instrucciones, pégalas en tu IA y detrás pega tus faltas tal cual las tengas.' : upd ? 'Cuéntale qué faltas has tenido y ella lo apunta.' : 'Tu IA lee las fotos de tu horario y tu calendario. Tú solo revisas.') + '</p></div></div>' +
         '<p style="margin-top:18px">Primero copia las instrucciones. Tu IA sabrá exactamente qué hacer.</p>' +
         '<details><summary>Ver el texto</summary><textarea readonly id="pt" aria-label="Instrucciones para tu IA">' + esc(promptText()) + '</textarea><p class="muted">Si no se copia solo, mantén pulsado el texto y elige Copiar.</p></details>' +
@@ -747,7 +826,7 @@
       if (bl.length) psch[d] = bl; });
     const A = qk.ask || {};
     const project = A.proj && Object.keys(psch).length ? { name: pname, weeks: +qk.projWeeks >= 0 ? +qk.projWeeks : 4, schedule: psch, ranges: (base.project && base.project.ranges) || [] } : null;
-    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, history, alias, subjects, disabled: A.late ? Object.assign({}, qk.disabled || base.disabled || {}) : {}, project, nocount: A.nocount ? (qk.nocount || []).filter((x) => qUsed().indexOf(x) >= 0) : [], ask: { proj: A.proj, late: A.late, nocount: A.nocount }, totals: rnT(base.totals), totalsUnified: rnT(base.totalsUnified) };
+    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, history, alias, subjects, disabled: A.late ? Object.assign({}, qk.disabled || base.disabled || {}) : {}, project, nocount: A.nocount ? (qk.nocount || []).filter((x) => qUsed().indexOf(x) >= 0) : [], ask: { proj: A.proj, late: A.late, nocount: A.nocount }, tutChecked: !!base.tutChecked, totals: rnT(base.totals), totalsUnified: rnT(base.totalsUnified) };
   }
   const qUsed = () => Array.from(new Set(Object.values(qk.grid).flatMap((g) => Object.values(g)))).filter(Boolean);
   function qTotalsFor(cfg, termId) { return C.computeTotals(Object.assign({}, cfg, { settings: Object.assign({}, C.DEF, { unificar: false }), faltas: [] }), termId); }
@@ -781,7 +860,6 @@
       const rows = qRows();
       h += '<h1>' + (qk.fromShot ? 'Revisa tu horario' : 'Tu horario') + '</h1><p class="muted" style="margin-top:6px">' + (qk.fromShot ? 'Esto es lo que he leído. Corrige lo que no esté bien.' : 'Añade tus asignaturas, elige una y pinta sus casillas.') + '</p>' +
         (qk.photo ? '<details class="qph"' + (qk.fromShot ? ' open' : '') + '><summary>Tu captura</summary><img src="' + qk.photo + '" alt="Captura de tu horario"></details>' : '');
-      h += qAsk() + qTramos();
       h += '<div class="pals">' + qk.subjects.map((s, i) => '<button class="pal' + (qpaint === s ? ' on' : '') + (qCover(s) ? ' pal-off' : '') + '" data-pal="' + i + '" style="--c:' + AVC[i % AVC.length] + '">' + esc(s) + (qCover(s) ? ' <span class="mini">desactivada</span>' : '') + ((qk.nocount || []).indexOf(s) >= 0 && qYes('nocount') ? ' <span class="mini">no cuenta</span>' : '') + '</button>').join('') + (qYes('proj') ? '<button class="pal pj' + (qpaint === QP ? ' on' : '') + '" data-act="q-proj">' + esc(qk.projName || 'Proyecto') + ' <span class="mini">franjas</span></button>' : '') + '<button class="pal er' + (qpaint === '' ? ' on' : '') + '" data-pal="-1">Borrar</button><button class="pal add" data-act="q-add">+ Asignatura</button></div>';
       if (qpaint === QP) h += '<div class="card" style="margin-top:4px"><div class="sec">Semanas de proyecto</div><p class="muted">Marca en la rejilla las horas que se convierten en proyecto cuando hay semana de proyecto. Tus asignaturas se quedan debajo. Luego lo activas desde Hoy con un toque.</p><div class="two"><div class="field"><label>Nombre</label><input data-qf="projName" value="' + esc(qk.projName || 'Proyecto') + '" autocomplete="off"></div><div class="field"><label>Semanas en el curso</label><input type="number" min="0" max="40" step="1" inputmode="numeric" data-qf="projWeeks" value="' + (qk.projWeeks != null ? qk.projWeeks : 4) + '"></div></div><p class="muted mini">Con las semanas se calculan sus horas totales (' + fmt(qProjHours() * (qk.projWeeks != null ? qk.projWeeks : 4)) + ' h). Si sabes las oficiales, ponlas en «Horas totales».</p>' + (qProjHours() ? '<button type="button" class="btn small danger" style="margin-top:8px" data-act="q-proj-clear">Quitar las franjas de proyecto</button>' : '') + '</div>';
       if (qk.editing >= 0 && qk.subjects[qk.editing] != null) h += '<form id="q-ren" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>Cambiar nombre</label><input name="n" value="' + esc(qk.subjects[qk.editing]) + '" autocomplete="off" required></div><div class="btns" style="margin-top:10px"><button class="btn small primary">Guardar</button><button type="button" class="btn small danger" data-q-del="' + qk.editing + '">Quitar asignatura</button></div>' + qNoCountBox(qk.subjects[qk.editing]) + qOffBox(qk.subjects[qk.editing]) + '</form>';
@@ -792,6 +870,8 @@
           '<details class="more"><summary>Copiar un día a otro</summary><div class="two"><div class="field"><label>De</label><select id="qcf">' + QDAYS.map(([d]) => '<option value="' + d + '">' + QN[d] + '</option>').join('') + '</select></div><div class="field"><label>A</label><select id="qct">' + QDAYS.map(([d]) => '<option value="' + d + '"' + (d === 3 ? ' selected' : '') + '>' + QN[d] + '</option>').join('') + '</select></div></div><div class="btns"><button class="btn small" data-act="q-copy">Copiar</button><button class="btn small danger" data-act="q-clear">Vaciar todo</button></div></details>';
         h += qk.custom ? qCustomHours(rows) : '<details class="more"><summary>Cambiar las horas</summary><div class="two"><div class="field"><label>1ª clase empieza</label><input type="time" data-qf="start" value="' + qk.start + '"></div><div class="field"><label>Cada hora dura</label>' + sel('dur', [[45, '45 min'], [50, '50 min'], [55, '55 min'], [60, '60 min']], qk.dur) + '</div></div><div class="two"><div class="field"><label>Horas al día</label>' + sel('rows', [4, 5, 6, 7, 8, 9, 10].map((n) => [n, n]), qk.rows) + '</div><div class="field"><label>Recreo tras la hora</label>' + sel('brk', [[0, 'Sin recreo']].concat([1, 2, 3, 4, 5, 6].map((n) => [n, n])), qk.brk) + '</div></div>' + (qk.brk ? '<div class="field"><label>Duración del recreo</label>' + sel('brkMin', [[10, '10 min'], [15, '15 min'], [20, '20 min'], [30, '30 min']], qk.brkMin) + '</div>' : '') + '</details>';
       }
+      const moreOn = qk.moreOpen || ((qk.base && qk.base.periods) || []).length || Object.values(qk.ask || {}).some((x) => x === true);
+      h += '<details class="more"' + (moreOn ? ' open' : '') + '><summary>Casos especiales: tutoría, proyectos, cambios de horario</summary>' + qAsk() + qTramos() + '</details>';
     } else if (st === 2) {
       ok = qk.terms.length > 0 && qk.terms.every((t) => t.from && t.to && t.from <= t.to);
       h += '<h1>Calendario</h1><div class="card warn"><p>Plantilla orientativa de Catalunya 2026-27. <b>Revisa las fechas con tu centro</b>: cada uno puede cambiarlas.</p></div>' +
@@ -814,7 +894,7 @@
   }
   function qSave(from) {
     if (from === undefined && needsFrom(qCfg())) return askFrom(qCfg(), (f) => qSave(f || null));
-    const cfg = C.withHistory(user.config, qCfg(), from || null), prev = JSON.stringify(user);
+    const fresh = !user.config, cfg = C.withHistory(user.config, qCfg(), from || null), prev = JSON.stringify(user);
     // "Las sé yo": solo se guardan las horas escritas (las demás siguen calculándose). "Calcular": se quitan todas.
     if (qk.tmode === 'manual') { cfg.terms.forEach((t) => { const o = Object.assign({}, (cfg.totals || {})[t.id]); qUsed().forEach((s) => { const v = (qk.totals[t.id] || {})[s]; if (v != null && !isNaN(v) && v > 0) o[s] = +v; }); if (Object.keys(o).length) { cfg.totals[t.id] = o; cfg.totalsUnified[t.id] = Object.assign({}, (cfg.totalsUnified || {})[t.id], o); } }); }
     else { cfg.totals = {}; cfg.totalsUnified = {}; }
@@ -823,7 +903,9 @@
     const ren = qk.ren || {};
     const faltas = (user.faltas || []).map((f) => (ren[f.subject] != null ? Object.assign({}, f, { subject: ren[f.subject] }) : f));
     user = { config: cfg, settings: Object.assign({ aviso: 2, justificadasCuentan: true }, user.settings, { ambito: qk.ambito || 'trimestre', retrasosPorFalta: +qk.retrasos || 0, limite: qk.limite, unificar: Object.keys(cfg.alias || {}).length > 0 && user.settings ? user.settings.unificar : false }), faltas: faltas, acct: user.acct, skipCfg: user.skipCfg };
-    save(); qk = null; tab = 'hoy'; viewTerm = null; render(); scrollTo(0, 0);
+    save(); qk = null; tab = 'hoy'; viewTerm = null;
+    if (fresh && !user.faltas.length) { prvOpen('hoy'); return; } // siguiente paso del alta: las faltas que ya llevas
+    render(); scrollTo(0, 0);
     toast('Horario guardado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
   }
   /** Chips de tramo: el horario principal y los periodos con horario distinto. */
@@ -952,7 +1034,7 @@
   }
 
   // ---------- render + animaciones ----------
-  const VIEWS = { intro: viewIntro, desde: viewDesde, hoy: viewHoy, resumen: viewResumen, faltas: viewFaltas, ajustes: viewAjustes, join: viewJoin, sim: viewSim, install: viewInstall, setup: viewSetup, editor: viewEditor, quick: viewQuick, admin: viewAdmin };
+  const VIEWS = { previas: viewPrevias, intro: viewIntro, desde: viewDesde, hoy: viewHoy, resumen: viewResumen, faltas: viewFaltas, ajustes: viewAjustes, join: viewJoin, sim: viewSim, install: viewInstall, setup: viewSetup, editor: viewEditor, quick: viewQuick, admin: viewAdmin };
   function warnBar() {
     const el = document.getElementById('warnbar'); if (!el) return;
     const show = !user.config && tab !== 'setup' && tab !== 'quick' && tab !== 'editor' && tab !== 'join';
@@ -978,7 +1060,7 @@
     if (sp) { const bar = document.querySelector('.i-dots i.on'); if (bar) bar.style.animationDelay = sp + 'ms'; }
     iTimer = setTimeout(() => { iScene++; render(); }, (REDUCED ? 3500 : 3000) + sp); }
   function render() {
-    document.body.classList.toggle('setup', tab === 'intro' || tab === 'desde' || tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
+    document.body.classList.toggle('setup', tab === 'intro' || tab === 'previas' || tab === 'desde' || tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
     app.innerHTML = VIEWS[tab]();
     document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
     requestAnimationFrame(() => requestAnimationFrame(animate));
@@ -1012,6 +1094,18 @@
       const ids = added.map((x) => x.id);
       user.faltas.push.apply(user.faltas, added); save(); if (tab === 'sim') simSel = []; render();
       toast(added.length === 1 ? 'Falta anotada' : added.length + ' horas anotadas', () => { user.faltas = user.faltas.filter((f) => ids.indexOf(f.id) < 0); save(); render(); });
+    } else if (d.unmiss) {
+      let m; try { m = JSON.parse(d.unmiss); } catch (er) { return; }
+      const keys = new Set(m.u.map((x) => x[0] + '@' + x[1])), gone = user.faltas.filter((f) => f.date === m.d && f.type !== 'retraso' && keys.has(f.subject + '@' + f.start));
+      user.faltas = user.faltas.filter((f) => gone.indexOf(f) < 0); save(); render();
+      toast('Quitada', () => { user.faltas.push.apply(user.faltas, gone); save(); render(); });
+    } else if (d.yok) { user.okDay = d.yok; save(); render(); toast('Perfecto, apuntado que fuiste');
+    } else if (d.yno) { fwk = mondayOf(d.yno); fcell = null; tab = 'faltas'; render(); scrollTo(0, 0); toast('El ' + DAYS[C.parse(d.yno).getDay()] + ': toca la hora que faltaste');
+    } else if (d.act === 'prv-open') { prvOpen(tab === 'previas' ? 'hoy' : tab);
+    } else if (d.act === 'prv-close') { tab = (prv && prv.next) || 'hoy'; prv = null; render(); scrollTo(0, 0);
+    } else if (d.pv) { const i = d.pv.lastIndexOf('|'), n = d.pv.slice(0, i), k = +d.pv.slice(i + 1); prv.vals[n] = Math.max(prv.min[n] || 0, Math.min(999, (prv.vals[n] || 0) + k)); prv.warn = false; render();
+    } else if (d.act === 'prv-save') { prvSave();
+    } else if (d.act === 'go-nocount') { qk = qFromCfg(user.config); qk.askOpen = true; qk.moreOpen = true; const ni = qk.subjects.findIndex((x) => (qk.nocount || []).indexOf(x) >= 0); qpaint = ni >= 0 ? qk.subjects[ni] : null; qk.editing = ni; tab = 'quick'; render(); scrollTo(0, 0);
     } else if (d.act === 'pj-on' || d.act === 'pj-off') {
       const prev = JSON.stringify(user), p = user.config.project, day = today(); p.ranges = p.ranges || [];
       if (d.act === 'pj-on') { p.ranges.push({ from: day, to: null }); toast('Semana de ' + p.name.toLowerCase() + ' activada', () => { user = JSON.parse(prev); save(); render(); }); }
@@ -1060,7 +1154,9 @@
     } else if (d.act === 'join-yes') {
       const prev = JSON.stringify(user); user = { config: jn.config, settings: Object.assign({}, user.settings, jn.reglas || {}, { unificar: Object.keys(jn.config.alias).length > 0, limite: jn.limite || 25 }), faltas: jn.hasFaltas ? jn.faltas : (user.faltas || []) , acct: user.acct, skipCfg: user.skipCfg };
       if (acPend) { user.acct = acPend; acPend = null; }
-      save(); jn = null; tab = 'hoy'; render(); toast('Horario cargado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
+      save(); jn = null; tab = 'hoy';
+      if (!user.faltas.length) { prvOpen('hoy'); return; }
+      render(); toast('Horario cargado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
     } else if (d.act === 'adm-open') { tab = 'admin'; render(); scrollTo(0, 0); if (!adm || !adm.users) admLoad();
     } else if (d.act === 'adm-close') { tab = 'ajustes'; render(); scrollTo(0, 0);
     } else if (d.act === 'adm-load') { admLoad();
@@ -1101,6 +1197,8 @@
     } else if (d.act === 'go-reg') { acg.p = ''; acg.p2 = ''; sx.scr = 'reg'; render(); scrollTo(0, 0);
     } else if (d.act === 'go-login') { acg.p = ''; acg.p2 = ''; sx.scr = 'login'; render(); scrollTo(0, 0);
     } else if (d.act === 'skip-reg') { sx.scr = 'method'; render(); scrollTo(0, 0);
+    } else if (d.act === 'acct-open') { acg.p = ''; acg.p2 = ''; sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'reg' }; tab = 'setup'; render(); scrollTo(0, 0);
+    } else if (d.act === 'acct-later') { try { localStorage.setItem('ft.accx', String(Date.now())); } catch (er) {} sx.scr = 'method'; tab = user.config ? 'hoy' : 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'skip-cfg') { user.skipCfg = true; save(); tab = 'hoy'; render(); scrollTo(0, 0);
     } else if (d.act === 'go-setup') { sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'acct-dice') { acg.u = window.FTAcct.genUser(); acg.p = ($('#ac-p') || {}).value || ''; render();

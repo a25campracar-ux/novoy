@@ -12,12 +12,14 @@ faltas llevas, pero no lo que de verdad quieres saber a las siete y media de la 
 ## Qué hace
 
 - **Semáforo diario.** Verde, amarillo o rojo según el margen que te quede hoy, asignatura por asignatura.
-- **Configuración con una captura.** Subes la foto de tu horario y lo lee con OCR en el propio móvil.
+- **Configuración con una foto.** Subes la foto de tu horario y lo lee con OCR en el propio móvil.
+- **Faltas de antes con contadores.** Al terminar el alta pones cuántas horas llevas en cada asignatura.
+- **Pregunta de un toque.** Si el último día de clase no apuntaste nada, te pregunta si fuiste a todo.
+- **La tutoría no cuenta.** Se marca sola como fuera del cálculo; se puede cambiar.
 - **Rejilla para pintarlo.** Si prefieres, tocas las casillas de tu semana y les pones nombre.
 - **Cuentas sin correo.** Usuario y contraseña; los datos viajan cifrados y el servidor no puede leerlos.
 - **Funciona sin conexión.** Es una PWA: se instala en la pantalla de inicio y abre sin internet.
 - **Compartir con la clase.** Un enlace lleva tu horario (sin tus faltas) para que tus compañeros no lo configuren.
-- **Simulador.** "Si falto el jueves, ¿cómo quedo?" sin apuntar nada.
 - **Reglas de tu centro.** Límite por trimestre o sobre el curso entero, y cuántos retrasos hacen una falta. Si no lo sabes, usa lo más estricto.
 - **Cambios de horario sin perder nada.** Si el horario cambia a mitad de curso, eliges desde qué día vale y las faltas de antes siguen contando con el horario de entonces.
 

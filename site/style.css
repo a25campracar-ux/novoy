@@ -248,3 +248,24 @@ body.warn #app{padding-bottom:168px}
 .hrow span{font-size:12px;font-weight:700;color:var(--mute)}
 .hrow input{margin:0}
 .hrow .x{justify-self:center}
+/* v2: pantallas de una sola pregunta, títulos grandes y opciones que se tocan enteras */
+h1.big{font-size:30px;letter-spacing:-.03em;line-height:1.1;margin-top:6px}
+.lead{margin:10px 2px 20px;font-size:16.5px;color:var(--mute);font-weight:500;line-height:1.4}
+.center{text-align:center}
+.choice{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--card);border:1.5px solid var(--line);border-radius:22px;padding:18px;margin-bottom:12px;font:inherit;color:inherit;cursor:pointer;box-shadow:var(--shadow);transition:transform .1s,border-color .15s}
+.choice:active{transform:scale(.985)}
+.choice .ic{flex:none;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:26px;background:var(--soft)}
+.choice .grow{display:flex;flex-direction:column;gap:3px}.choice b{font-size:18px;font-weight:800}.choice .grow span{color:var(--mute);font-size:14px;font-weight:600}
+.choice .arrow{font-size:28px;color:var(--mute);line-height:1}
+.choice.main{border-color:var(--verde);background:var(--v-soft)}.choice.main .ic{background:var(--card)}
+.cnts{padding:6px 14px}
+.cnt-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}.cnt-row:last-child{border-bottom:0}
+.cnt-row b.grow{font-size:16.5px}
+.step{flex:none;width:44px;height:44px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:24px;font-weight:700;line-height:1;cursor:pointer}
+.step:active{transform:scale(.94)}.step[disabled]{opacity:.3;pointer-events:none}
+.pv{min-width:54px;text-align:center;font-weight:800;font-size:17px;font-variant-numeric:tabular-nums}
+.ask-y{border-color:var(--accent);margin:0 0 14px}.ask-y b{font-size:17px;display:block}
+.btn.dark{background:#334155;color:#fff;border-color:transparent}.btn.dark:hover{background:#3d4b60}
+.tag.big{font-size:14px;padding:4px 11px}
+.seg.terms{display:inline-flex;margin:0 0 8px}
+.hint1{margin-top:18px}

@@ -93,8 +93,8 @@
     const fixed = ((s.unificar ? state.totalsUnified : state.totals) || {})[term] || {};
     // las horas fijadas a mano mandan; el resto de asignaturas se calcula con el horario
     const totals = Object.assign(computeTotals(state, term), fixed);
-    const abs = absentByTerm(state, term);
-    return Object.keys(totals).map((name) => {
+    const abs = absentByTerm(state, term), nc = state.nocount || [];
+    return Object.keys(totals).filter((name) => nc.indexOf(name) < 0).map((name) => {
       const total = totals[name], absent = abs[name] || 0;
       const limit = total * s.limite / 100, margin = r1(limit - absent);
       return { name, total, absent, pct: r1(absent / total * 100), limit: r1(limit), margin, status: status(margin, s.aviso), off: offOn(state, name, todayStr()) };
