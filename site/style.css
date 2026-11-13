@@ -199,3 +199,7 @@ body.warn #app{padding-bottom:168px}
 .notice{border-color:var(--amarillo);background:var(--a-soft)}
 
 .aj{margin:8px 0}.aj-bad b{color:var(--rojo)}
+.gc.off{background:repeating-linear-gradient(135deg,var(--c) 0 6px,color-mix(in srgb,var(--c) 70%,#000) 6px 12px)}.gc small.dis{display:block;font-size:8px;opacity:.85;text-decoration:line-through;line-height:1}
+.pal-off{opacity:.75;border-style:dashed!important;border-color:var(--line)!important}.pal .mini,.pal-off .mini{font-weight:600;font-size:11px;color:var(--mute)}
+.offs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 2px 4px}.offs .pal{min-height:32px;padding:5px 11px;font-size:13px;--c:var(--mute)}
+.offbox{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}.offbox summary{cursor:pointer;font-weight:700}

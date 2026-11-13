@@ -7,6 +7,7 @@
   const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   const parse = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
   const weekday = (s) => parse(s).getDay(); // 1=lunes … 5=viernes
+  const todayStr = () => ymd(new Date());
 
   /** Término al que pertenece una fecha. */
   function termOf(state, date) {
@@ -72,8 +73,10 @@
   function computeTotals(state, term) {
     const t = state.terms.find((x) => x.id === term), out = {};
     if (!t) return out;
+    // cuenta cada franja para su dueña de la rejilla, aunque esté desactivada y la cubra otra:
+    // las horas oficiales de un módulo son las suyas de la semana; las prestadas no le suman
     for (let d = parse(t.from); ymd(d) <= t.to; d.setDate(d.getDate() + 1)) {
-      dayClasses(state, ymd(d)).forEach((c) => { const k = c.canon; out[k] = r2((out[k] || 0) + c.hours); });
+      dayClasses(state, ymd(d), true).forEach((c) => { const k = c.canon; out[k] = r2((out[k] || 0) + c.hours); });
     }
     return out;
   }
@@ -87,13 +90,27 @@
     return Object.keys(totals).map((name) => {
       const total = totals[name], absent = abs[name] || 0;
       const limit = total * s.limite / 100, margin = r1(limit - absent);
-      return { name, total, absent, pct: r1(absent / total * 100), limit: r1(limit), margin, status: status(margin, s.aviso) };
+      return { name, total, absent, pct: r1(absent / total * 100), limit: r1(limit), margin, status: status(margin, s.aviso), off: offOn(state, name, todayStr()) };
     });
   }
   /** Clases de un día. */
-  function dayClasses(state, date) {
+  /** ¿Esta asignatura está desactivada ese día? (aún no se imparte: la cubre otra). */
+  function offOn(state, subject, date) {
+    const x = (state.disabled || {})[subject];
+    return !!(x && x.cover && !(x.on && date >= x.on));
+  }
+  /** Clases de un día. Si una asignatura está desactivada, su franja cuenta para la que la cubre. `raw`: sin sustituir. */
+  function dayClasses(state, date, raw) {
     if ((state.holidays || []).some((h) => date >= h.from && date <= (h.to || h.from))) return [];
-    return (scheduleOn(state, date)[weekday(date)] || []).map((b) => Object.assign({}, b, { canon: canon(state, b.subject) }));
+    return (scheduleOn(state, date)[weekday(date)] || []).map((b0) => {
+      const b = Object.assign({}, b0);
+      if (!raw && offOn(state, b.subject, date)) { b.covers = b.subject; b.subject = state.disabled[b.subject].cover; }
+      b.canon = canon(state, b.subject); return b;
+    });
+  }
+  /** Asignaturas desactivadas hoy: [{ name, cover, on }]. */
+  function disabledOn(state, date) {
+    return Object.keys(state.disabled || {}).filter((k) => offOn(state, k, date)).map((k) => ({ name: k, cover: state.disabled[k].cover, on: state.disabled[k].on || null }));
   }
   /** El horario semanal que toca ese día: el del tramo que lo cubra, o el principal. */
   function scheduleOn(state, date) {
@@ -128,7 +145,8 @@
   function pruneTotals(cfg) {
     const subs = allSubjects(cfg), canonAll = subs.concat(Object.values(cfg.alias || {})), terms = (cfg.terms || []).map((t) => t.id);
     const clean = (fx) => { const o = {}; Object.keys(fx || {}).forEach((tid) => { if (terms.indexOf(tid) < 0) return; const x = {}; Object.keys(fx[tid] || {}).forEach((k) => { if (canonAll.indexOf(k) >= 0) x[k] = fx[tid][k]; }); if (Object.keys(x).length) o[tid] = x; }); return o; };
-    return Object.assign({}, cfg, { totals: clean(cfg.totals), totalsUnified: clean(cfg.totalsUnified) });
+    const dis = {}; Object.keys(cfg.disabled || {}).forEach((k) => { const x = cfg.disabled[k]; if (subs.indexOf(k) >= 0 && x && subs.indexOf(x.cover) >= 0 && x.cover !== k) dis[k] = x; });
+    return Object.assign({}, cfg, { totals: clean(cfg.totals), totalsUnified: clean(cfg.totalsUnified), disabled: dis });
   }
   /** Renombra asignaturas en todo el horario (principal, tramos e historial), uniones y horas fijadas. */
   function renameSubjects(cfg, ren) {
@@ -139,6 +157,7 @@
     const al = {}; Object.keys(c.alias || {}).forEach((k) => { const a = rn(k), b = rn(c.alias[k]); if (a !== b) al[a] = b; }); c.alias = al;
     ['totals', 'totalsUnified'].forEach((key) => Object.keys(c[key] || {}).forEach((tid) => { const o = {}; Object.keys(c[key][tid]).forEach((k) => { o[rn(k)] = c[key][tid][k]; }); c[key][tid] = o; }));
     (c.subjects || []).forEach((m) => { m.name = rn(m.name); });
+    const dis = {}; Object.keys(c.disabled || {}).forEach((k) => { dis[rn(k)] = Object.assign({}, c.disabled[k], { cover: rn(c.disabled[k].cover) }); }); c.disabled = dis;
     return c;
   }
   /**
@@ -175,7 +194,7 @@
     let slots = [];
     if (f.date) {
       const used = new Set(taken.filter((x) => x.date === f.date && x.subject === f.subject && x.start).map((x) => x.start));
-      (scheduleOn(cfg, f.date)[weekday(f.date)] || []).filter((b) => b.subject === f.subject).forEach((b) => hourSlots(b).forEach((x) => { if (!used.has(x.start)) slots.push(x); }));
+      dayClasses(cfg, f.date).filter((b) => b.subject === f.subject).forEach((b) => hourSlots(b).forEach((x) => { if (!used.has(x.start)) slots.push(x); }));
     }
     if (total <= 1.0001 && !slots.length) return [{ hours: total }];
     const res = []; let left = r2(total);
@@ -252,6 +271,6 @@
     for (let i = 0; i < 40; i++) { d.setDate(d.getDate() + 1); const k = ymd(d); if (dayClasses(state, k).length) return k; }
     return null;
   }
-  const api = { DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
+  const api = { offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

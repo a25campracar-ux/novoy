@@ -63,3 +63,33 @@ assert.ok(r.ok, JSON.stringify(r.errors));
 assert.deepStrictEqual(r.faltas.map((f) => [f.id, f.start]), n.faltas.map((f) => [f.id, f.start]));
 assert.deepStrictEqual(r.config.subjects, n.cfg.subjects);
 console.log('unidades OK');
+
+// --- asignaturas desactivadas: se quedan en su sitio, otra las cubre hasta que se activan
+{
+  const c = { terms: [{ id: '1r', label: '1r', from: '2026-09-14', to: '2026-11-27' }], holidays: [], periods: [], alias: {}, totals: {}, totalsUnified: {},
+    schedule: { 3: [{ start: '08:00', end: '09:00', subject: 'Chat', hours: 1 }, { start: '09:00', end: '11:00', subject: 'ECli', hours: 2 }] },
+    disabled: { Chat: { cover: 'ECli', on: null } } };
+  const S0 = st(c, []);
+  assert.deepStrictEqual(C.dayClasses(S0, '2026-10-07').map((b) => b.subject), ['ECli', 'ECli'], 'desactivada: la cubre ECli');
+  assert.strictEqual(C.dayClasses(S0, '2026-10-07')[0].covers, 'Chat');
+  assert.deepStrictEqual(C.dayClasses(S0, '2026-10-07', true).map((b) => b.subject), ['Chat', 'ECli'], 'raw: dueña de la rejilla');
+  const T = C.computeTotals(S0, '1r');
+  assert.ok(T.Chat > 0 && T.ECli === 2 * T.Chat, 'totales: cada una sus horas de la rejilla, las prestadas no suman');
+  assert.deepStrictEqual(C.disabledOn(S0, '2026-10-07').map((x) => x.name), ['Chat']);
+  // una falta a las 08:00 del miércoles va a ECli mientras Chat está desactivada
+  const n = C.normalize(c, [{ id: 'q', date: '2026-10-07', subject: 'ECli', hours: 3, type: 'falta' }]);
+  assert.deepStrictEqual(n.faltas.map((f) => f.start), ['08:00', '09:00', '10:00']);
+  assert.strictEqual(C.verdict(S0, '2026-10-07').items.map((i) => i.name).join(), 'ECli');
+  // activada desde el 21/10: antes la cubre ECli, desde ese día es Chat
+  const c2 = Object.assign({}, c, { disabled: { Chat: { cover: 'ECli', on: '2026-10-21' } } }), S2 = st(c2, []);
+  assert.strictEqual(C.dayClasses(S2, '2026-10-14')[0].subject, 'ECli');
+  assert.strictEqual(C.dayClasses(S2, '2026-10-21')[0].subject, 'Chat');
+  assert.deepStrictEqual(C.disabledOn(S2, '2026-10-21'), []);
+  // renombrar y poda
+  assert.deepStrictEqual(C.renameSubjects(c, { ECli: 'Entorn client' }).disabled, { Chat: { cover: 'Entorn client', on: null } });
+  assert.deepStrictEqual(C.pruneTotals(Object.assign({}, c, { schedule: { 3: [c.schedule[3][1]] } })).disabled, {}, 'si quitas Chat, fuera su desactivación');
+  // ida y vuelta
+  const r = SU.parseImport(SU.toExport(st(c2, [])));
+  assert.ok(r.ok, JSON.stringify(r.errors)); assert.deepStrictEqual(r.config.disabled, c2.disabled);
+  console.log('desactivadas OK');
+}

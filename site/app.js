@@ -120,7 +120,8 @@
     if (!user.config) return emptyView('Hoy', 'Sin horario no puedo decirte si puedes faltar. Esto es solo un vistazo a la app vacía.');
     const S = calc(), day = today(), v = C.verdict(S, day), lim = S.settings.limite;
     const hol = (S.holidays || []).find((h) => day >= h.from && day <= (h.to || h.from));
-    let h = '<div class="top"><span class="date">' + nice(day) + '</span><span class="chip">' + esc((S.terms.find((t) => t.id === v.term) || {}).label || 'Fuera de trimestre') + '</span></div>';
+    let h = '<div class="top"><span class="date">' + nice(day) + '</span><span class="chip">' + esc((S.terms.find((t) => t.id === v.term) || {}).label || 'Fuera de trimestre') + '</span></div>'
+    h += offBubble(S, day);
     if (v.free || !v.term) {
       const why = hol ? hol.label : (!v.term ? 'Estás fuera de los trimestres configurados' : 'No hay clase');
       h += '<div class="verdict verde">' + mascot('verde') + '<div><span class="who">NoVoy dice</span><b>Día libre</b><p>' + esc(why) + '. Nada que esconder.</p></div></div>';
@@ -142,6 +143,27 @@
   }
   /** data-miss: JSON con la fecha y una unidad por cada hora (asignatura, inicio, horas). */
   const missAttr = (day, slots) => esc(JSON.stringify({ d: day, u: slots.map((x) => [x.subject, x.start, x.hours]) }));
+  let onOpen = null; // asignatura desactivada que se está activando
+  function offBubble(S, day) {
+    const off = C.disabledOn(S, day); if (!off.length) return '';
+    let h = '<div class="offs"><span class="muted mini">Aún no se dan:</span>' + off.map((x) => '<button class="pal pal-off" data-on-open="' + esc(x.name) + '">' + esc(x.name) + ' <span class="mini">activar</span></button>').join('') + '</div>';
+    const x = off.find((y) => y.name === onOpen);
+    if (x) h += '<div class="card"><div class="sec">¿Ya ha empezado ' + esc(x.name) + '?</div><p class="muted">Desde ese día sus horas dejan de contar para ' + esc(x.cover) + ' y cuentan para ' + esc(x.name) + '. Las faltas que apuntaste en esas horas pasan a ' + esc(x.name) + '.</p><div class="field"><label>Empezó el</label><input type="date" id="on-d" value="' + today() + '"></div><div class="btns"><button class="btn small" data-on-open="">Cancelar</button><button class="btn small primary" data-on-go="' + esc(x.name) + '">Activar</button></div></div>';
+    return h;
+  }
+  /** Activa una asignatura desde `date`: sus franjas vuelven a ser suyas y sus faltas desde ese día también. */
+  function activate(name, date) {
+    const prev = JSON.stringify(user), x = (user.config.disabled || {})[name]; if (!x) return;
+    x.on = date;
+    const S = state(), moved = [];
+    user.faltas.forEach((f) => {
+      if (!f.date || f.date < date || f.subject !== x.cover || !f.start) return;
+      const own = (C.scheduleOn(S, f.date)[C.weekday(f.date)] || []).filter((b) => b.subject === name).some((b) => C.hourSlots(b).some((sl) => sl.start === f.start));
+      if (own) { f.subject = name; delete f.sid; moved.push(f.id); }
+    });
+    onOpen = null; save(); render();
+    toast(name + ' activada' + (moved.length ? ' · ' + moved.length + ' falta(s) movidas' : ''), () => { user = JSON.parse(prev); save(); render(); });
+  }
   function allDay(v, day) {
     const sl = v.slots.filter((x) => !x.unknown); if (!sl.length) return '';
     return '<button class="btn block day-btn" data-miss="' + missAttr(day, sl) + '">Falté todo el día</button>';
@@ -176,10 +198,12 @@
     h += '<button class="card sim-entry" data-act="open-sim"><span class="grow"><b>Simulador</b><span class="muted">¿Y si falto mañana? Míralo antes de decidir.</span></span><span class="arrow">›</span></button>';
     h += '<p class="muted">Máximo permitido: ' + lim + '% de faltas por asignatura.</p>';
     if (!sum.length) h += '<div class="card muted">Este trimestre aún no tiene horas.</div>';
-    sum.sort((a, b) => a.margin - b.margin).forEach((x, n) => {
+    const offNow = new Set(C.disabledOn(S, today()).map((x) => x.name)), offRows = sum.filter((x) => offNow.has(x.name));
+    sum.filter((x) => !offNow.has(x.name)).sort((a, b) => a.margin - b.margin).forEach((x, n) => {
       h += '<div' + rise(n) + '><div class="card"><div class="row">' + avatar(S, x.name) + '<div class="grow"><div class="name">' + esc(x.name) + '</div></div><div class="right"><div class="num">' + cnt(x.pct) + '%</div><span class="tag ' + x.status + '">' + (x.margin < 0 ? 'pasado ' + fmt(-x.margin) + ' h' : 'margen ' + fmt(x.margin) + ' h') + '</span></div></div>' + meter(x.pct, null, lim, x.status) +
         '<div class="stats"><div><b>' + fmt(x.total) + ' h</b><span>Totales</span></div><div><b>' + fmt(x.limit) + ' h</b><span>Puedes faltar</span></div><div><b>' + fmt(x.absent) + ' h</b><span>Has faltado</span></div><div class="' + x.status + '"><b>' + (x.margin < 0 ? '−' : '') + fmt(Math.abs(x.margin)) + ' h</b><span>' + (x.margin < 0 ? 'Te pasas' : 'Margen') + '</span></div></div>' + lastLine(x, rem[x.name] || 0) + '</div></div>';
     });
+    if (offRows.length) h += '<div class="card"><div class="sec">Aún no se dan</div><ul class="list">' + offRows.map((x) => '<li><b>' + esc(x.name) + '</b> · ' + fmt(x.total) + ' h en total · podrás faltar ' + fmt(x.limit) + ' h</li>').join('') + '</ul><p class="muted">Actívalas en la pantalla Hoy cuando empiecen.</p></div>';
     const orph = C.orphans(S);
     if (orph.length) h += '<div class="card warn"><div class="sec">Faltas sin asignatura</div><p>' + orph.length + ' falta' + (orph.length === 1 ? '' : 's') + ' de ' + Array.from(new Set(orph.map((f) => f.subject))).map(esc).join(', ') + ' ya no ' + (orph.length === 1 ? 'está' : 'están') + ' en tu horario. No se han borrado: edítalas en «Faltas» para pasarlas a otra asignatura.</p></div>';
     const n = +S.settings.retrasosPorFalta, late = n > 0 ? C.latesByTerm(S, tid) : {};
@@ -191,8 +215,8 @@
   const subjectsOf = (S) => C.allSubjects(S).slice().sort();
   // asignaturas del día de la semana de esa fecha (si no hay clase ese día, todas)
   const subjectsOn = (S, date) => {
-    const ok = date && /^\d{4}-\d\d-\d\d$/.test(date), sch = ok ? C.scheduleOn(S, date) : {};
-    const day = ok ? Array.from(new Set((sch[C.weekday(date)] || []).map((b) => b.subject))) : [];
+    const ok = date && /^\d{4}-\d\d-\d\d$/.test(date);
+    const day = ok ? Array.from(new Set(C.dayClasses(S, date).map((b) => b.subject))) : [];
     return day.length ? { list: day, all: false } : { list: subjectsOf(S), all: true };
   };
   const subjectOpts = (S, date, sel) => { const r = subjectsOn(S, date); return r.list.map((x) => '<option' + (x === sel ? ' selected' : '') + '>' + esc(x) + '</option>').join(''); };
@@ -227,7 +251,7 @@
   /** Opciones de hora de una asignatura un día: "inicio|horas". Si no hay clase, una unidad sin hora. */
   function slotOpts(S, date, subject, sel) {
     const out = [];
-    if (date && /^\d{4}-\d\d-\d\d$/.test(date)) (C.scheduleOn(S, date)[C.weekday(date)] || []).filter((b) => b.subject === subject).forEach((b) => C.hourSlots(b).forEach((x) => out.push(x)));
+    if (date && /^\d{4}-\d\d-\d\d$/.test(date)) C.dayClasses(S, date).filter((b) => b.subject === subject).forEach((b) => C.hourSlots(b).forEach((x) => out.push(x)));
     if (!out.length) return '<option value="|1">Sin hora concreta (1 h)</option>';
     return out.map((x) => '<option value="' + x.start + '|' + x.hours + '"' + (x.start === sel ? ' selected' : '') + '>' + x.start + ' – ' + x.end + (x.hours !== 1 ? ' (' + fmt(x.hours) + ' h)' : '') + '</option>').join('');
   }
@@ -508,8 +532,18 @@
     for (let r = 0; r < qk.rows; r++) { out.push({ s: hhmm(t), e: hhmm(t + qk.dur) }); t += qk.dur + (qk.brk === r + 1 ? qk.brkMin : 0); }
     return out;
   }
+  /** Caja para desactivar una asignatura que aún no se da: se queda en su sitio y otra la cubre. */
+  function qOffBox(name) {
+    const others = qk.subjects.filter((x) => x !== name && !qCover(x)), cur = qCover(name);
+    if (cur) return '<div class="offbox"><b>Desactivada</b><p class="muted">Aún no se da. En sus horas cuenta <b>' + esc(cur) + '</b>. La activas desde la pantalla Hoy cuando empiece.</p><button type="button" class="btn small" data-q-on="' + esc(name) + '">Quitar desactivación</button></div>';
+    if (!others.length) return '';
+    return '<details class="offbox"><summary>¿Aún no se da esta asignatura?</summary><p class="muted">Se queda en su sitio, pero hasta que la actives sus horas cuentan para otra (la que se da de verdad esas semanas).</p><div class="field"><label>Mientras tanto se da</label><select id="q-cover">' + others.map((x) => '<option>' + esc(x) + '</option>').join('') + '</select></div><button type="button" class="btn small primary" style="margin-top:10px" data-q-off="' + esc(name) + '">Desactivar</button></details>';
+  }
   const qTxt = (n) => (String(n).length <= 6 ? String(n).toUpperCase() : initials(n));
-  const qCol = (name) => AVC[Math.max(0, qk.subjects.indexOf(name)) % AVC.length];
+  const qCol = (name) => AVC[Math.max(0, qk.subjects.indexOf(qCover(name) || name)) % AVC.length];
+  /** Si la asignatura está desactivada en la rejilla, la que la cubre. */
+  const qCover = (name) => { const x = (qk.disabled || {})[name]; return x && x.cover && !x.on ? x.cover : null; };
+  const qCell = (s) => (qCover(s) ? esc(qTxt(qCover(s))) + '<small class="dis">' + esc(qTxt(s)) + '</small>' : esc(qTxt(s)));
   const qTid = (t, i) => t.id || (String(t.label).toLowerCase().replace(/[^a-z0-9]+/g, '') || 't') + i;
   /** Horario guardado -> estado de la rejilla, para poder editarlo pintando. */
   function qFromCfg(cfg, pi) {
@@ -534,7 +568,7 @@
     return Object.assign(qNew(), {
       custom: rows.length ? rows : null, grid, subjects, adding: false, unit: exact ? 'full' : 'real',
       terms: cfg.terms.map((t) => ({ id: t.id, label: t.label, from: t.from, to: t.to })),
-      tmode: Object.keys(cfg.totals || {}).length ? 'manual' : 'auto', totals: JSON.parse(JSON.stringify(cfg.totals || {})),
+      tmode: Object.keys(cfg.totals || {}).length ? 'manual' : 'auto', totals: JSON.parse(JSON.stringify(cfg.totals || {})), disabled: JSON.parse(JSON.stringify(cfg.disabled || {})),
       holidays: (cfg.holidays || []).map((h) => ({ label: h.label, from: h.from, to: h.to })),
       limite: (user.settings && user.settings.limite) || 25, base: cfg, pi: pi == null ? null : pi
     });
@@ -561,7 +595,7 @@
     history.forEach((x) => Object.keys(x.schedule || {}).forEach((d) => x.schedule[d].forEach((b) => { b.subject = rn(b.subject); })));
     const rnT = (fx) => { const o = {}; Object.keys(fx || {}).forEach((tid) => { o[tid] = {}; Object.keys(fx[tid]).forEach((k) => { o[tid][rn(k)] = fx[tid][k]; }); }); return o; };
     const subjects = (base.subjects || []).map((m) => ({ id: m.id, name: rn(m.name) }));
-    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, history, alias, subjects, totals: rnT(base.totals), totalsUnified: rnT(base.totalsUnified) };
+    return { center: base.center || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule: main, periods, history, alias, subjects, disabled: Object.assign({}, qk.disabled || base.disabled || {}), totals: rnT(base.totals), totalsUnified: rnT(base.totalsUnified) };
   }
   const qUsed = () => Array.from(new Set(Object.values(qk.grid).flatMap((g) => Object.values(g)))).filter(Boolean);
   function qTotalsFor(cfg, termId) { return C.computeTotals(Object.assign({}, cfg, { settings: Object.assign({}, C.DEF, { unificar: false }), faltas: [] }), termId); }
@@ -596,12 +630,12 @@
       h += '<h1>' + (qk.fromShot ? 'Revisa tu horario' : 'Tu horario') + '</h1><p class="muted" style="margin-top:6px">' + (qk.fromShot ? 'Esto es lo que he leído. Corrige lo que no esté bien.' : 'Añade tus asignaturas, elige una y pinta sus casillas.') + '</p>' +
         (qk.photo ? '<details class="qph"' + (qk.fromShot ? ' open' : '') + '><summary>Tu captura</summary><img src="' + qk.photo + '" alt="Captura de tu horario"></details>' : '');
       h += qTramos();
-      h += '<div class="pals">' + qk.subjects.map((s, i) => '<button class="pal' + (qpaint === s ? ' on' : '') + '" data-pal="' + i + '" style="--c:' + AVC[i % AVC.length] + '">' + esc(s) + '</button>').join('') + '<button class="pal er' + (qpaint === '' ? ' on' : '') + '" data-pal="-1">Borrar</button><button class="pal add" data-act="q-add">+ Asignatura</button></div>';
-      if (qk.editing >= 0 && qk.subjects[qk.editing] != null) h += '<form id="q-ren" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>Cambiar nombre</label><input name="n" value="' + esc(qk.subjects[qk.editing]) + '" autocomplete="off" required></div><div class="btns" style="margin-top:10px"><button class="btn small primary">Guardar</button><button type="button" class="btn small danger" data-q-del="' + qk.editing + '">Quitar asignatura</button></div></form>';
+      h += '<div class="pals">' + qk.subjects.map((s, i) => '<button class="pal' + (qpaint === s ? ' on' : '') + (qCover(s) ? ' pal-off' : '') + '" data-pal="' + i + '" style="--c:' + AVC[i % AVC.length] + '">' + esc(s) + (qCover(s) ? ' <span class="mini">desactivada</span>' : '') + '</button>').join('') + '<button class="pal er' + (qpaint === '' ? ' on' : '') + '" data-pal="-1">Borrar</button><button class="pal add" data-act="q-add">+ Asignatura</button></div>';
+      if (qk.editing >= 0 && qk.subjects[qk.editing] != null) h += '<form id="q-ren" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>Cambiar nombre</label><input name="n" value="' + esc(qk.subjects[qk.editing]) + '" autocomplete="off" required></div><div class="btns" style="margin-top:10px"><button class="btn small primary">Guardar</button><button type="button" class="btn small danger" data-q-del="' + qk.editing + '">Quitar asignatura</button></div>' + qOffBox(qk.subjects[qk.editing]) + '</form>';
       if (qk.adding || !qk.subjects.length) h += '<form id="q-sub" class="card" style="margin-top:4px"><div class="field" style="margin-top:0"><label>' + (qk.subjects.length ? 'Nueva asignatura' : 'Empieza por tus asignaturas') + '</label><input name="s" placeholder="Ej. Programación, Inglés…" autocomplete="off" aria-label="Asignaturas"></div><p class="muted" style="margin-top:6px">Puedes poner varias separadas por comas.</p><button class="btn small primary" style="margin-top:10px">Añadir</button></form>';
       if (qk.subjects.length) {
         h += '<p class="muted" style="margin:6px 2px 0">' + (qpaint === null ? 'Toca una asignatura de arriba.' : 'Toca o desliza para pintar. Si tocas una casilla ya pintada, se borra.') + '</p><div class="qgrid" id="qgrid"><span></span>' + QDAYS.map(([, l]) => '<b class="gh">' + l + '</b>').join('') +
-          rows.map((row, r) => '<span class="rl">' + row.s + '<small>' + row.e + '</small></span>' + QDAYS.map(([d]) => { const s = (qk.grid[d] || {})[r]; return '<button class="gc' + (s ? ' on' : '') + '" data-d="' + d + '" data-r="' + r + '" style="--c:' + (s ? qCol(s) : 'transparent') + '" aria-label="' + QN[d] + ', ' + row.s + (s ? ': ' + esc(s) : ': vacía') + '">' + (s ? esc(qTxt(s)) : '') + '</button>'; }).join('')).join('') + '</div>' +
+          rows.map((row, r) => '<span class="rl">' + row.s + '<small>' + row.e + '</small></span>' + QDAYS.map(([d]) => { const s = (qk.grid[d] || {})[r]; return '<button class="gc' + (s ? ' on' : '') + (s && qCover(s) ? ' off' : '') + '" data-d="' + d + '" data-r="' + r + '" style="--c:' + (s ? qCol(s) : 'transparent') + '" aria-label="' + QN[d] + ', ' + row.s + (s ? ': ' + esc(s) : ': vacía') + '">' + (s ? qCell(s) : '') + '</button>'; }).join('')).join('') + '</div>' +
           '<details class="more"><summary>Copiar un día a otro</summary><div class="two"><div class="field"><label>De</label><select id="qcf">' + QDAYS.map(([d]) => '<option value="' + d + '">' + QN[d] + '</option>').join('') + '</select></div><div class="field"><label>A</label><select id="qct">' + QDAYS.map(([d]) => '<option value="' + d + '"' + (d === 3 ? ' selected' : '') + '>' + QN[d] + '</option>').join('') + '</select></div></div><div class="btns"><button class="btn small" data-act="q-copy">Copiar</button><button class="btn small danger" data-act="q-clear">Vaciar todo</button></div></details>';
         if (!qk.custom) h += '<details class="more"><summary>Cambiar las horas</summary><div class="two"><div class="field"><label>1ª clase empieza</label><input type="time" data-qf="start" value="' + qk.start + '"></div><div class="field"><label>Cada hora dura</label>' + sel('dur', [[45, '45 min'], [50, '50 min'], [55, '55 min'], [60, '60 min']], qk.dur) + '</div></div><div class="two"><div class="field"><label>Horas al día</label>' + sel('rows', [4, 5, 6, 7, 8, 9, 10].map((n) => [n, n]), qk.rows) + '</div><div class="field"><label>Recreo tras la hora</label>' + sel('brk', [[0, 'Sin recreo']].concat([1, 2, 3, 4, 5, 6].map((n) => [n, n])), qk.brk) + '</div></div>' + (qk.brk ? '<div class="field"><label>Duración del recreo</label>' + sel('brkMin', [[10, '10 min'], [15, '15 min'], [20, '20 min'], [30, '30 min']], qk.brkMin) + '</div>' : '') + '</details>';
       }
@@ -656,7 +690,7 @@
     if (!cell || !cell.classList.contains('gc') || qmode === null) return;
     const d = +cell.dataset.d, r = +cell.dataset.r; qk.grid[d] = qk.grid[d] || {};
     if (qmode === '') delete qk.grid[d][r]; else qk.grid[d][r] = qmode;
-    cell.classList.toggle('on', qmode !== ''); cell.style.setProperty('--c', qmode === '' ? 'transparent' : qCol(qmode)); cell.textContent = qmode === '' ? '' : qTxt(qmode);
+    cell.classList.toggle('on', qmode !== ''); cell.style.setProperty('--c', qmode === '' ? 'transparent' : qCol(qmode)); cell.innerHTML = qmode === '' ? '' : qCell(qmode); cell.classList.toggle('off', !!(qmode && qCover(qmode)));
   }
   app.addEventListener('pointerdown', (e) => {
     const c = e.target.closest('.gc'); if (!c || !qk) return;
@@ -788,6 +822,8 @@
       const ids = added.map((x) => x.id);
       user.faltas.push.apply(user.faltas, added); save(); if (tab === 'sim') simSel = []; render();
       toast(added.length === 1 ? 'Falta anotada' : added.length + ' horas anotadas', () => { user.faltas = user.faltas.filter((f) => ids.indexOf(f.id) < 0); save(); render(); });
+    } else if (d.onOpen !== undefined) { onOpen = d.onOpen || null; render();
+    } else if (d.onGo) { const v = ($('#on-d') || {}).value; if (!/^\d{4}-\d\d-\d\d$/.test(v || '')) { toast('Elige una fecha'); return; } activate(d.onGo, v);
     } else if (d.aj !== undefined) { ajSec = d.aj || null; render(); scrollTo(0, 0);
     } else if (d.sim !== undefined) { const i = +d.sim, k = simSel.indexOf(i); if (k >= 0) simSel.splice(k, 1); else simSel.push(i); render();
     } else if (d.act === 'open-sim') { simDay = null; simSel = []; tab = 'sim'; render(); scrollTo(0, 0);
@@ -943,8 +979,10 @@
     } else if (d.act === 'q-exit') { qk = null; tab = user.config ? 'ajustes' : 'setup'; render();
     } else if (d.act === 'q-back') { if (qk.step <= 1) { qk = null; tab = user.config ? 'ajustes' : 'setup'; } else qk.step--; render(); scrollTo(0, 0);
     } else if (d.act === 'q-next') { if (qk.step === 3) qSave(); else { qk.step++; render(); scrollTo(0, 0); }
+    } else if (d.qOff !== undefined) { const c = ($('#q-cover') || {}).value; if (!c) return; qk.disabled = Object.assign({}, qk.disabled, { [d.qOff]: { cover: c, on: null } }); render();
+    } else if (d.qOn !== undefined) { const o = Object.assign({}, qk.disabled); delete o[d.qOn]; qk.disabled = o; render();
     } else if (d.pal !== undefined) { const nv = +d.pal < 0 ? '' : qk.subjects[+d.pal]; if (nv !== '' && qpaint === nv) qk.editing = qk.editing === +d.pal ? -1 : +d.pal; else { qpaint = nv; qk.editing = -1; } render();
-    } else if (d.qDel !== undefined) { const n = qk.subjects.splice(+d.qDel, 1)[0]; Object.values(qk.grid).forEach((g) => Object.keys(g).forEach((r) => { if (g[r] === n) delete g[r]; })); qk.editing = -1; if (qpaint === n) qpaint = qk.subjects[0] || null; render();
+    } else if (d.qDel !== undefined) { const n = qk.subjects.splice(+d.qDel, 1)[0]; if (qk.disabled) { const o = {}; Object.keys(qk.disabled).forEach((k) => { if (k !== n && qk.disabled[k].cover !== n) o[k] = qk.disabled[k]; }); qk.disabled = o; } Object.values(qk.grid).forEach((g) => Object.keys(g).forEach((r) => { if (g[r] === n) delete g[r]; })); qk.editing = -1; if (qpaint === n) qpaint = qk.subjects[0] || null; render();
     } else if (d.qTerm !== undefined) { qk.terms.splice(+d.qTerm, 1); render();
     } else if (d.qHol !== undefined) { qk.holidays.splice(+d.qHol, 1); render();
     } else if (d.act === 'q-addterm') { qk.terms.push({ label: (qk.terms.length + 1) + 'r trimestre', from: '', to: '' }); render();
@@ -995,6 +1033,7 @@
         Object.keys(qk.ren).forEach((k) => { if (qk.ren[k] === old) { qk.ren[k] = nn; chained = true; } });
         if (!chained) qk.ren[old] = nn;
       }
+      if (nn && old != null && qk.disabled) { const o = {}; Object.keys(qk.disabled).forEach((k) => { const x = qk.disabled[k]; o[k === old ? nn : k] = Object.assign({}, x, { cover: x.cover === old ? nn : x.cover }); }); qk.disabled = o; }
       if (nn && old != null) { qk.subjects[qk.editing] = nn; Object.values(qk.grid).forEach((g) => Object.keys(g).forEach((r) => { if (g[r] === old) g[r] = nn; })); if (qpaint === old) qpaint = nn; } qk.editing = -1; render();
     } else if (id === 'adm-notice') {
       const r = await admApi('notice', { text: String(f.get('text') || ''), until: f.get('until') || '' });
