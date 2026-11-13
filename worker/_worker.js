@@ -134,6 +134,12 @@ async function api(req, env, url) {
     if (cur.a !== b.auth) return J(403, { error: 'clave' });
     if (meta.b) return J(423, { error: 'bloqueada' });
     if (b.op === 'get') return J(200, { ok: 1, data: cur.d, t: cur.t });
+    if (b.op === 'rekey') { // nueva contraseña: nueva prueba y datos recifrados con la clave nueva
+      if (!HEX.test(b.newAuth || '') || !okData) return J(400, { error: 'bad' });
+      const t = Date.now();
+      await kv.put(KEY(b.id), JSON.stringify({ a: b.newAuth, d: b.data, t }), { metadata: Object.assign({}, meta, { t, n: b.data.length }) });
+      return J(200, { ok: 1, t });
+    }
     if (b.op === 'put') {
       if (!okData) return J(400, { error: 'bad-data' });
       const t = Date.now();

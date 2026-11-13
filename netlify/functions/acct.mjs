@@ -36,6 +36,12 @@ export default async (req) => {
     if (!cur) return J(404, { error: 'no-existe' });
     if (cur.a !== b.auth) return J(403, { error: 'clave' });
     if (b.op === 'get') return J(200, { ok: 1, data: cur.d, t: cur.t });
+    if (b.op === 'rekey') {
+      if (!hex.test(b.newAuth || '') || !okData) return J(400, { error: 'bad' });
+      const t = Date.now();
+      await st.put(b.id, { a: b.newAuth, d: b.data, t });
+      return J(200, { ok: 1, t });
+    }
     if (b.op === 'put') {
       if (!okData) return J(400, { error: 'bad-data' });
       const t = Date.now();

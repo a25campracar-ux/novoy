@@ -53,6 +53,16 @@
     ['Un número', /\d/.test(p)]
   ];
   const userOk = (u) => /^[A-Za-z0-9]{3,24}$/.test(u);
+  /** La contraseña tal cual se escribe puede venir con un espacio al final (autocompletado) o con tildes
+   *  en otra forma Unicode según el teclado. Las cuentas nuevas usan la forma limpia; al entrar se
+   *  prueba la limpia y, si no, la tal cual (cuentas creadas antes de este cambio). */
+  const cleanPass = (p) => String(p).normalize('NFC').trim();
+  const passVariants = (p) => Array.from(new Set([cleanPass(p), String(p)]));
+  /** ¿Esta contraseña es la de la sesión abierta? Sin servidor: se compara la prueba derivada. */
+  async function check(acct, pass) {
+    for (const v of passVariants(pass)) { const k = await derive(acct.u, v); if (k.id === acct.id && k.auth === acct.auth) return true; }
+    return false;
+  }
 
   /** Aviso global que pone el admin. Se cachea en el borde, así que es barato. */
   async function notice() {
@@ -61,5 +71,5 @@
   /** Contador anónimo: solo dice "una captura salió bien", sin id ni datos. */
   function stat(what) { try { return api({ op: 'stat', what }).catch(() => {}); } catch (e) {} }
 
-  root.FTAcct = { derive, seal, open, expKey, impKey, api, genUser, passChecks, userOk, notice, stat, ADMIN: 'c33' };
+  root.FTAcct = { cleanPass, passVariants, check, derive, seal, open, expKey, impKey, api, genUser, passChecks, userOk, notice, stat, ADMIN: 'c33' };
 })(window);

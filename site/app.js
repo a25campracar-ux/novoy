@@ -375,17 +375,93 @@
     if (user.acct) {
       const when = user.acct.t ? new Date(user.acct.t).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'todavía no';
       const warn = acState === 'err' ? '<p class="muted">No se pudo guardar la última vez. Se reintenta con cada cambio.</p>' : acState === 'sesion' ? '<p class="muted">La sesión ya no vale. Cierra sesión y vuelve a entrar.</p>' : acState === 'bloqueada' ? '<p class="muted">Esta cuenta está bloqueada: deja de guardarse en el servidor. Tus datos siguen en este móvil.</p>' : '';
-      return '<div class="card"><div class="sec">Cuenta</div><p class="muted">Conectado como <b>' + esc(user.acct.u) + '</b>. Tus datos se guardan cifrados tras cada cambio. Último guardado: ' + when + '.</p>' + warn + '<div class="btns"><button class="btn small primary" data-act="acct-push">Guardar ahora</button><button class="btn small" data-act="acct-out">Cerrar sesión</button>' + (isAdmin() ? '<button class="btn small" data-act="adm-open">Panel de admin</button>' : '') + '</div></div>';
+      return '<div class="card"><div class="sec">Cuenta</div><p class="muted">Conectado como <b>' + esc(user.acct.u) + '</b>. Tus datos se guardan cifrados tras cada cambio. Último guardado: ' + when + '.</p>' + warn + acctTools() + '<div class="btns"><button class="btn small primary" data-act="acct-push">Guardar ahora</button><button class="btn small" data-acx="out">Cerrar sesión</button>' + (isAdmin() ? '<button class="btn small" data-act="adm-open">Panel de admin</button>' : '') + '</div></div>';
     }
-    if (!acg.u) acg.u = A.genUser();
-    const checks = A.passChecks(acg.p || '');
+    const m = acg.mode === 'login' ? 'login' : 'new';
     return '<div class="card"><div class="sec">Cuenta</div><p class="muted">Usuario y contraseña, sin correo. Entra en otro móvil y recupera tu horario y tus faltas.</p>' +
-      '<div class="field"><label>Usuario</label><div class="two" style="grid-template-columns:1fr auto"><input id="ac-u" value="' + esc(acg.u) + '" autocomplete="username" aria-label="Usuario"><button class="btn small" data-act="acct-dice" aria-label="Otro usuario">🎲</button></div></div>' +
-      '<div class="field"><label>Contraseña</label><input id="ac-p" type="password" value="' + esc(acg.p || '') + '" autocomplete="new-password" aria-label="Contraseña"></div>' +
-      '<ul class="list acc-chk">' + checks.map((c) => '<li data-ok="' + (c[1] ? 1 : 0) + '">' + (c[1] ? '✅' : '◻️') + ' ' + c[0] + '</li>').join('') + '</ul>' +
-      '<div class="btns"><button class="btn small primary" data-act="acct-new">Crear cuenta</button><button class="btn small" data-act="acct-login">Ya tengo cuenta: entrar</button></div></div>';
+      '<div class="seg" style="margin:10px 0 4px;display:inline-flex"><button class="' + (m === 'new' ? 'on' : '') + '" data-act="ac-mode" data-m="new">Crear cuenta</button><button class="' + (m === 'login' ? 'on' : '') + '" data-act="ac-mode" data-m="login">Ya tengo: entrar</button></div>' + accForm(m, true) + '</div>';
   }
-  const acg = { u: '', p: '' };
+  const acg = { u: '', p: '', mode: 'new', eye: false };
+  /** Formulario de cuenta. mode 'new' (crear) o 'login' (entrar). Un <form> de verdad con autocomplete
+   *  correcto: si el campo de entrar fuese "new-password", el móvil propondría una contraseña nueva
+   *  y la guardaría encima de la buena. */
+  function accForm(mode, withSubmit) {
+    const A = window.FTAcct, nw = mode === 'new', t = acg.eye ? 'text' : 'password';
+    if (nw && !acg.u) acg.u = A.genUser();
+    const checks = A.passChecks(A.cleanPass(acg.p || ''));
+    return '<form id="acf" data-mode="' + mode + '" method="post" action="#" autocomplete="on">' +
+      '<div class="field"><label for="ac-u">Usuario</label>' + (nw ? '<div class="two" style="grid-template-columns:1fr auto"><input id="ac-u" name="username" value="' + esc(acg.u) + '" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="button" class="btn small" data-act="acct-dice" aria-label="Otro usuario">🎲</button></div><p class="muted mini">Te hemos puesto uno al azar. Puedes cambiarlo.</p>' : '<input id="ac-u" name="username" value="' + esc(acg.uLogin || '') + '" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Tu usuario">') + '</div>' +
+      '<div class="field"><label for="ac-p">Contraseña</label><div class="two" style="grid-template-columns:1fr auto"><input id="ac-p" name="password" type="' + t + '" value="' + esc(acg.p || '') + '" autocomplete="' + (nw ? 'new-password' : 'current-password') + '" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="button" class="btn small" data-act="ac-eye" aria-label="' + (acg.eye ? 'Ocultar' : 'Ver') + ' contraseña">' + (acg.eye ? 'Ocultar' : 'Ver') + '</button></div></div>' +
+      (nw ? '<div class="field"><label for="ac-p2">Repite la contraseña</label><input id="ac-p2" name="password2" type="' + t + '" value="' + esc(acg.p2 || '') + '" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false"></div>' +
+        '<ul class="list acc-chk">' + checks.map((c) => '<li data-ok="' + (c[1] ? 1 : 0) + '">' + (c[1] ? '✅' : '◻️') + ' ' + c[0] + '</li>').join('') + '<li id="ac-same">' + (acg.p && acg.p2 != null && A.cleanPass(acg.p) === A.cleanPass(acg.p2 || '') ? '✅' : '◻️') + ' Las dos iguales</li></ul>' : '') +
+      (withSubmit ? '<button class="btn primary block" style="margin-top:12px">' + (nw ? 'Crear cuenta' : 'Entrar') + '</button>' : '') + '</form>';
+  }
+  /** Crear cuenta o entrar. */
+  async function acctGo(mode, b) {
+    const A = window.FTAcct, uI = (($('#ac-u') || {}).value || '').trim(), pRaw = ($('#ac-p') || {}).value || '', p2 = ($('#ac-p2') || {}).value || '';
+    acg.p = pRaw; acg.p2 = p2; if (mode === 'new') acg.u = uI; else acg.uLogin = uI;
+    if (mode === 'new') {
+      if (!A.userOk(uI)) return toast('El usuario: solo letras y números, de 3 a 24');
+      if (A.passChecks(A.cleanPass(pRaw)).some((c) => !c[1])) return toast('La contraseña no cumple los 3 requisitos');
+      if (A.cleanPass(pRaw) !== A.cleanPass(p2)) return toast('Las dos contraseñas no son iguales');
+    } else if (!uI || !pRaw) return toast('Escribe tu usuario y tu contraseña');
+    const prevTxt = b ? b.textContent : ''; if (b) { b.disabled = true; b.textContent = 'Un momento…'; }
+    try {
+      if (mode === 'new') {
+        const k = await A.derive(uI, A.cleanPass(pRaw)), kb = await A.expKey(k.key);
+        const r = await A.api({ op: 'new', id: k.id, auth: k.auth, u: uI, data: await A.seal(k.key, SU.toExport(snapState())) });
+        if (r.ok) { user.acct = { u: uI, id: k.id, auth: k.auth, k: kb, t: Date.now() }; acg.p = ''; acg.p2 = ''; acg.eye = false; save(); if (sx.scr === 'reg') { sx.scr = 'method'; scrollTo(0, 0); } toast('Cuenta creada. Guarda la contraseña en tu gestor'); }
+        else toast(r.error === 'existe' ? 'Ese usuario ya está cogido. Prueba el dado 🎲' : /^(sin-blobs|blobs-caido|sin-kv|almacen-caido)$/.test(r.error) ? 'El servidor de cuentas no está listo todavía' : 'No se pudo crear. Prueba otra vez');
+      } else {
+        let r = null, k = null;
+        for (const v of A.passVariants(pRaw)) { k = await A.derive(uI, v); r = await A.api({ op: 'get', id: k.id, auth: k.auth }); if (r.ok || r.error !== 'clave') break; }
+        if (r.ok) {
+          const kb = await A.expKey(k.key), txt = await A.open(k.key, r.data); jn = SU.parseImport(txt);
+          const sess = { u: uI, id: k.id, auth: k.auth, k: kb, t: r.t || Date.now() };
+          let vacia = false;
+          try { const o = JSON.parse(txt); vacia = !!o && !Object.keys(o.horario || {}).some((dd) => (o.horario[dd] || []).length); } catch (er) {}
+          acg.p = ''; acg.eye = false;
+          if (jn.ok) { acPend = sess; jn.acct = sess.u; tab = 'join'; scrollTo(0, 0); }
+          else if (vacia) { user.acct = sess; jn = null; save(); sx.scr = 'method'; tab = 'setup'; toast('Hola de nuevo. Aún no tenías horario guardado'); scrollTo(0, 0); }
+          else toast('La copia guardada no se pudo leer');
+        } else toast(r.error === 'no-existe' ? 'Ese usuario no existe. Revisa mayúsculas aparte: ¿lo escribiste igual?' : r.error === 'clave' ? 'Contraseña incorrecta' : r.error === 'bloqueada' ? 'Esta cuenta está bloqueada' : 'No se pudo entrar. Prueba otra vez');
+      }
+    } catch (e) { toast(e.message === 'red' ? 'Sin conexión. Inténtalo con internet' : e.message === 'sin-servidor' ? 'Este despliegue no tiene el servidor de cuentas' : 'Algo ha fallado. Prueba otra vez'); }
+    if (b) { b.disabled = false; b.textContent = prevTxt; } render();
+  }
+  // ---------- con la sesión abierta: comprobar, cambiar contraseña y cerrar sesión con red de seguridad
+  let acx = null, acxFail = false; // 'check' | 'change' | 'out'
+  function acctTools() {
+    const hidden = '<input type="text" name="username" value="' + esc(user.acct.u) + '" autocomplete="username" hidden>';
+    const pf = (id, ac, lab) => '<div class="field"><label for="' + id + '">' + lab + '</label><input id="' + id + '" type="password" autocomplete="' + ac + '" autocapitalize="off" autocorrect="off" spellcheck="false"></div>';
+    if (acx === 'check' || acx === 'out') return '<form id="acx-f" class="acx" data-m="' + acx + '" method="post" action="#">' + hidden + '<p class="muted">' + (acx === 'out' ? 'Antes de cerrar sesión, comprueba que recuerdas tu contraseña. Sin ella no podrás volver a entrar.' : 'Escríbela (o deja que la rellene tu gestor) y te digo si es la buena.') + '</p>' + pf('acx-p', 'current-password', 'Contraseña') +
+      (acxFail ? '<div class="card warn" style="margin-top:10px"><p><b>No coincide.</b> Ahora que aún estás dentro, cámbiala por una que sepas' + (acx === 'out' ? ' antes de cerrar sesión' : '') + '.</p><div class="btns"><button type="button" class="btn small primary" data-acx="change">Cambiar contraseña</button>' + (acx === 'out' ? '<button type="button" class="btn small bad" data-act="acct-out-force">Cerrar igualmente</button>' : '') + '</div></div>' : '') +
+      '<div class="btns"><button type="button" class="btn small" data-acx="">Cancelar</button><button class="btn small primary">' + (acx === 'out' ? 'Comprobar y cerrar sesión' : 'Comprobar') + '</button></div></form>';
+    if (acx === 'change') return '<form id="acx-f" class="acx" data-m="change" method="post" action="#">' + hidden + '<p class="muted">Tus datos se vuelven a cifrar con la nueva. La antigua deja de valer en todos los móviles.</p>' + pf('acx-n', 'new-password', 'Contraseña nueva') + pf('acx-n2', 'new-password', 'Repítela') + '<p class="muted mini">Más de 8 caracteres, una mayúscula y un número.</p><div class="btns"><button type="button" class="btn small" data-acx="">Cancelar</button><button class="btn small primary">Cambiar contraseña</button></div></form>';
+    return '<div class="btns"><button class="btn small" data-acx="check">Comprobar mi contraseña</button><button class="btn small" data-acx="change">Cambiar contraseña</button></div>';
+  }
+  async function acxGo(m, b) {
+    const A = window.FTAcct;
+    if (m === 'check' || m === 'out') {
+      const p = ($('#acx-p') || {}).value || ''; if (!p) return toast('Escribe tu contraseña');
+      b.disabled = true; const ok = await A.check(user.acct, p); b.disabled = false;
+      if (!ok) { acxFail = true; render(); return; }
+      acxFail = false;
+      if (m === 'out') { acx = null; delete user.acct; acState = ''; save(); toast('Sesión cerrada. Tus datos siguen en este móvil'); render(); return; }
+      acx = null; toast('Es la buena ✓'); render(); return;
+    }
+    const n = ($('#acx-n') || {}).value || '', n2 = ($('#acx-n2') || {}).value || '';
+    if (A.passChecks(A.cleanPass(n)).some((c) => !c[1])) return toast('La nueva no cumple los 3 requisitos');
+    if (A.cleanPass(n) !== A.cleanPass(n2)) return toast('Las dos no son iguales');
+    b.disabled = true; b.textContent = 'Un momento…';
+    try {
+      const k = await A.derive(user.acct.u, A.cleanPass(n));
+      const r = await A.api({ op: 'rekey', id: user.acct.id, auth: user.acct.auth, newAuth: k.auth, data: await A.seal(k.key, SU.toExport(snapState())) });
+      if (r.ok) { user.acct = Object.assign({}, user.acct, { auth: k.auth, k: await A.expKey(k.key), t: r.t || Date.now() }); acState = 'ok'; acx = null; acxFail = false; save(); toast('Contraseña cambiada. Guárdala en tu gestor'); }
+      else toast(r.error === 'clave' ? 'La sesión ya no vale: entra otra vez' : 'No se pudo cambiar. Prueba otra vez');
+    } catch (e) { toast(e.message === 'red' ? 'Sin conexión' : 'Algo ha fallado'); }
+    render();
+  }
   /** Reglas del centro que cambian el cálculo. Si no las sabes, se usa lo más restrictivo. */
   function rulesCard(S) {
     const s = S.settings, multi = (S.terms || []).length > 1;
@@ -488,21 +564,16 @@
     let h = '<div class="steps">' + (login ? '<button class="back" data-act="go-reg">‹ Atrás</button>' : '') + '</div>';
     if (login) {
       h += '<h1>Entrar en tu cuenta</h1><p class="muted" style="margin-top:6px">Recupera tu horario y tus faltas en este móvil.</p>' +
-        '<div class="card"><div class="field"><label>Usuario</label><input id="ac-u" value="' + esc(acg.u) + '" autocomplete="username" aria-label="Usuario"></div>' +
-        '<div class="field"><label>Contraseña</label><input id="ac-p" type="password" value="' + esc(acg.p) + '" autocomplete="current-password" aria-label="Contraseña"></div></div>' +
+        '<div class="card">' + accForm('login', false) + '</div>' +
         '<div class="card"><div class="sec">¿Sin cuenta pero con copia?</div><p class="muted">Si guardaste tu enlace de copia o un archivo, también sirve.</p><textarea id="rl" rows="2" style="min-height:64px" placeholder="Pega aquí tu enlace de copia" aria-label="Enlace de copia"></textarea><div class="btns" style="margin-top:10px"><button class="btn small" data-act="restore-link">Restaurar enlace</button><label class="btn small" for="imp">Importar archivo</label><input id="imp" type="file" accept="application/json" hidden></div></div>';
-      return h + '<div class="cta"><div class="in"><button class="btn primary" data-act="acct-login">Entrar</button></div></div>';
+      return h + '<div class="cta"><div class="in"><button class="btn primary" type="submit" form="acf">Entrar</button></div></div>';
     }
-    if (!acg.u) acg.u = A.genUser();
-    const checks = A.passChecks(acg.p || '');
     h += '<div class="verdict verde">' + mascot('verde') + '<div><b>Primero, tu cuenta</b><p>Sin correo ni datos personales. Sirve para recuperar tus faltas si cambias de móvil o borras la app.</p></div></div>' +
-      '<div class="card"><div class="field"><label>Usuario</label><div class="two" style="grid-template-columns:1fr auto"><input id="ac-u" value="' + esc(acg.u) + '" autocomplete="username" aria-label="Usuario"><button class="btn small" data-act="acct-dice" aria-label="Generar otro usuario">🎲</button></div><p class="muted mini">Te hemos puesto uno al azar. Puedes cambiarlo.</p></div>' +
-      '<div class="field"><label>Contraseña</label><input id="ac-p" type="password" value="' + esc(acg.p) + '" autocomplete="new-password" aria-label="Contraseña"></div>' +
-      '<ul class="list acc-chk">' + checks.map((c) => '<li>' + (c[1] ? '✅' : '◻️') + ' ' + c[0] + '</li>').join('') + '</ul></div>' +
+      '<div class="card">' + accForm('new', false) + '</div>' +
       '<div class="card warn"><div class="sec">Apunta la contraseña ahora</div><p>No pedimos correo, así que <b>no hay forma de recuperarla</b>. Guárdala en tu gestor:</p><ul class="list"><li><b>iPhone</b>: app <b>Contraseñas</b> (o «Guardar contraseña» cuando te lo ofrezca Safari).</li><li><b>Android</b>: <b>Gestor de contraseñas de Google</b> (Ajustes › Google › Autocompletar).</li></ul><p class="muted">Al crearla te damos también un enlace de copia para guardar en tus mensajes.</p></div>' +
       '<p class="muted mini" style="text-align:center;margin-top:16px"><button class="link" data-act="go-login">Ya tengo cuenta: entrar</button> · <button class="link" data-act="skip-reg">Ahora no</button></p>' +
       '<div class="btns share-row"><button class="btn small" data-act="share-app"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10.5 13.5"/><path d="M21 3 14.5 21l-4-7.5L3 9.5z"/></svg>Compartir</button></div>';
-    return h + '<div class="cta"><div class="in"><button class="btn primary" data-act="acct-new">Crear cuenta</button></div></div>';
+    return h + '<div class="cta"><div class="in"><button class="btn primary" type="submit" form="acf">Crear cuenta</button></div></div>';
   }
   function viewSetup() {
     const imp = sx.mode === 'import', upd = sx.mode === 'update' || imp, total = 4, st = sx.step;
@@ -978,42 +1049,18 @@
       const msg = '¿Cuántas clases puedes saltarte sin pasarte del límite? NoVoy te lo dice de un vistazo. Sin correo y sin tienda de apps:\n' + url;
       if (navigator.share) { try { await navigator.share({ text: msg }); return; } catch (err) { if (err && err.name === 'AbortError') return; } }
       toast((await copy(msg)) ? 'Enlace copiado. Pégalo en el grupo' : 'No se pudo copiar');
-    } else if (d.act === 'go-reg') { acg.p = ''; sx.scr = 'reg'; render(); scrollTo(0, 0);
-    } else if (d.act === 'go-login') { acg.p = ''; sx.scr = 'login'; render(); scrollTo(0, 0);
+    } else if (d.act === 'go-reg') { acg.p = ''; acg.p2 = ''; sx.scr = 'reg'; render(); scrollTo(0, 0);
+    } else if (d.act === 'go-login') { acg.p = ''; acg.p2 = ''; sx.scr = 'login'; render(); scrollTo(0, 0);
     } else if (d.act === 'skip-reg') { sx.scr = 'method'; render(); scrollTo(0, 0);
     } else if (d.act === 'skip-cfg') { user.skipCfg = true; save(); tab = 'hoy'; render(); scrollTo(0, 0);
     } else if (d.act === 'go-setup') { sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'acct-dice') { acg.u = window.FTAcct.genUser(); acg.p = ($('#ac-p') || {}).value || ''; render();
-    } else if (d.act === 'acct-new' || d.act === 'acct-login') {
-      const A = window.FTAcct, uI = ($('#ac-u') || {}).value || '', pI = ($('#ac-p') || {}).value || '';
-      acg.u = uI; acg.p = pI;
-      if (d.act === 'acct-new') {
-        if (!A.userOk(uI.trim())) return toast('El usuario: solo letras y números, de 3 a 24');
-        if (A.passChecks(pI).some((c) => !c[1])) return toast('La contraseña no cumple los 3 requisitos');
-      } else if (!uI.trim() || !pI) return toast('Escribe tu usuario y tu contraseña');
-      b.disabled = true; const prevTxt = b.textContent; b.textContent = 'Un momento…';
-      try {
-        const k = await A.derive(uI, pI), kb = await A.expKey(k.key);
-        if (d.act === 'acct-new') {
-          const r = await A.api({ op: 'new', id: k.id, auth: k.auth, u: uI.trim(), data: await A.seal(k.key, SU.toExport(snapState())) });
-          if (r.ok) { user.acct = { u: uI.trim(), id: k.id, auth: k.auth, k: kb, t: Date.now() }; acg.p = ''; save(); if (sx.scr === 'reg') { sx.scr = 'method'; scrollTo(0, 0); } toast('Cuenta creada. Apunta la contraseña'); render(); }
-          else toast(r.error === 'existe' ? 'Ese usuario ya está cogido. Prueba el dado 🎲' : /^(sin-blobs|blobs-caido|sin-kv|almacen-caido)$/.test(r.error) ? 'El servidor de cuentas no está listo todavía' : 'No se pudo crear. Prueba otra vez');
-        } else {
-          const r = await A.api({ op: 'get', id: k.id, auth: k.auth });
-          if (r.ok) {
-            const txt = await A.open(k.key, r.data); jn = SU.parseImport(txt);
-            const sess = { u: uI.trim(), id: k.id, auth: k.auth, k: kb, t: r.t || Date.now() };
-            let vacia = false;
-            try { const o = JSON.parse(txt); vacia = !!o && o.formato === 'puedo-faltar/1' && !Object.keys(o.horario || {}).some((dd) => (o.horario[dd] || []).length); } catch (er) {}
-            if (jn.ok) { acPend = sess; acg.p = ''; jn.acct = sess.u; tab = 'join'; render(); scrollTo(0, 0); }
-            else if (vacia) { user.acct = sess; acg.p = ''; jn = null; save(); sx.scr = 'method'; tab = 'setup'; toast('Hola de nuevo. Aún no tenías horario guardado'); render(); scrollTo(0, 0); }
-            else toast('La copia guardada no se pudo leer');
-          } else toast(r.error === 'no-existe' ? 'Ese usuario no existe' : r.error === 'clave' ? 'Contraseña incorrecta' : 'No se pudo entrar. Prueba otra vez');
-        }
-      } catch (e) { toast(e.message === 'red' ? 'Sin conexión. Inténtalo con internet' : e.message === 'sin-servidor' ? 'Este despliegue no tiene el servidor de cuentas' : 'Algo ha fallado. Prueba otra vez'); }
-      b.disabled = false; b.textContent = prevTxt; render();
+    } else if (d.act === 'ac-mode') { acg.mode = d.m; acg.p = ''; acg.p2 = ''; render();
+    } else if (d.act === 'ac-eye') { acg.p = ($('#ac-p') || {}).value || ''; acg.p2 = ($('#ac-p2') || {}).value || ''; const fu = $('#acf #ac-u'); if (fu) { if ($('#acf').dataset.mode === 'login') acg.uLogin = fu.value; else acg.u = fu.value; } acg.eye = !acg.eye; render();
+    } else if (d.acx !== undefined) { acx = d.acx || null; acxFail = false; render(); const i = $('#acx-p') || $('#acx-n'); if (i) i.focus();
+    } else if (d.act === 'acct-out-force') { acx = null; acxFail = false; delete user.acct; acState = ''; save(); toast('Sesión cerrada. Tus datos siguen en este móvil'); render();
     } else if (d.act === 'acct-push') { toast((await acPush()) ? 'Guardado' : 'No se pudo guardar'); render();
-    } else if (d.act === 'acct-out') { delete user.acct; acState = ''; save(); toast('Sesión cerrada. Tus datos siguen en este móvil'); render();
+    } else if (d.act === 'acct-out') { acx = 'out'; acxFail = false; render();
     } else if (d.act === 'join-no') { acPend = null; jn = null; tab = user.config ? 'hoy' : 'setup'; render();
     } else if (d.act === 'backup-link') {
       if (!backupUrl) return toast('Un segundo y vuelve a pulsar');
@@ -1099,6 +1146,8 @@
   });
   app.addEventListener('submit', async (e) => {
     e.preventDefault(); const f = new FormData(e.target), id = e.target.id;
+    if (id === 'acf') { const sb = e.submitter || $('button[form=acf]') || e.target.querySelector('button:not([type=button])'); return acctGo(e.target.dataset.mode, sb); }
+    if (id === 'acx-f') { return acxGo(e.target.dataset.m, e.submitter || e.target.querySelector('button:not([type=button])')); }
     if (id === 'add') {
       const date = f.get('date');
       const [st, hs] = String(f.get('slot') || '|1').split('|'), late = !!f.get('retraso');
@@ -1162,11 +1211,12 @@
     }
   });
   app.addEventListener('input', (e) => {
-    if (e.target.id === 'ac-p') {
-      acg.p = e.target.value;
-      const ul = document.querySelector('.acc-chk'); if (!ul || !window.FTAcct) return;
-      window.FTAcct.passChecks(acg.p).forEach((c, i) => { const li = ul.children[i]; if (li) li.innerHTML = (c[1] ? '✅' : '◻️') + ' ' + c[0]; });
-    } else if (e.target.id === 'ac-u') acg.u = e.target.value;
+    if (e.target.id === 'ac-p' || e.target.id === 'ac-p2') {
+      if (e.target.id === 'ac-p') acg.p = e.target.value; else acg.p2 = e.target.value;
+      const ul = document.querySelector('.acc-chk'), A = window.FTAcct; if (!ul || !A) return;
+      A.passChecks(A.cleanPass(acg.p || '')).forEach((c, i) => { const li = ul.children[i]; if (li) li.innerHTML = (c[1] ? '✅' : '◻️') + ' ' + c[0]; });
+      const same = $('#ac-same'); if (same) same.innerHTML = (acg.p && A.cleanPass(acg.p) === A.cleanPass(acg.p2 || '') ? '✅' : '◻️') + ' Las dos iguales';
+    } else if (e.target.id === 'ac-u') { const f = e.target.form; if (f && f.dataset.mode === 'login') acg.uLogin = e.target.value; else acg.u = e.target.value; }
   });
   app.addEventListener('change', (e) => {
     const t = e.target;
