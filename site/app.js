@@ -26,9 +26,9 @@
     try {
       const key = await A.impKey(user.acct.k);
       const data = await A.seal(key, SU.toExport(snapState()));
-      const r = await A.api({ op: 'put', id: user.acct.id, auth: user.acct.auth, data });
+      const r = await A.api({ op: 'put', id: user.acct.id, auth: user.acct.auth, u: user.acct.u, data });
       if (r.ok) { acState = 'ok'; user.acct.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(user)); } catch (e) {} return true; }
-      acState = r.error === 'clave' || r.error === 'no-existe' ? 'sesion' : 'err';
+      acState = r.error === 'bloqueada' ? 'bloqueada' : r.error === 'clave' || r.error === 'no-existe' ? 'sesion' : 'err';
       return false;
     } catch (e) { acState = 'err'; return false; } finally { acBusy = false; }
   }
@@ -101,9 +101,14 @@
   const cnt = (v) => '<span class="cnt" data-v="' + v + '">' + fmt(v) + '</span>';
 
   // ---------- vistas principales ----------
+  /** Aviso que publica el admin para toda la clase. */
+  function noticeCard() {
+    if (!gNotice || !gNotice.text || flagOff('nt' + gNotice.ts)) return '';
+    return '<div class="card notice"><div class="sec">Aviso</div><p>' + esc(gNotice.text) + '</p><div class="btns"><button class="btn small" data-act="nt-x">Entendido</button></div></div>';
+  }
   function emptyView(title, txt) {
     return '<div class="top"><h1>' + title + '</h1></div>' +
-      '<div class="verdict verde">' + mascot('verde') + '<div><span class="who">NoVoy dice</span><b>Aún no sé tu horario</b><p>' + txt + '</p></div></div>' +
+      '<div class="verdict verde">' + mascot('verde') + '<div><span class="who">NoVoy dice</span><b>Aún no sé tu horario</b><p>' + txt + '</p></div></div>' + noticeCard() +
       '<div class="card"><div class="sec">Configúralo cuando quieras</div><p class="muted">Son un par de minutos: una captura, pintarlo tú o tu IA.</p><div class="btns"><button class="btn small primary" data-act="go-setup">Configurar mi horario</button></div></div>';
   }
   function viewHoy() {
@@ -122,6 +127,7 @@
       const q = v.status === 'verde' ? quip('verde', day) : (worst ? worst.name + ': ' : '') + quip(v.status, day);
       h += '<div class="verdict ' + v.status + '">' + mascot(v.status) + '<div><span class="who">NoVoy dice</span><b>' + T + '</b><p>' + esc(q) + '</p></div></div>' + allDay(v, day) + '<h2>Hora a hora</h2>' + classCards(v, lim, day, true);
     }
+    h += noticeCard();
     if (!flagOff('imphint')) h += '<div class="card feat"><div class="sec">¿Ya llevas faltas de antes?</div><p class="muted">Si las tienes apuntadas en notas, una tabla o el Moodle, tu IA las pasa aquí de una vez. Copias, pegas y listo.</p><div class="btns"><button class="btn small primary" data-act="start-import">Pasar mis faltas</button><button class="btn small" data-act="imp-x">Ahora no</button></div></div>';
     if (user.acct && !flagOff('lnkhint')) h += '<div class="card"><div class="sec">Por si olvidas la contraseña</div><p class="muted">No pedimos correo, así que no se puede recuperar. Guárdate el enlace de copia en tus mensajes: con él vuelves a tener todo.</p><div class="btns"><button class="btn small primary" data-act="backup-link">Copiar mi enlace</button><button class="btn small" data-act="lnk-x">Ya lo tengo</button></div></div>';
     if (!standalone() && !hintOff() && /^https?:/.test(location.protocol)) h += '<div class="card hint"><div class="grow"><b>Instálala en tu móvil</b><span class="muted">Se abre como una app. Son 20 segundos.</span></div><button class="btn small primary" data-act="open-install">Cómo</button><button class="x" data-act="hint-x" aria-label="Cerrar">×</button></div>';
@@ -224,12 +230,65 @@
       '<div class="switch" style="margin-top:12px"><label for="ert">Es un retraso (no cuenta)</label><input id="ert" type="checkbox" name="retraso"' + (f.type === 'retraso' ? ' checked' : '') + '></div><div class="switch"><label for="eju">Justificada</label><input id="eju" type="checkbox" name="justified"' + (f.justified ? ' checked' : '') + '></div>' +
       '<div class="btns"><button type="button" class="btn small" data-act="ecancel">Cancelar</button><button class="btn small primary">Guardar cambios</button></div></form>';
   }
+  let adm = null, gNotice = null; // panel de admin y aviso global
+  const isAdmin = () => !!(user.acct && window.FTAcct && user.acct.u.toLowerCase() === FTAcct.ADMIN);
+  async function admApi(what, extra) {
+    const A = window.FTAcct;
+    return A.api(Object.assign({ op: 'admin', what, id: user.acct.id, auth: user.acct.auth }, extra || {}));
+  }
+  async function admLoad() {
+    adm = adm || { tab: 'users' };
+    adm.busy = true; render();
+    try {
+      const [l, s] = await Promise.all([admApi('list'), admApi('stats')]);
+      if (!l.ok) throw new Error(l.error || 'error');
+      adm.users = l.users; adm.stats = s.ok ? s.stats : null;
+      const n = await window.FTAcct.notice(); adm.notice = n || { text: '', until: '' };
+    } catch (e) { toast(e.message === 'red' ? 'Sin conexión' : 'No se pudo cargar el panel'); }
+    adm.busy = false; render();
+  }
+  const ago = (t) => {
+    if (!t) return 'nunca';
+    const m = Math.round((Date.now() - t) / 60000);
+    if (m < 1) return 'ahora';
+    if (m < 60) return 'hace ' + m + ' min';
+    if (m < 1440) return 'hace ' + Math.round(m / 60) + ' h';
+    const d = Math.round(m / 1440);
+    return d === 1 ? 'ayer' : 'hace ' + d + ' días';
+  };
+  const kb = (n) => (n > 1024 ? Math.round(n / 1024) + ' KB' : (n || 0) + ' B');
+  function viewAdmin() {
+    let h = '<div class="steps"><button class="back" data-act="adm-close">‹ Atrás</button></div><h1>Panel de admin</h1>' +
+      '<p class="muted" style="margin-top:6px">Conectado como <b>' + esc(user.acct.u) + '</b>. Las faltas de cada alumno van cifradas con su contraseña: aquí no se pueden abrir.</p>';
+    if (adm && adm.busy && !adm.users) return h + '<p class="muted" style="margin-top:20px">Cargando…</p>';
+    if (!adm || !adm.users) return h + '<div class="btns"><button class="btn primary" data-act="adm-load">Cargar</button></div>';
+    const st = adm.stats;
+    if (st) h += '<div class="card"><div class="sec">Uso</div><div class="nums">' +
+      [['Cuentas', st.cuentas], ['Activas 7 días', st.activas7], ['Hoy', st.activas24], ['Altas 7 días', st.altas7]]
+        .map((x) => '<div><b>' + x[1] + '</b><span>' + x[0] + '</span></div>').join('') + '</div>' +
+      (st.lectura && st.lectura.length ? '<p class="muted mini" style="margin:10px 0 0">Lector de capturas (30 días): ' +
+        (() => { const a = {}; st.lectura.forEach((d) => Object.keys(d.v).forEach((k) => { a[k] = (a[k] || 0) + d.v[k]; }));
+          const tot = (a['ocr-ok'] || 0) + (a['ocr-editado'] || 0) + (a['ocr-fallo'] || 0);
+          return tot ? (a['ocr-ok'] || 0) + ' bien · ' + (a['ocr-editado'] || 0) + ' con retoques · ' + (a['ocr-fallo'] || 0) + ' fallidas · ' + (a['manual'] || 0) + ' pintados a mano' : 'todavía sin datos'; })() + '</p>' : '') +
+      '<div class="btns" style="margin-top:12px"><button class="btn small" data-act="adm-load">Actualizar</button><button class="btn small" data-act="adm-export">Descargar copia</button></div></div>';
+    h += '<div class="card"><div class="sec">Aviso para todos</div><p class="muted">Sale en la pantalla principal de cualquiera que abra la app.</p>' +
+      '<form id="adm-notice"><div class="field"><label>Mensaje (vacío para quitarlo)</label><input name="text" maxlength="300" value="' + esc((adm.notice && adm.notice.text) || '') + '" placeholder="Mañana no hay clase"></div>' +
+      '<div class="field"><label>Hasta el día (opcional)</label><input type="date" name="until" value="' + esc((adm.notice && adm.notice.until) || '') + '"></div>' +
+      '<div class="btns"><button class="btn small primary">Publicar aviso</button></div></form></div>';
+    h += '<div class="top" style="margin-top:22px"><h2 style="margin:0">' + adm.users.length + ' cuenta' + (adm.users.length === 1 ? '' : 's') + '</h2></div>';
+    h += adm.users.map((u) => '<div class="card row' + (u.blocked ? ' err' : '') + '"><div class="grow"><b>' + esc(u.u || '(sin nombre)') + '</b>' +
+      (u.blocked ? ' <span class="pill">bloqueada</span>' : '') +
+      '<div class="muted">' + (u.c ? 'alta ' + nice(new Date(u.c).toISOString().slice(0, 10)) : 'alta desconocida') + ' · últ. uso ' + ago(u.t) + ' · ' + kb(u.n) + '</div>' +
+      (u.note ? '<div class="muted">Nota: ' + esc(u.note) + '</div>' : '') +
+      '</div><div class="btns"><button class="btn small" data-adm-note="' + u.id + '">Nota</button><button class="btn small" data-adm-block="' + u.id + '">' + (u.blocked ? 'Desbloquear' : 'Bloquear') + '</button><button class="btn small" data-adm-del="' + u.id + '">Borrar</button></div></div>').join('');
+    return h;
+  }
   function acctCard() {
     const A = window.FTAcct; if (!A || !window.crypto || !crypto.subtle) return '';
     if (user.acct) {
       const when = user.acct.t ? new Date(user.acct.t).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'todavía no';
-      const warn = acState === 'err' ? '<p class="muted">No se pudo guardar la última vez. Se reintenta con cada cambio.</p>' : acState === 'sesion' ? '<p class="muted">La sesión ya no vale. Cierra sesión y vuelve a entrar.</p>' : '';
-      return '<div class="card"><div class="sec">Cuenta</div><p class="muted">Conectado como <b>' + esc(user.acct.u) + '</b>. Tus datos se guardan cifrados tras cada cambio. Último guardado: ' + when + '.</p>' + warn + '<div class="btns"><button class="btn small primary" data-act="acct-push">Guardar ahora</button><button class="btn small" data-act="acct-out">Cerrar sesión</button></div></div>';
+      const warn = acState === 'err' ? '<p class="muted">No se pudo guardar la última vez. Se reintenta con cada cambio.</p>' : acState === 'sesion' ? '<p class="muted">La sesión ya no vale. Cierra sesión y vuelve a entrar.</p>' : acState === 'bloqueada' ? '<p class="muted">Esta cuenta está bloqueada: deja de guardarse en el servidor. Tus datos siguen en este móvil.</p>' : '';
+      return '<div class="card"><div class="sec">Cuenta</div><p class="muted">Conectado como <b>' + esc(user.acct.u) + '</b>. Tus datos se guardan cifrados tras cada cambio. Último guardado: ' + when + '.</p>' + warn + '<div class="btns"><button class="btn small primary" data-act="acct-push">Guardar ahora</button><button class="btn small" data-act="acct-out">Cerrar sesión</button>' + (isAdmin() ? '<button class="btn small" data-act="adm-open">Panel de admin</button>' : '') + '</div></div>';
     }
     if (!acg.u) acg.u = A.genUser();
     const checks = A.passChecks(acg.p || '');
@@ -241,7 +300,7 @@
   }
   const acg = { u: '', p: '' };
   function viewAjustes() {
-    const S = state(), s = S.settings, hasAlias = Object.keys(S.alias || {}).length;
+    const S = snapState(), s = S.settings, hasAlias = Object.keys(S.alias || {}).length;
     const sw = (k, label, hint) => '<div class="switch"><div><div style="font-weight:700">' + label + '</div><div class="muted">' + hint + '</div></div><input type="checkbox" data-set="' + k + '"' + (s[k] ? ' checked' : '') + '></div>';
     return '<div class="top"><h1>Ajustes</h1></div>' +
       '<div class="card"><div class="sec">Horario y calendario</div><p class="muted">Edítalo a mano o deja que tu IA lo haga por ti.</p><div class="btns"><button class="btn small primary" data-act="edit">Editar horario</button><button class="btn small" data-act="start-setup">Con mi IA</button><button class="btn small" data-act="start-update">Actualizar faltas con IA</button></div><p class="muted mini" style="margin:10px 0 0"><button class="link" data-act="edit-adv">Editor avanzado: unir asignaturas, nombre del centro</button></p></div>' +
@@ -458,6 +517,7 @@
       qpaint = me.subjects[0] || null; me.step = 1; me.busy = null;
     } catch (e) {
       if (qk !== me) return;
+      if (window.FTAcct) FTAcct.stat('ocr-fallo');
       me.busy = null; me.err = e && e.message === 'net' ? 'No he podido cargar el lector. Comprueba tu conexión e inténtalo otra vez.' : (e && e.message) || 'No he podido leer la imagen.';
     }
     render(); scrollTo(0, 0);
@@ -506,6 +566,7 @@
   function qSave() {
     const cfg = qCfg(), prev = JSON.stringify(user);
     if (qk.tmode === 'manual') { cfg.terms.forEach((t) => { const auto = qTotalsFor(cfg, t.id), o = {}; qUsed().forEach((s) => { const v = (qk.totals[t.id] || {})[s]; o[s] = v != null && !isNaN(v) ? +v : (auto[s] || 0); }); cfg.totals[t.id] = o; cfg.totalsUnified[t.id] = o; }); }
+    if (window.FTAcct) FTAcct.stat(qk.fromShot ? (qk.edited ? 'ocr-editado' : 'ocr-ok') : 'manual');
     const ren = qk.ren || {};
     const faltas = (user.faltas || []).map((f) => (ren[f.subject] != null ? Object.assign({}, f, { subject: ren[f.subject] }) : f));
     user = { config: cfg, settings: Object.assign({ aviso: 2, justificadasCuentan: true }, user.settings, { limite: qk.limite, unificar: Object.keys(cfg.alias || {}).length > 0 && user.settings ? user.settings.unificar : false }), faltas: faltas, acct: user.acct, skipCfg: user.skipCfg };
@@ -527,6 +588,7 @@
   /** Guarda lo pintado en el horario que toca y abre otro tramo. */
   function qGo(pi) { const ren = qk.ren, cfg = qCfg(); qk = Object.assign(qFromCfg(cfg, pi), { adding: false, ren: ren }); qpaint = null; render(); scrollTo(0, 0); }
   function qPaintCell(cell) {
+    if (qk.fromShot) qk.edited = true;
     if (!cell || !cell.classList.contains('gc') || qmode === null) return;
     const d = +cell.dataset.d, r = +cell.dataset.r; qk.grid[d] = qk.grid[d] || {};
     if (qmode === '') delete qk.grid[d][r]; else qk.grid[d][r] = qmode;
@@ -619,7 +681,7 @@
   }
 
   // ---------- render + animaciones ----------
-  const VIEWS = { hoy: viewHoy, resumen: viewResumen, faltas: viewFaltas, ajustes: viewAjustes, join: viewJoin, sim: viewSim, install: viewInstall, setup: viewSetup, editor: viewEditor, quick: viewQuick };
+  const VIEWS = { hoy: viewHoy, resumen: viewResumen, faltas: viewFaltas, ajustes: viewAjustes, join: viewJoin, sim: viewSim, install: viewInstall, setup: viewSetup, editor: viewEditor, quick: viewQuick, admin: viewAdmin };
   function warnBar() {
     const el = document.getElementById('warnbar'); if (!el) return;
     const show = !user.config && tab !== 'setup' && tab !== 'quick' && tab !== 'editor' && tab !== 'join';
@@ -627,7 +689,7 @@
     if (show) el.innerHTML = '<div class="in"><span><b>Falta tu horario</b><span class="muted"> · sin él la app no calcula nada</span></span><button class="btn small primary" data-act="go-setup">Configurar</button></div>';
   }
   function render() {
-    document.body.classList.toggle('setup', tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick');
+    document.body.classList.toggle('setup', tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
     app.innerHTML = VIEWS[tab]();
     document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
     requestAnimationFrame(() => requestAnimationFrame(animate));
@@ -665,6 +727,7 @@
     } else if (d.act === 'inst-close') { tab = user.config ? 'ajustes' : 'setup'; render();
     } else if (d.inst) { instTab = d.inst; render();
     } else if (d.act === 'do-install') { if (deferredInstall) { deferredInstall.prompt(); deferredInstall = null; }
+    } else if (d.act === 'nt-x') { flagSet('nt' + gNotice.ts); render();
     } else if (d.act === 'imp-x') { flagSet('imphint'); render();
     } else if (d.act === 'lnk-x') { flagSet('lnkhint'); render();
     } else if (d.act === 'start-import') { sx = { mode: 'import', step: 1, text: '', res: null, copied: false, ai: true, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
@@ -685,6 +748,33 @@
       const prev = JSON.stringify(user); user = { config: jn.config, settings: Object.assign({}, user.settings, { unificar: Object.keys(jn.config.alias).length > 0, limite: jn.limite || 25 }), faltas: jn.hasFaltas ? jn.faltas : (user.faltas || []) , acct: user.acct, skipCfg: user.skipCfg };
       if (acPend) { user.acct = acPend; acPend = null; }
       save(); jn = null; tab = 'hoy'; render(); toast('Horario cargado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
+    } else if (d.act === 'adm-open') { tab = 'admin'; render(); scrollTo(0, 0); if (!adm || !adm.users) admLoad();
+    } else if (d.act === 'adm-close') { tab = 'ajustes'; render(); scrollTo(0, 0);
+    } else if (d.act === 'adm-load') { admLoad();
+    } else if (d.act === 'adm-export') {
+      const r = await admApi('export');
+      if (!r.ok) return toast('No se pudo exportar');
+      const a2 = document.createElement('a'); a2.href = URL.createObjectURL(new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' }));
+      a2.download = 'novoy-cuentas-' + new Date().toISOString().slice(0, 10) + '.json'; a2.click();
+      toast('Copia descargada');
+    } else if (d.admBlock) {
+      const r = await admApi('block', { target: d.admBlock });
+      if (!r.ok) return toast(r.error === 'eres-tu' ? 'No puedes bloquearte a ti' : 'No se pudo');
+      const u = adm.users.find((x) => x.id === d.admBlock); if (u) u.blocked = r.user.blocked;
+      render(); toast(r.user.blocked ? 'Cuenta bloqueada' : 'Cuenta desbloqueada');
+    } else if (d.admNote) {
+      const u = adm.users.find((x) => x.id === d.admNote);
+      const txt = prompt('Nota sobre ' + (u ? u.u : 'esta cuenta') + ' (solo la ves tú):', (u && u.note) || '');
+      if (txt === null) return;
+      const r = await admApi('note', { target: d.admNote, note: txt });
+      if (!r.ok) return toast('No se pudo guardar la nota');
+      if (u) u.note = r.user.note; render();
+    } else if (d.admDel) {
+      const u = adm.users.find((x) => x.id === d.admDel);
+      if (!confirm('¿Borrar la cuenta ' + (u ? u.u : '') + '? Perderá su copia en el servidor y no se puede deshacer.')) return;
+      const r = await admApi('del', { target: d.admDel });
+      if (!r.ok) return toast(r.error === 'eres-tu' ? 'No puedes borrarte a ti' : 'No se pudo borrar');
+      adm.users = adm.users.filter((x) => x.id !== d.admDel); render(); toast('Cuenta borrada');
     } else if (d.act === 'share-app') {
       const url = location.href.split('#')[0].split('?')[0];
       const msg = '¿Cuántas clases puedes saltarte sin pasarte del límite? NoVoy te lo dice de un vistazo. Sin correo y sin tienda de apps:\n' + url;
@@ -707,7 +797,7 @@
       try {
         const k = await A.derive(uI, pI), kb = await A.expKey(k.key);
         if (d.act === 'acct-new') {
-          const r = await A.api({ op: 'new', id: k.id, auth: k.auth, data: await A.seal(k.key, SU.toExport(snapState())) });
+          const r = await A.api({ op: 'new', id: k.id, auth: k.auth, u: uI.trim(), data: await A.seal(k.key, SU.toExport(snapState())) });
           if (r.ok) { user.acct = { u: uI.trim(), id: k.id, auth: k.auth, k: kb, t: Date.now() }; acg.p = ''; save(); if (sx.scr === 'reg') { sx.scr = 'method'; scrollTo(0, 0); } toast('Cuenta creada. Apunta la contraseña'); render(); }
           else toast(r.error === 'existe' ? 'Ese usuario ya está cogido. Prueba el dado 🎲' : /^(sin-blobs|blobs-caido|sin-kv|almacen-caido)$/.test(r.error) ? 'El servidor de cuentas no está listo todavía' : 'No se pudo crear. Prueba otra vez');
         } else {
@@ -796,7 +886,7 @@
       const r = document.documentElement, dark = getComputedStyle(r).getPropertyValue('--bg').trim().toLowerCase() === '#121212'; r.dataset.theme = dark ? 'light' : 'dark';
     }
   });
-  app.addEventListener('submit', (e) => {
+  app.addEventListener('submit', async (e) => {
     e.preventDefault(); const f = new FormData(e.target), id = e.target.id;
     if (id === 'add') {
       const date = f.get('date');
@@ -818,12 +908,18 @@
       let last = null; String(f.get('s') || '').split(/[,\n;]+/).map((x) => x.trim()).filter(Boolean).forEach((x) => { if (!qk.subjects.some((y) => y.toLowerCase() === x.toLowerCase())) qk.subjects.push(x); last = qk.subjects.find((y) => y.toLowerCase() === x.toLowerCase()); }); if (last) qpaint = last; qk.adding = false; render();
     } else if (id === 'q-ren') {
       const nn = String(f.get('n') || '').trim(), old = qk.subjects[qk.editing];
+      if (qk.fromShot) qk.edited = true;
       if (nn && old != null && nn !== old) {
         qk.ren = qk.ren || {}; let chained = false;
         Object.keys(qk.ren).forEach((k) => { if (qk.ren[k] === old) { qk.ren[k] = nn; chained = true; } });
         if (!chained) qk.ren[old] = nn;
       }
       if (nn && old != null) { qk.subjects[qk.editing] = nn; Object.values(qk.grid).forEach((g) => Object.keys(g).forEach((r) => { if (g[r] === old) g[r] = nn; })); if (qpaint === old) qpaint = nn; } qk.editing = -1; render();
+    } else if (id === 'adm-notice') {
+      const r = await admApi('notice', { text: String(f.get('text') || ''), until: f.get('until') || '' });
+      if (!r.ok) return toast('No se pudo publicar');
+      adm.notice = { text: String(f.get('text') || ''), until: f.get('until') || '' };
+      toast(adm.notice.text ? 'Aviso publicado' : 'Aviso quitado'); render();
     } else if (id === 'q-per') {
       const from = f.get('from'), to = f.get('to'), label = String(f.get('label') || '').trim() || 'Tramo';
       if (!from || !to || to < from) return toast('Revisa las fechas del tramo');
@@ -875,6 +971,7 @@
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   fixAlias();
   render();
+  if (window.FTAcct) FTAcct.notice().then((n) => { if (n && n.text) { gNotice = n; render(); } });
   readLink();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

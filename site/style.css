@@ -191,3 +191,9 @@ body.warn #app{padding-bottom:168px}
 .pals.tramos{margin-bottom:10px}
 .pal.tr{display:inline-flex;flex-direction:column;align-items:flex-start;gap:0;line-height:1.25;--c:var(--mute)}
 .pal.tr span{font-size:11px;opacity:.75;font-weight:600}
+.nums{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.nums div{text-align:center;background:var(--soft);border-radius:12px;padding:8px 4px}
+.nums b{display:block;font-size:20px;font-weight:800;line-height:1.1}
+.nums span{font-size:11px;color:var(--mute);font-weight:600}
+.pill{font-size:11px;font-weight:700;background:var(--r-soft);color:var(--rojo);border-radius:999px;padding:1px 8px;vertical-align:2px}
+.notice{border-color:var(--amarillo);background:var(--a-soft)}
