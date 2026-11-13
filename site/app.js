@@ -193,19 +193,17 @@
     h += list.length ? list.map((f, n) => f.id === efId ? editForm(S, f) : faltaCard(f, n)).join('') : '<p class="muted">' + (fday ? 'Ese día no hay faltas apuntadas.' : 'Aún no hay faltas. Qué sospechoso.') + '</p>';
     return h;
   }
-  /** Tramo horario de esa clase según el horario, p.ej. "11:30 – 12:30". */
-  function slotTime(S, f) {
-    if (!f.date || !/^\d{4}-\d\d-\d\d$/.test(f.date)) return '';
-    const bl = (S.schedule[C.weekday(f.date)] || []).filter((b) => b.subject === f.subject);
-    if (!bl.length) return '';
-    if (bl.length === 1) return bl[0].start + ' – ' + bl[0].end;
-    const tot = bl.reduce((a, b) => a + (+b.hours || 0), 0);
-    if (Math.abs(tot - (+f.hours || 0)) < 0.01) return bl[0].start + ' – ' + bl[bl.length - 1].end;
-    return bl.map((b) => b.start + '–' + b.end).join(', ');
+  /** Las horas sueltas de esa clase ese día, una por una: ["08:00 – 09:00", "09:00 – 10:00"]. */
+  function slotTimes(S, f) {
+    if (!f.date || !/^\d{4}-\d\d-\d\d$/.test(f.date)) return [];
+    const out = [];
+    (S.schedule[C.weekday(f.date)] || []).filter((b) => b.subject === f.subject)
+      .forEach((b) => C.hourSlots(b).forEach((x) => out.push(x.start + ' – ' + x.end)));
+    return out;
   }
   function faltaCard(f, n) {
     const S = state(), tags = (f.type === 'retraso' ? '<span class="tag neutral">retraso</span>' : '') + (f.justified ? '<span class="tag ok">justificada</span>' : '');
-    return '<div' + rise(Math.min(n, 8)) + '><div class="card row">' + avatar(S, f.subject) + '<div class="grow"><div class="name">' + esc(f.subject) + ' <span class="muted">· ' + fmt(f.hours) + ' h</span></div><div class="muted">' + (f.date ? nice(f.date) : 'sin fecha') + (slotTime(S, f) ? ' · ' + slotTime(S, f) : '') + '</div>' + (tags ? '<div class="tags">' + tags + '</div>' : '') + '</div><div class="acts"><button class="btn small" data-edit="' + esc(f.id) + '">Editar</button><button class="btn small ghost" data-del="' + esc(f.id) + '" aria-label="Borrar falta">Borrar</button></div></div></div>';
+    return '<div' + rise(Math.min(n, 8)) + '><div class="card row">' + avatar(S, f.subject) + '<div class="grow"><div class="name">' + esc(f.subject) + ' <span class="muted">· ' + fmt(f.hours) + ' h</span></div><div class="muted">' + (f.date ? nice(f.date) : 'sin fecha') + '</div>' + (slotTimes(S, f).length ? '<div class="hrs">' + slotTimes(S, f).map((t) => '<span>' + t + '</span>').join('') + '</div>' : '') + (tags ? '<div class="tags">' + tags + '</div>' : '') + '</div><div class="acts"><button class="btn small" data-edit="' + esc(f.id) + '">Editar</button><button class="btn small ghost" data-del="' + esc(f.id) + '" aria-label="Borrar falta">Borrar</button></div></div></div>';
   }
   function editForm(S, f) {
     const subs = subjectsOf(S); if (f.subject && subs.indexOf(f.subject) < 0) subs.push(f.subject);
@@ -234,7 +232,7 @@
     const S = state(), s = S.settings, hasAlias = Object.keys(S.alias || {}).length;
     const sw = (k, label, hint) => '<div class="switch"><div><div style="font-weight:700">' + label + '</div><div class="muted">' + hint + '</div></div><input type="checkbox" data-set="' + k + '"' + (s[k] ? ' checked' : '') + '></div>';
     return '<div class="top"><h1>Ajustes</h1></div>' +
-      '<div class="card"><div class="sec">Horario y calendario</div><p class="muted">Edítalo a mano o deja que tu IA lo haga por ti.</p><div class="btns"><button class="btn small primary" data-act="edit">Editar horario</button><button class="btn small" data-act="start-setup">Con mi IA</button><button class="btn small" data-act="start-update">Actualizar faltas con IA</button></div></div>' +
+      '<div class="card"><div class="sec">Horario y calendario</div><p class="muted">Edítalo a mano o deja que tu IA lo haga por ti.</p><div class="btns"><button class="btn small primary" data-act="edit">Editar horario</button><button class="btn small" data-act="start-setup">Con mi IA</button><button class="btn small" data-act="start-update">Actualizar faltas con IA</button></div><p class="muted mini" style="margin:10px 0 0"><button class="link" data-act="edit-adv">Editor avanzado: unir asignaturas, nombre del centro</button></p></div>' +
       '<div class="card">' + (hasAlias ? sw('unificar', 'Unificar asignaturas', 'Algunas cuentan dentro de otra (ej. proyectos).') : '') + sw('justificadasCuentan', 'Las justificadas cuentan', 'Si lo apagas, no suman al límite.') + '</div>' +
       '<div class="card"><div class="two"><div class="field" style="margin-top:0"><label>Límite de faltas (%)</label><input type="number" data-num="limite" min="1" max="100" value="' + s.limite + '"></div>' +
       '<div class="field" style="margin-top:0"><label>Aviso si quedan (h) o menos</label><input type="number" data-num="aviso" min="0" step="any" value="' + s.aviso + '"></div></div></div>' +
@@ -387,19 +385,45 @@
   const qTxt = (n) => (String(n).length <= 6 ? String(n).toUpperCase() : initials(n));
   const qCol = (name) => AVC[Math.max(0, qk.subjects.indexOf(name)) % AVC.length];
   const qTid = (t, i) => (String(t.label).toLowerCase().replace(/[^a-z0-9]+/g, '') || 't') + i;
+  /** Horario guardado -> estado de la rejilla, para poder editarlo pintando. */
+  function qFromCfg(cfg) {
+    const bounds = new Set(), slotsOf = (b) => C.hourSlots(b);
+    QDAYS.forEach(([d]) => (cfg.schedule[d] || []).forEach((b) => slotsOf(b).forEach((x) => { bounds.add(mm(x.start)); bounds.add(mm(x.end)); })));
+    const bs = Array.from(bounds).sort((a, b) => a - b), rows = [];
+    for (let i = 0; i + 1 < bs.length; i++) {
+      const a = bs[i], z = bs[i + 1];
+      const used = QDAYS.some(([d]) => (cfg.schedule[d] || []).some((b) => slotsOf(b).some((x) => mm(x.start) <= a && mm(x.end) >= z)));
+      if (used) rows.push({ s: hhmm(a), e: hhmm(z) });
+    }
+    const grid = {}, subjects = []; let exact = true;
+    QDAYS.forEach(([d]) => (cfg.schedule[d] || []).forEach((b) => {
+      if (subjects.indexOf(b.subject) < 0) subjects.push(b.subject);
+      let n = 0;
+      slotsOf(b).forEach((x) => rows.forEach((r, i) => {
+        if (mm(x.start) <= mm(r.s) && mm(x.end) >= mm(r.e)) { (grid[d] = grid[d] || {})[i] = b.subject; n++; }
+      }));
+      if (Math.abs(n - (+b.hours || 0)) > 0.01) exact = false;
+    }));
+    return Object.assign(qNew(), {
+      custom: rows.length ? rows : null, grid, subjects, adding: false, unit: exact ? 'full' : 'real',
+      terms: cfg.terms.map((t) => ({ label: t.label, from: t.from, to: t.to })),
+      holidays: (cfg.holidays || []).map((h) => ({ label: h.label, from: h.from, to: h.to })),
+      limite: (user.settings && user.settings.limite) || 25, base: cfg
+    });
+  }
   function qCfg() {
-    const rows = qRows(), unit = qk.unit === 'full' ? 1 : Math.round(qk.dur / 60 * 100) / 100, schedule = {};
+    const rows = qRows(), schedule = {};
     QDAYS.forEach(([d]) => {
       const g = qk.grid[d] || {}, blocks = []; let cur = null;
       rows.forEach((row, r) => {
-        const s = g[r];
+        const s = g[r], unit = qk.unit === 'full' ? 1 : Math.round((mm(row.e) - mm(row.s)) / 60 * 100) / 100;
         if (s && cur && cur.subject === s) { cur.end = row.e; cur.hours = Math.round((cur.hours + unit) * 100) / 100; }
         else { cur = s ? { start: row.s, end: row.e, subject: s, hours: unit } : null; if (cur) blocks.push(cur); }
       });
       if (blocks.length) schedule[d] = blocks;
     });
     const terms = qk.terms.map((t, i) => ({ id: qTid(t, i), label: t.label, from: t.from, to: t.to })).sort((a, b) => (a.from < b.from ? -1 : 1));
-    return { center: '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule, alias: {}, totals: {}, totalsUnified: {} };
+    return { center: (qk.base && qk.base.center) || '', terms, holidays: qk.holidays.map((h) => ({ from: h.from, to: h.to || h.from, label: h.label || 'Festivo' })), schedule, alias: (qk.base && qk.base.alias) || {}, totals: {}, totalsUnified: {} };
   }
   const qUsed = () => Array.from(new Set(Object.values(qk.grid).flatMap((g) => Object.values(g)))).filter(Boolean);
   function qTotalsFor(cfg, termId) { return C.computeTotals(Object.assign({}, cfg, { settings: Object.assign({}, C.DEF, { unificar: false }), faltas: [] }), termId); }
@@ -462,7 +486,7 @@
   function qSave() {
     const cfg = qCfg(), prev = JSON.stringify(user);
     if (qk.tmode === 'manual') { cfg.terms.forEach((t) => { const auto = qTotalsFor(cfg, t.id), o = {}; qUsed().forEach((s) => { const v = (qk.totals[t.id] || {})[s]; o[s] = v != null && !isNaN(v) ? +v : (auto[s] || 0); }); cfg.totals[t.id] = o; cfg.totalsUnified[t.id] = o; }); }
-    user = { config: cfg, settings: Object.assign({ aviso: 2, justificadasCuentan: true }, user.settings, { limite: qk.limite, unificar: false }), faltas: user.faltas || [] , acct: user.acct, skipCfg: user.skipCfg };
+    user = { config: cfg, settings: Object.assign({ aviso: 2, justificadasCuentan: true }, user.settings, { limite: qk.limite, unificar: Object.keys(cfg.alias || {}).length > 0 && user.settings ? user.settings.unificar : false }), faltas: user.faltas || [] , acct: user.acct, skipCfg: user.skipCfg };
     save(); qk = null; tab = 'hoy'; viewTerm = null; render(); scrollTo(0, 0);
     toast('Horario guardado', () => { user = JSON.parse(prev); save(); tab = user.config ? 'hoy' : 'setup'; render(); });
   }
@@ -689,7 +713,8 @@
       if (!shareMsg) return toast('Un segundo y vuelve a pulsar');
       if (navigator.share) { try { await navigator.share({ text: shareMsg }); return; } catch (err) { if (err && err.name === 'AbortError') return; } }
       toast((await copy(shareMsg)) ? 'Mensaje copiado. Pégalo en el grupo' : 'No se pudo copiar');
-    } else if (d.act === 'edit') { openEditor();
+    } else if (d.act === 'edit') { qk = user.config ? qFromCfg(user.config) : qNew(); qpaint = null; tab = 'quick'; render(); scrollTo(0, 0);
+    } else if (d.act === 'edit-adv') { openEditor();
     } else if (d.act === 'ed-close') { ed = null; tab = user.config ? 'ajustes' : 'setup'; render();
     } else if (d.act === 'ed-save') { edSave();
     } else if (d.act === 'start-setup' || d.act === 'start-update') { sx = { mode: d.act === 'start-update' ? 'update' : 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);

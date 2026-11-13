@@ -186,3 +186,5 @@ body.warn #toast{bottom:calc(142px + env(safe-area-inset-bottom))}
 body.warn #app{padding-bottom:168px}
 .share-row{justify-content:center}
 .share-row .btn{flex:0 0 33%;max-width:33%;gap:6px}
+.hrs{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:3px}
+.hrs span{font-size:13px;color:var(--mute);background:var(--soft);border-radius:8px;padding:1px 7px;font-variant-numeric:tabular-nums}
