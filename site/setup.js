@@ -98,27 +98,75 @@ Empieza preguntándome qué ha pasado.`;
   }
 
   /** Importar de golpe las faltas que ya llevas apuntadas en otro sitio. Directo, sin charla. */
+  /** Mensaje para pasar faltas que ya tienes (Moodle, notas, Excel, capturas) con tu IA. Devuelve solo una lista de faltas. */
   function buildImportPrompt(snapshot) {
-    return `Tarea: pasar mis faltas de clase ya apuntadas al JSON de la app "NoVoy". No te enrolles.
+    let S = {}; try { S = JSON.parse(snapshot); } catch (e) {}
+    const subs = Array.from(new Set(Object.values(S.horario || {}).flat().map((b) => b.asignatura))).filter(Boolean);
+    const sched = Object.keys(S.horario || {}).filter((d) => (S.horario[d] || []).length).map((d) => d + ': ' + S.horario[d].map((b) => b.inicio + '-' + b.fin + ' ' + b.asignatura).join(', ')).join('\n');
+    const terms = (S.trimestres || []).map((t) => t.nombre + ' ' + t.desde + ' a ' + t.hasta).join('\n');
+    return `Vas a ayudarme a pasar mis faltas de clase a la app "NoVoy". Habla claro, frases cortas, sin palabras tecnicas.
 
-REGLAS
-1. Te pegaré mis faltas tal cual las tengo (notas, tabla, Excel, capturas, lo que sea). Interprétalas con mi horario del JSON de abajo.
-2. Cada falta: fecha "AAAA-MM-DD", asignatura EXACTAMENTE como aparece en mi horario, horas que tenía ese día de esa asignatura, tipo "falta" (o "retraso" con horas 0), y justificada true/false (si no lo sé, false).
-3. No inventes. Si una fecha o asignatura no cuadra con mi horario, déjala fuera y dilo al final en una línea.
-4. No me hagas preguntas de una en una: haz lo que puedas con lo que te dé.
-5. Añade las faltas a la lista "faltas" que ya existe, sin borrar lo que haya. No toques nada más del JSON.
+QUE HACER
+1. Primero dime solo esto, nada mas: "Pega aqui tus faltas. Copialas del Moodle (o de donde las tengas) y pegalas tal cual. Tambien vale una captura de pantalla."
+2. Cuando te las pase, entiendelas tu. Pueden venir como sea: una tabla del Moodle, una lista, notas del movil, un Excel, una foto.
+   - Palabras que significan falta: falta, ausente, absent, absència, no asistido, F.
+   - Retraso: retraso, retard, tarde, R.
+   - Justificada: justificada, justificat, J, con justificante.
+   - Si pone "Presente", "Assistit" o similar, NO es falta: ignorala.
+3. Cada falta es UNA asignatura en UN dia. Usa SIEMPRE uno de estos nombres de asignatura (el que mas se parezca): ${subs.join(', ')}.
+4. Horas: las de esa clase ese dia segun mi horario. Si no lo sabes, 1.
+5. Si solo tengo un total por asignatura (por ejemplo "Programacion: 6 h"), pon UNA entrada con "fecha": null y esas horas.
+6. No inventes. Si algo no lo entiendes o no encaja con mi horario, dejalo fuera.
+7. Si te faltan datos importantes, hazme como mucho 2 preguntas cortas. Si no, no preguntes.
 
-RESPUESTA (en este orden y nada más)
-a) Máximo 3 líneas: cuántas faltas has añadido, de qué asignaturas, y qué has descartado.
-b) El JSON COMPLETO actualizado en UN SOLO bloque de código, sin comentarios dentro.
-
-MI JSON ACTUAL
+CUANDO TERMINES
+Escribe 1 linea: cuantas faltas has encontrado y que has dejado fuera.
+Despues, UN solo bloque de codigo con esto y nada mas:
 \`\`\`json
-${snapshot}
+{ "faltas": [ { "fecha": "2026-10-02", "asignatura": "${subs[0] || 'Matematicas'}", "horas": 2, "tipo": "falta", "justificada": false } ] }
 \`\`\`
+"tipo" es "falta" o "retraso". Fechas AAAA-MM-DD. Nada mas fuera del bloque.
 
-Ahora te pego mis faltas:`;
+MI HORARIO (para saber las horas de cada clase)
+${sched}
+
+MIS TRIMESTRES
+${terms}`;
   }
+
+  /** Lee la respuesta de la IA al pasar faltas: solo una lista de faltas, contra MI horario. Nunca toca la configuración. */
+  function parseFaltas(text, cfg, existing) {
+    const errors = [], warnings = [];
+    let j; try { j = extractJSON(text); } catch (e) { return { ok: false, errors: [e.message], warnings, faltas: [] }; }
+    const list = Array.isArray(j) ? j : Array.isArray(j.faltas) ? j.faltas : null;
+    if (!list) return { ok: false, errors: ['No encuentro la lista de faltas ("faltas").'], warnings, faltas: [] };
+    const subs = new Set(); Object.values(cfg.schedule || {}).forEach((d) => (d || []).forEach((b) => subs.add(b.subject))); Object.keys(cfg.alias || {}).forEach((k) => subs.add(k));
+    const low = {}; subs.forEach((x) => { low[strip(x)] = x; });
+    const tdy = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+    const termOf = (d) => (cfg.terms.find((t) => d >= t.from && d <= t.to) || {}).id;
+    const curTerm = termOf(tdy) || (cfg.terms[0] || {}).id;
+    const seen = new Set((existing || []).filter((f) => f.date).map((f) => f.date + '|' + f.subject + '|' + (f.type || 'falta')));
+    const out = []; let skipDup = 0, skipBad = 0;
+    list.forEach((f, i) => {
+      const sub = low[strip(f.asignatura)];
+      if (!sub) { skipBad++; warnings.push('Fuera: «' + (f.asignatura || '?') + '» no está en tu horario.'); return; }
+      const fecha = f.fecha == null || f.fecha === '' ? '' : String(f.fecha);
+      if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) { skipBad++; warnings.push('Fuera: fecha rara en ' + sub + ' (' + fecha + ').'); return; }
+      const term = fecha ? termOf(fecha) : curTerm;
+      if (!term) { skipBad++; warnings.push('Fuera: ' + fecha + ' no está en ningún trimestre.'); return; }
+      const tipo = strip(f.tipo) === 'retraso' ? 'retraso' : 'falta';
+      let horas = +f.horas; if (!(horas >= 0) || horas > 12) horas = 1; if (tipo === 'retraso') horas = 0;
+      const key = fecha + '|' + sub + '|' + tipo;
+      if (fecha && seen.has(key)) { skipDup++; return; }
+      if (fecha) seen.add(key);
+      out.push({ id: 'i' + Date.now().toString(36) + i, date: fecha, term, subject: sub, hours: horas, type: tipo, justified: !!f.justificada, note: fecha ? '' : 'previas' });
+    });
+    if (skipDup) warnings.push(skipDup + ' ya las tenías apuntadas: no se repiten.');
+    if (!out.length && !errors.length) errors.push(list.length ? 'Ninguna falta encaja con tu horario.' : 'La lista de faltas está vacía.');
+    return { ok: !errors.length, errors, warnings, faltas: out, skipped: skipBad };
+  }
+
+
 
   /** Estado de la app → JSON en formato de intercambio (para "Actualizar con mi IA" y exportar). */
   function toExport(S) {
@@ -298,6 +346,6 @@ Ahora te pego mis faltas:`;
         subjects: (Array.isArray(j.modulos) ? j.modulos : []).filter((m) => m && typeof m.id === 'string' && m.nombre).map((m) => ({ id: m.id, name: String(m.nombre) })) } };
   }
 
-  const api = { buildPrompt, buildUpdatePrompt, buildImportPrompt, toExport, extractJSON, parseImport, DAYNAMES, FORMAT };
+  const api = { buildPrompt, buildUpdatePrompt, buildImportPrompt, parseFaltas, toExport, extractJSON, parseImport, DAYNAMES, FORMAT };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTSetup = api;
 })(typeof window !== 'undefined' ? window : globalThis);

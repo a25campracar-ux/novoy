@@ -150,7 +150,7 @@
   function oneHint() {
     const accSnooze = Date.now() - (+lsGet('ft.accx') || 0) < 7 * 864e5;
     if (iosRisk()) return '<div class="card warn hint1"><div class="sec">Tus faltas pueden borrarse</div><p>En iPhone, si no la instalas, Safari borra sus datos si pasas días sin abrirla.</p><div class="btns"><button class="btn small primary" data-act="open-install">Instalarla</button><button class="btn small" data-act="ios-x">Más tarde</button></div></div>';
-    if (!user.faltas.length && !flagOff('imphint')) return '<div class="card feat hint1"><div class="sec">¿Ya has faltado antes de hoy?</div><p class="muted">Ponlo y el cálculo será el de verdad.</p><div class="btns"><button class="btn small primary" data-act="prv-open">Poner mis faltas</button><button class="btn small" data-act="imp-x">No he faltado</button></div></div>';
+    if (!user.faltas.length && !flagOff('imphint')) return '<div class="card feat hint1"><div class="sec">¿Ya has faltado antes de hoy?</div><p class="muted">Ponlo y el cálculo será el de verdad.</p><div class="btns"><button class="btn small primary" data-act="prv-open">Contarlas yo</button><button class="btn small" data-act="start-import">Pasarlas con mi IA</button><button class="btn small ghost" data-act="imp-x">No he faltado</button></div></div>';
     if (!user.acct && hasAcct() && !accSnooze) return '<div class="card hint hint1"><div class="grow"><b>Guarda tu horario</b><span class="muted">Si cambias de móvil, no pierdes nada.</span></div><button class="btn small primary" data-act="acct-open">Guardar</button><button class="x" data-act="acct-later" aria-label="Ahora no">×</button></div>';
     if (!standalone() && !hintOff() && /^https?:/.test(location.protocol)) return '<div class="card hint hint1"><div class="grow"><b>Ponla en tu pantalla de inicio</b><span class="muted">Se abre como una app.</span></div><button class="btn small primary" data-act="open-install">Cómo</button><button class="x" data-act="hint-x" aria-label="Cerrar">×</button></div>';
     if (!user.acct && bkDue()) return '<div class="card hint hint1"><div class="grow"><b>Guarda tu copia</b><span class="muted">Si pierdes el móvil, pierdes tus faltas.</span></div><button class="btn small primary" data-act="goto-backup">Guardar</button><button class="x" data-act="bk-x" aria-label="Cerrar">×</button></div>';
@@ -268,6 +268,7 @@
     const S = calc(), t = S.terms.find((x) => x.id === prv.tid) || S.terms[0], names = Object.keys(prv.vals).sort();
     let h = (wz ? wzBar(6, 'prv-close') : '<div class="steps"><button class="back" data-act="prv-close">‹ Atrás</button></div>') + '<h1 class="big">¿Cuántas horas has faltado ya?</h1><p class="lead">Desde el ' + nice(t.from) + ' hasta hoy. Si no te acuerdas, míralo en el Moodle.</p>';
     h += '<div class="card cnts">' + names.map((n) => '<div class="cnt-row">' + avatar(S, n) + '<b class="grow">' + esc(n) + '</b><button class="step" data-pv="' + esc(n) + '|-1" aria-label="Una hora menos en ' + esc(n) + '"' + (prv.vals[n] <= (prv.min[n] || 0) ? ' disabled' : '') + '>−</button><span class="pv">' + fmt(prv.vals[n]) + ' h</span><button class="step" data-pv="' + esc(n) + '|1" aria-label="Una hora más en ' + esc(n) + '">+</button></div>').join('') + '</div>';
+    h += '<button class="choice slim" data-act="start-import" style="margin-top:4px"><span class="ic" aria-hidden="true">💬</span><span class="grow"><b>¿Las tienes en el Moodle?</b><span>Pásalas con tu IA y no cuentas nada</span></span><span class="arrow">›</span></button>';
     if (prv.warn) h += '<div class="card warn"><p><b>¿Seguro que no has faltado nada desde el ' + nice(t.from) + '?</b></p><p class="muted">Si pones 0 y no es verdad, NoVoy te dirá que puedes faltar cuando no.</p></div>';
     return h + '<div class="cta"><div class="in"><button class="btn primary" data-act="prv-save">' + (prv.warn ? 'Sí, no he faltado' : 'Listo') + '</button></div></div>';
   }
@@ -382,7 +383,7 @@
   function viewFaltas() {
     if (!user.config) return emptyView('Faltas', 'Aquí se apuntan tus faltas, una a una o importadas de donde las tengas.');
     const S = state();
-    let h = '<div class="top"><h1>Faltas</h1></div>' + weekGrid(S) + '<details class="more"><summary>Apuntar a mano (otra forma)</summary><form id="add" class="card" style="margin-top:8px"><div class="sec">Apuntar una falta</div>' +
+    let h = '<div class="top"><h1>Faltas</h1></div>' + weekGrid(S) + '<button class="choice slim" data-act="start-import" style="margin-top:12px"><span class="ic" aria-hidden="true">💬</span><span class="grow"><b>¿Tienes muchas en el Moodle?</b><span>Pásalas de golpe con tu IA</span></span><span class="arrow">›</span></button><details class="more"><summary>Apuntar a mano (otra forma)</summary><form id="add" class="card" style="margin-top:8px"><div class="sec">Apuntar una falta</div>' +
       '<div class="field"><label>Fecha</label><input type="date" name="date" value="' + today() + '" required></div>' +
       '<div class="field"><label>Asignatura</label><select name="subject">' + subjectOpts(S, today()) + '</select><div class="muted" id="subhint">' + (subjectsOn(S, today()).all ? 'Ese día no hay clase: salen todas.' : 'Solo las de ese día.') + '</div></div>' +
       '<div class="field"><label>Hora</label><select name="slot">' + slotOpts(S, today(), subjectsOn(S, today()).list[0]) + '</select><div class="muted">Cada hora es una falta. Si faltaste a dos seguidas, apunta las dos.</div></div>' +
@@ -646,7 +647,7 @@
     let h = '<div class="steps"><button class="back" data-aj="">‹ Ajustes</button><h1>' + title + '</h1></div>';
     if (ajSec === 'horario') h += ('<div class="card"><div class="sec">Tu horario</div><p class="muted">Cambia una clase, el calendario o los festivos.</p><div class="btns"><button class="btn small primary" data-act="edit">Cambiar mi horario</button><label class="btn small" for="qshot">Subir otra foto</label><input id="qshot" type="file" accept="image/*" hidden><button class="btn small" data-act="start-ai">Con tu IA</button></div><p class="muted mini" style="margin:10px 0 0"><button class="link" data-act="edit-adv">Editor avanzado: unir asignaturas, nombre del centro</button></p></div>') +
       '<div class="card"><div class="sec">Tu centro y tus estudios</div><p class="muted">' + esc(((S.catalog || {}).centre || {}).name || 'Sin elegir') + ' · ' + esc(((S.catalog || {}).cycle || {}).name || 'sin ciclo') + '</p><div class="btns"><button class="btn small" data-act="wz-edit">Cambiar</button></div></div>' +
-      '<div class="card"><div class="sec">Faltas de antes</div><p class="muted">Las que tenías antes de usar NoVoy.</p><div class="btns"><button class="btn small" data-act="prv-open">Cambiar</button></div></div>';
+      '<div class="card"><div class="sec">Faltas de antes</div><p class="muted">Las que tenías antes de usar NoVoy.</p><div class="btns"><button class="btn small" data-act="prv-open">Contarlas yo</button><button class="btn small" data-act="start-import">Pasarlas con mi IA</button></div></div>';
     else if (ajSec === 'faltas') h += rulesCard(S) + (hasAlias ? '<div class="card">' + sw('unificar', 'Unificar asignaturas', 'Algunas cuentan dentro de otra (ej. proyectos).') + '</div>' : '') +
       '<div class="card"><div class="field" style="margin-top:0"><label>Avisar en ámbar cuando queden (h) o menos</label><input type="number" data-num="aviso" min="0" step="any" value="' + s.aviso + '"></div></div>';
     else if (ajSec === 'clase') h += ('<div class="card share"><div class="sec">Pásalo a tu clase</div><p class="muted">Un enlace con tu horario y calendario (sin tus faltas). Tus compañeros lo abren y ya está configurado.</p><div class="btns"><a class="btn small primary" id="sh-wa" target="_blank" rel="noopener">WhatsApp</a><button class="btn small" data-act="share">Compartir / copiar enlace</button></div></div>');
@@ -764,6 +765,32 @@
     } else if (aiNew && st === 3) {
       h = (wz ? wzBar(3, 'ai-prev') : h) + '<h1 class="big">Pega aquí su respuesta</h1><p class="lead">Todo lo que te ha dado, tal cual. Yo saco lo que hace falta.</p><div class="field"><textarea id="paste" placeholder="Pega aquí" aria-label="Respuesta de tu IA">' + esc(sx.text) + '</textarea></div><div class="btns"><button class="btn small" data-act="paste">Pegar</button></div>';
       cta = '<button class="btn primary" data-act="review">Revisar</button>';
+    } else if (imp && st === 1) {
+      h = '<div class="steps"><button class="back" data-act="imp-close">‹ Atrás</button></div><h1 class="big">Pasa tus faltas con tu IA</h1><p class="lead">Así no tienes que contarlas tú. Son 4 pasos.</p>' +
+        '<ol class="how big3"><li><span><b>Copia el mensaje</b> con el botón verde.</span></li><li><span><b>Pégalo en tu IA</b> (ChatGPT, Gemini o Claude).</span></li><li><span><b>Copia tus faltas</b> del Moodle (o de donde las tengas) y <b>pégaselas</b>. Una captura también vale.</span></li><li><span><b>Copia lo que te responda</b> y pégalo aquí.</span></li></ol>' +
+        '<details><summary>Ver el mensaje</summary><textarea readonly id="pt" aria-label="Mensaje para tu IA">' + esc(promptText()) + '</textarea></details>';
+      cta = '<button class="btn primary" data-act="copy-prompt">' + (sx.copied ? 'Copiado · Siguiente' : 'Copiar el mensaje') + '</button>';
+    } else if (imp && st === 2) {
+      h = '<div class="steps"><button class="back" data-act="ai-prev">‹ Atrás</button></div><h1 class="big">Ahora, en tu IA</h1>' +
+        '<ol class="how big3"><li><span><b>Abre tu IA</b> y pega el mensaje.<span class="btns" style="display:flex;margin-top:10px"><a class="btn small" href="https://chatgpt.com" target="_blank" rel="noopener">ChatGPT</a><a class="btn small" href="https://gemini.google.com" target="_blank" rel="noopener">Gemini</a><a class="btn small" href="https://claude.ai" target="_blank" rel="noopener">Claude</a></span></span></li><li><span><b>Ve al Moodle</b>, entra en <b>Asistencia</b> de cada asignatura, selecciona la tabla y cópiala.</span></li><li><span><b>Pégasela a tu IA.</b> Si es más fácil, hazle una captura y mándasela.</span></li><li><span>Cuando te conteste, pulsa su botón de <b>copiar</b>.</span></li></ol>';
+      cta = '<button class="btn primary" data-act="next">Ya tengo su respuesta</button>';
+    } else if (imp && st === 3) {
+      h = '<div class="steps"><button class="back" data-act="ai-prev">‹ Atrás</button></div><h1 class="big">Pega aquí su respuesta</h1><p class="lead">Todo tal cual. Yo saco las faltas.</p><div class="field"><textarea id="paste" placeholder="Pega aquí" aria-label="Respuesta de tu IA">' + esc(sx.text) + '</textarea></div><div class="btns"><button class="btn small" data-act="paste">Pegar</button></div>';
+      cta = '<button class="btn primary" data-act="review">Ver las faltas</button>';
+    } else if (imp) {
+      const r = sx.res;
+      if (!r.ok) {
+        const fix = 'No ha funcionado: ' + r.errors.join(' ') + ' Devuélveme solo el bloque de código con {"faltas": [...]}, usando los nombres de asignatura de mi horario.';
+        h = '<div class="steps"><button class="back" data-act="again">‹ Atrás</button></div><h1 class="big">No me ha salido</h1><p class="lead">' + esc(r.errors[0]) + '</p><p class="muted">Copia este mensaje, pégaselo a tu IA y vuelve a pegar lo que te diga.</p><details open><summary>Mensaje para tu IA</summary><textarea readonly id="fixmsg" style="min-height:110px">' + esc(fix) + '</textarea></details>';
+        cta = '<button class="btn" data-act="copy-fix">Copiar mensaje</button><button class="btn primary" data-act="again">Pegar otra vez</button>';
+      } else {
+        const by = {}; r.faltas.forEach((f) => { if (f.type !== 'retraso') by[f.subject] = (by[f.subject] || 0) + f.hours; });
+        const nl = r.faltas.filter((f) => f.type === 'retraso').length, nh = Object.values(by).reduce((a, b) => a + b, 0);
+        h = '<div class="steps"><button class="back" data-act="again">‹ Atrás</button></div><h1 class="big">¿Están bien?</h1><p class="lead">He encontrado ' + fmt(nh) + ' h de faltas' + (nl ? ' y ' + nl + ' retrasos' : '') + '.</p>' +
+          '<div class="card cnts">' + Object.keys(by).sort().map((k) => '<div class="cnt-row">' + avatar(state(), C.canon(state(), k)) + '<b class="grow">' + esc(k) + '</b><span class="pv">' + fmt(by[k]) + ' h</span></div>').join('') + '</div>' +
+          (r.warnings.length ? '<div class="card warn"><div class="sec">No las he puesto</div><ul class="list">' + r.warnings.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul></div>' : '');
+        cta = '<button class="btn" data-act="again">Volver</button><button class="btn primary" data-act="save-setup">Añadirlas</button>';
+      }
     } else if (st === 1) {
       h += '<div class="verdict verde">' + mascot('verde') + '<div><b>' + (imp ? 'Pasa tus faltas a NoVoy' : upd ? 'Actualiza con tu IA' : 'Configúralo en 2 minutos') + '</b><p>' + (imp ? 'Copia estas instrucciones, pégalas en tu IA y detrás pega tus faltas tal cual las tengas.' : upd ? 'Cuéntale qué faltas has tenido y ella lo apunta.' : 'Tu IA lee las fotos de tu horario y tu calendario. Tú solo revisas.') + '</p></div></div>' +
         '<p style="margin-top:18px">Primero copia las instrucciones. Tu IA sabrá exactamente qué hacer.</p>' +
@@ -797,10 +824,18 @@
     }
     return h + '<div class="cta"><div class="in">' + cta + '</div></div>';
   }
+  /** Añade las faltas que ha sacado tu IA. No toca tu horario ni tus reglas. */
+  function saveImport() {
+    const r = sx.res, before = JSON.stringify(user.faltas), back = sx.back || 'hoy';
+    user.faltas = user.faltas.concat(r.faltas.map((f) => Object.assign({}, f, { id: nid() })));
+    flagSet('imphint'); save(); sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' };
+    tab = ['hoy', 'resumen', 'faltas', 'ajustes'].indexOf(back) >= 0 ? back : 'hoy'; render(); scrollTo(0, 0);
+    toast(r.faltas.length + ' faltas añadidas', () => { user.faltas = JSON.parse(before); save(); render(); });
+  }
   function saveSetup() {
     const r = sx.res, prev = JSON.stringify(user), keepFaltas = sx.mode === 'update' || r.faltas.length ? r.faltas : user.faltas;
     const unificar = Object.keys(r.config.alias).length > 0;
-    user = { config: r.config, settings: Object.assign({}, user.settings, r.reglas || {}, { unificar, limite: r.limite != null ? r.limite : (user.settings.limite || 25) }), faltas: keepFaltas , acct: user.acct, skipCfg: user.skipCfg };
+    user = { config: r.config, settings: Object.assign({}, user.settings, r.reglas || {}, { unificar, limite: r.limite != null ? r.limite : (user.settings.limite || 25) }), faltas: keepFaltas, since: user.since, okDay: user.okDay, acct: user.acct, skipCfg: user.skipCfg };
     if (wz) user.config.catalog = wzCatalog(C.allSubjects(user.config));
     const fresh = !!wz; wz = null; save(); tab = 'hoy'; viewTerm = null;
     if (fresh && !user.faltas.length) { prvOpen('hoy'); return; }
@@ -1266,7 +1301,7 @@
     } else if (d.act === 'nt-x') { flagSet('nt' + gNotice.ts); render();
     } else if (d.act === 'imp-x') { flagSet('imphint'); render();
     } else if (d.act === 'lnk-x') { flagSet('lnkhint'); render();
-    } else if (d.act === 'start-import') { sx = { mode: 'import', step: 1, text: '', res: null, copied: false, ai: true, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
+    } else if (d.act === 'start-import') { sx = { mode: 'import', step: 1, text: '', res: null, copied: false, ai: true, scr: 'method', back: tab === 'previas' ? ((prv && prv.next) || 'hoy') : tab }; prv = null; tab = 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'hint-x') { try { localStorage.setItem('ft.hint', '1'); } catch (er) {} render();
     } else if (d.edit) { efId = d.edit; render();
     } else if (d.act === 'ecancel') { efId = null; render();
@@ -1376,7 +1411,7 @@
     } else if (d.act === 'close') { tab = user.config ? 'ajustes' : 'hoy'; render();
     } else if (d.act === 'copy-prompt') {
       if (sx.copied) { sx.step = 2; render(); return; }
-      const ok = await copy(promptText()); sx.copied = ok; if (ok) toast('Instrucciones copiadas'); else { toast('Mantén pulsado el texto para copiarlo'); const dt = document.querySelector('details'); if (dt) dt.open = true; } render();
+      const ok = await copy(promptText()); sx.copied = ok; if (ok) toast('Mensaje copiado'); else { toast('Mantén pulsado el texto para copiarlo'); const dt = document.querySelector('details'); if (dt) dt.open = true; } render();
     } else if (d.act === 'restore-link') {
       let t = ($('#rl') || {}).value || ''; if (!t.trim()) { try { t = await navigator.clipboard.readText(); } catch (err) {} }
       const m = /#c=([zp][A-Za-z0-9_-]+)/.exec(t); if (!m) return toast('Pega el enlace de copia completo');
@@ -1391,6 +1426,7 @@
     } else if (d.act === 'q-addp') { qk.addp = !qk.addp; render();
     } else if (d.act === 'q-add') { qk.adding = !qk.adding; qk.editing = -1; render();
     } else if (d.act === 'ai-go') { sx.ai = true; render(); scrollTo(0, 0);
+    } else if (d.act === 'imp-close') { const b = sx.back; sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: 'method' }; tab = ['hoy', 'resumen', 'faltas', 'ajustes'].indexOf(b) >= 0 ? b : 'hoy'; render(); scrollTo(0, 0);
     } else if (d.act === 'start-ai') { sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: true, scr: 'method' }; tab = 'setup'; render(); scrollTo(0, 0);
     } else if (d.act === 'ai-prev') { sx.step = Math.max(1, sx.step - 1); render(); scrollTo(0, 0);
     } else if (d.act === 'ai-back') { sx.ai = false; sx.copied = false; render();
@@ -1429,10 +1465,10 @@
     } else if (d.act === 'q-clear') { qk.grid = {}; render();
     } else if (d.act === 'next') { sx.step = 3; render(); scrollTo(0, 0);
     } else if (d.act === 'paste') { try { const t = await navigator.clipboard.readText(); sx.text = t; render(); } catch (err) { toast('Mantén pulsado el cuadro y elige Pegar'); }
-    } else if (d.act === 'review') { const ta = $('#paste'); sx.text = ta ? ta.value : sx.text; if (!sx.text.trim()) return toast('Pega primero la respuesta de tu IA'); sx.res = SU.parseImport(sx.text); sx.step = 4; render(); scrollTo(0, 0);
+    } else if (d.act === 'review') { const ta = $('#paste'); sx.text = ta ? ta.value : sx.text; if (!sx.text.trim()) return toast('Pega primero la respuesta de tu IA'); sx.res = sx.mode === 'import' ? SU.parseFaltas(sx.text, user.config, user.faltas) : SU.parseImport(sx.text); sx.step = 4; render(); scrollTo(0, 0);
     } else if (d.act === 'again') { sx.step = 3; render();
     } else if (d.act === 'copy-fix') { toast((await copy($('#fixmsg').value)) ? 'Mensaje copiado' : 'Mantén pulsado el texto para copiarlo');
-    } else if (d.act === 'save-setup') { saveSetup();
+    } else if (d.act === 'save-setup') { if (sx.mode === 'import') saveImport(); else saveSetup();
     } else if (b.id === 'exp') {
       const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([SU.toExport(state())], { type: 'application/json' })); a.download = 'novoy.json'; a.click(); bkSet();
     } else if (b.id === 'theme') {
