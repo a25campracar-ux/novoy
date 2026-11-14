@@ -1,0 +1,400 @@
+{
+ "config": {
+  "center": "",
+  "terms": [
+   {
+    "id": "1aevaluacin0",
+    "label": "1a evaluación",
+    "from": "2026-09-14",
+    "to": "2026-11-27"
+   },
+   {
+    "id": "2aevaluacin1",
+    "label": "2a evaluación",
+    "from": "2026-11-30",
+    "to": "2027-03-05"
+   },
+   {
+    "id": "3aevaluacin2",
+    "label": "3a evaluación",
+    "from": "2027-03-08",
+    "to": "2027-06-04"
+   }
+  ],
+  "holidays": [
+   {
+    "from": "2026-09-11",
+    "to": "2026-09-11",
+    "label": "Diada"
+   },
+   {
+    "from": "2026-10-12",
+    "to": "2026-10-12",
+    "label": "Fiesta Nacional"
+   },
+   {
+    "from": "2026-12-08",
+    "to": "2026-12-08",
+    "label": "Inmaculada"
+   },
+   {
+    "from": "2026-12-22",
+    "to": "2027-01-07",
+    "label": "Vacaciones de Navidad"
+   },
+   {
+    "from": "2027-03-20",
+    "to": "2027-03-29",
+    "label": "Semana Santa"
+   },
+   {
+    "from": "2026-09-23",
+    "to": "2026-09-23",
+    "label": "Santa Tecla"
+   },
+   {
+    "from": "2026-11-02",
+    "to": "2026-11-02",
+    "label": "Libre disposición"
+   },
+   {
+    "from": "2026-12-07",
+    "to": "2026-12-07",
+    "label": "Libre disposición"
+   },
+   {
+    "from": "2027-02-15",
+    "to": "2027-02-15",
+    "label": "Libre disposición"
+   }
+  ],
+  "schedule": {
+   "1": [
+    {
+     "start": "17:30",
+     "end": "19:30",
+     "subject": "MAT",
+     "hours": 2
+    },
+    {
+     "start": "20:00",
+     "end": "21:00",
+     "subject": "CAT",
+     "hours": 1
+    },
+    {
+     "start": "21:00",
+     "end": "22:00",
+     "subject": "FIL",
+     "hours": 1
+    }
+   ],
+   "2": [
+    {
+     "start": "18:30",
+     "end": "19:30",
+     "subject": "ANG",
+     "hours": 1
+    },
+    {
+     "start": "20:00",
+     "end": "22:00",
+     "subject": "FIQ",
+     "hours": 2
+    }
+   ],
+   "3": [
+    {
+     "start": "17:30",
+     "end": "18:30",
+     "subject": "MAT",
+     "hours": 1
+    },
+    {
+     "start": "18:30",
+     "end": "19:30",
+     "subject": "CAT",
+     "hours": 1
+    },
+    {
+     "start": "20:00",
+     "end": "21:00",
+     "subject": "FIL",
+     "hours": 1
+    },
+    {
+     "start": "21:00",
+     "end": "22:00",
+     "subject": "TEC",
+     "hours": 1
+    }
+   ],
+   "4": [
+    {
+     "start": "17:30",
+     "end": "18:30",
+     "subject": "ANG",
+     "hours": 1
+    },
+    {
+     "start": "18:30",
+     "end": "19:30",
+     "subject": "MAT",
+     "hours": 1
+    },
+    {
+     "start": "20:00",
+     "end": "21:00",
+     "subject": "FIQ",
+     "hours": 1
+    },
+    {
+     "start": "21:00",
+     "end": "22:00",
+     "subject": "TEC",
+     "hours": 1
+    }
+   ]
+  },
+  "periods": [],
+  "history": [],
+  "alias": {},
+  "subjects": [
+   {
+    "id": "mmwgfoda1zaz0q",
+    "name": "MAT"
+   },
+   {
+    "id": "mmwgfoda160z7t",
+    "name": "CAT"
+   },
+   {
+    "id": "mmwgfoda1b8mjm",
+    "name": "FIL"
+   },
+   {
+    "id": "mmwgfoda1eas6y",
+    "name": "ANG"
+   },
+   {
+    "id": "mmwgfoda15w8p7",
+    "name": "FIQ"
+   },
+   {
+    "id": "mmwgfoda1b2s4o",
+    "name": "TEC"
+   }
+  ],
+  "disabled": {},
+  "project": null,
+  "nocount": [],
+  "ask": {},
+  "tutChecked": true,
+  "totals": {},
+  "totalsUnified": {},
+  "catalog": {
+   "centre": {
+    "id": null,
+    "name": "Institut Vidal i Barraquer",
+    "code": null,
+    "prov": true
+   },
+   "cycle": {
+    "code": null,
+    "name": "Batxillerat nocturn",
+    "prov": true
+   },
+   "course": null
+  }
+ },
+ "since": "2026-09-14",
+ "settings": {
+  "aviso": 2,
+  "justificadasCuentan": true,
+  "ambito": "trimestre",
+  "retrasosPorFalta": 0,
+  "limite": 20,
+  "justModo": "juntas",
+  "limiteJust": 25,
+  "semanas": 33,
+  "unificar": false
+ },
+ "faltas": [
+  {
+   "id": "umwgfqgfzhpn",
+   "date": "2026-09-22",
+   "term": "1aevaluacin0",
+   "subject": "FIQ",
+   "hours": 1,
+   "type": "falta",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda15w8p7",
+   "start": "20:00"
+  },
+  {
+   "id": "fmwgfqgg08s6lp",
+   "date": "2026-09-22",
+   "term": "1aevaluacin0",
+   "subject": "FIQ",
+   "hours": 1,
+   "type": "falta",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda15w8p7",
+   "start": "21:00"
+  },
+  {
+   "id": "umwgfqgfz5dg",
+   "date": "2026-10-05",
+   "term": "1aevaluacin0",
+   "subject": "MAT",
+   "hours": 1,
+   "type": "falta",
+   "justified": true,
+   "note": "",
+   "sid": "mmwgfoda1zaz0q",
+   "start": "17:30"
+  },
+  {
+   "id": "fmwgfqgg0fhxy0",
+   "date": "2026-10-05",
+   "term": "1aevaluacin0",
+   "subject": "MAT",
+   "hours": 1,
+   "type": "falta",
+   "justified": true,
+   "note": "",
+   "sid": "mmwgfoda1zaz0q",
+   "start": "18:30"
+  },
+  {
+   "id": "umwgfqgfz9ov",
+   "date": "2026-10-15",
+   "term": "1aevaluacin0",
+   "subject": "ANG",
+   "hours": 1,
+   "type": "falta",
+   "justified": true,
+   "note": "",
+   "sid": "mmwgfoda1eas6y",
+   "start": "17:30"
+  },
+  {
+   "id": "umwgfqgfzj47",
+   "date": "2026-10-21",
+   "term": "1aevaluacin0",
+   "subject": "TEC",
+   "hours": 1,
+   "type": "falta",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda1b2s4o",
+   "start": "21:00"
+  },
+  {
+   "id": "umwgfqgfzaze",
+   "date": "2026-10-26",
+   "term": "1aevaluacin0",
+   "subject": "MAT",
+   "hours": 1,
+   "type": "falta",
+   "justified": true,
+   "note": "",
+   "sid": "mmwgfoda1zaz0q",
+   "start": "17:30"
+  },
+  {
+   "id": "umwgfqgfzb82",
+   "date": "2026-10-29",
+   "term": "1aevaluacin0",
+   "subject": "FIQ",
+   "hours": 1,
+   "type": "falta",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda15w8p7",
+   "start": "20:00"
+  },
+  {
+   "id": "umwgfqgfzes8",
+   "date": "2026-11-03",
+   "term": "1aevaluacin0",
+   "subject": "ANG",
+   "hours": 1,
+   "type": "falta",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda1eas6y",
+   "start": "18:30"
+  },
+  {
+   "id": "umwgfqgfzbnz",
+   "date": "2026-11-09",
+   "term": "1aevaluacin0",
+   "subject": "FIL",
+   "hours": 1,
+   "type": "falta",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda1b8mjm",
+   "start": "21:00"
+  },
+  {
+   "id": "umwgfqgfz03f",
+   "date": "2026-11-11",
+   "term": "1aevaluacin0",
+   "subject": "MAT",
+   "hours": 1,
+   "type": "falta",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda1zaz0q",
+   "start": "17:30"
+  },
+  {
+   "id": "umwgfqgfz3na",
+   "date": "2026-11-12",
+   "term": "1aevaluacin0",
+   "subject": "ANG",
+   "hours": 0,
+   "type": "retraso",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda1eas6y"
+  },
+  {
+   "id": "umwgfqgfzg4r",
+   "date": "2026-11-13",
+   "term": "1aevaluacin0",
+   "subject": "MAT",
+   "hours": 1,
+   "type": "falta",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda1zaz0q"
+  },
+  {
+   "id": "umwgfqgfzn2m",
+   "date": "2026-10-12",
+   "term": "1aevaluacin0",
+   "subject": "MAT",
+   "hours": 1,
+   "type": "falta",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda1zaz0q"
+  },
+  {
+   "id": "fmwgfqgg0fl2xe",
+   "date": "2026-10-12",
+   "term": "1aevaluacin0",
+   "subject": "MAT",
+   "hours": 1,
+   "type": "falta",
+   "justified": false,
+   "note": "",
+   "sid": "mmwgfoda1zaz0q"
+  }
+ ]
+}

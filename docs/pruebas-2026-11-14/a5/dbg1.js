@@ -1,0 +1,11 @@
+const L=require('./lib');
+(async()=>{const {b,p,go,shot}=await L.open({w:375,h:667,dir:'shots/alta'});
+await go('2026-11-13',null);
+await p.fill('#ct-q','Institut Vidal i Barraquer');await p.waitForTimeout(600);await p.click('[data-ct]');
+await p.fill('#cy-other input[name=n]','Batxillerat nocturn');await p.click('#cy-other button');await p.click('[data-act=how-paint]');
+await p.fill('#q-sub input[name=s]','MAT');await p.press('#q-sub input[name=s]','Enter');await p.click('[data-act=q-add-done]');
+await p.click('[data-pal="0"]');await p.click('.gc[data-d="1"][data-r="0"]');await p.click('[data-act=q-next]');await p.waitForTimeout(400);
+const r=await p.evaluate(()=>{const out=[];document.querySelectorAll('[data-q-hol]').forEach(x=>{x.scrollIntoView({block:'center'});const r=x.getBoundingClientRect();const e=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);out.push([x.getAttribute('aria-label'),Math.round(r.x),Math.round(r.width),Math.round(r.height),e&&(e.tagName+'.'+e.className),getComputedStyle(x).position,window.innerWidth,document.documentElement.scrollWidth])});return out});
+console.log(r);
+console.log(await p.evaluate(()=>{const c=document.querySelector('.qt .two');const i=c.querySelectorAll('input');const card=c.closest('.card').getBoundingClientRect();return [card.right,[...i].map(x=>x.getBoundingClientRect().right)]}));
+await b.close();})();

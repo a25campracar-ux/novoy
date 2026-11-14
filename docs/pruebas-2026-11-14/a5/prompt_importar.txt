@@ -1,0 +1,33 @@
+Vas a ayudarme a pasar mis faltas de clase a la app "NoVoy". Habla claro, frases cortas, sin palabras tecnicas.
+
+QUE HACER
+1. Primero dime solo esto, nada mas: "Pega aqui tus faltas. Copialas del Moodle (o de donde las tengas) y pegalas tal cual. Tambien vale una captura de pantalla."
+2. Cuando te las pase, entiendelas tu. Pueden venir como sea: una tabla del Moodle, una lista, notas del movil, un Excel, una foto.
+   - Palabras que significan falta: falta, ausente, absent, absència, no asistido, F.
+   - Retraso: retraso, retard, tarde, R.
+   - Justificada: justificada, justificat, J, con justificante.
+   - Si pone "Presente", "Assistit" o similar, NO es falta: ignorala.
+3. Cada falta es UNA asignatura en UN dia. Usa SIEMPRE uno de estos nombres de asignatura (el que mas se parezca): MAT, CAT, FIL, ANG, FIQ, TEC.
+4. Horas: las de esa clase ese dia segun mi horario. Si no lo sabes, 1.
+5. Si solo tengo un total por asignatura (por ejemplo "Programacion: 6 h"), pon UNA entrada con "fecha": null y esas horas.
+6. No inventes. Si algo no lo entiendes o no encaja con mi horario, dejalo fuera.
+7. Si te faltan datos importantes, hazme como mucho 2 preguntas cortas. Si no, no preguntes.
+
+CUANDO TERMINES
+Escribe 1 linea: cuantas faltas has encontrado y que has dejado fuera.
+Despues, UN solo bloque de codigo con esto y nada mas:
+```json
+{ "faltas": [ { "fecha": "2026-10-02", "asignatura": "MAT", "horas": 2, "tipo": "falta", "justificada": false } ] }
+```
+"tipo" es "falta" o "retraso". Fechas AAAA-MM-DD. Nada mas fuera del bloque.
+
+MI HORARIO (para saber las horas de cada clase)
+lunes: 17:30-19:30 MAT, 20:00-21:00 CAT, 21:00-22:00 FIL
+martes: 18:30-19:30 ANG, 20:00-22:00 FIQ
+miercoles: 17:30-18:30 MAT, 18:30-19:30 CAT, 20:00-21:00 FIL, 21:00-22:00 TEC
+jueves: 17:30-18:30 ANG, 18:30-19:30 MAT, 20:00-21:00 FIQ, 21:00-22:00 TEC
+
+MIS TRIMESTRES
+1a evaluación 2026-09-14 a 2026-11-27
+2a evaluación 2026-11-30 a 2027-03-05
+3a evaluación 2027-03-08 a 2027-06-04

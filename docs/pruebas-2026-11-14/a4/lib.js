@@ -1,0 +1,13 @@
+const { chromium } = require('playwright');
+exports.open=async(opts={})=>{const b=await chromium.launch({executablePath:'/usr/bin/google-chrome'});
+const ctx=await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,permissions:['clipboard-read','clipboard-write']});
+const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message+' '+(e.stack||'').split('\n')[1]));
+await p.route('**/fonts.googleapis.com/**',r=>r.abort());await p.route('**/analisi.transparenciacatalunya.cat/**',r=>r.abort());
+const base='file:///home/claude/novoy/site/index.html?d='+(opts.d||'2026-11-13');
+await p.goto(base);await p.evaluate((u)=>{localStorage.clear();if(u)localStorage.setItem('ft.v2',JSON.stringify(u));localStorage.setItem('ft.intro','1');if(u)localStorage.setItem('ft.accx',String(Date.now()));sessionStorage.setItem('ft.sp','1')},opts.state||null);await p.goto(base);await p.waitForTimeout(400);
+const shot=async(n)=>{await p.waitForTimeout(350);await p.screenshot({path:'/tmp/nvtest/a4/w/'+n+'.png',fullPage:true});};
+const txt=async(l,n)=>console.log('--- '+l+'\n'+(await p.innerText('#app')).slice(0,n||1200));
+const els=async()=>console.log(await p.evaluate(()=>[...document.querySelectorAll('#app [data-act],#app [data-ct],#app [data-cy],#app input,#app select,#app [data-qset],#app [data-aj],#app [data-set]')].map(e=>(e.dataset.act||'')+'|'+(e.dataset.cy||'')+'|'+(e.dataset.qset||'')+'|'+(e.dataset.aj||'')+'|'+(e.id||e.name||'')+'|'+(e.innerText||e.value||'').slice(0,40).replace(/\n/g,' ')).join('\n')));
+const st=()=>p.evaluate(()=>JSON.parse(localStorage.getItem('ft.v2')));
+const toast=async()=>{try{return await p.innerText('#toast')}catch(e){return ''}};
+return {b,p,errs,shot,txt,els,st,toast,base};};

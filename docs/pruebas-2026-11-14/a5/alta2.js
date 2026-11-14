@@ -1,0 +1,10 @@
+const L=require('./lib');
+(async()=>{const {b,p,errs,go,shot,st,txt}=await L.open({w:375,h:667,dir:'shots/alta'});
+await go('2026-11-13',null);
+await p.fill('#ct-q','Institut Vidal i Barraquer');await p.waitForTimeout(900);
+await p.click('[data-ct]');
+await p.fill('#cy-other input[name=n]','Batxillerat nocturn');await shot('02b-ciclo-otro');
+await p.click('#cy-other button');await shot('03metodo');console.log('---',await txt());
+console.log(await p.$$eval('[data-act]',els=>els.map(e=>e.dataset.act+': '+e.innerText.replace(/\n/g,' | ').slice(0,80))));
+await p.click('[data-act=how-paint]');await shot('04rejilla0');console.log('---',await txt());
+console.log(errs);await b.close();})().catch(e=>{console.log('FAIL',e.message);process.exit(1)});

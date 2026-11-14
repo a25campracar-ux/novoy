@@ -1,0 +1,306 @@
+{
+ "tot": {
+  "B1": {
+   "ASO": 41,
+   "SAD": 42,
+   "SXI": 55,
+   "IAW": 39,
+   "ASGBD": 55,
+   "EIE": 22,
+   "TUT": 11,
+   "DIG": 12,
+   "PRJ": 30,
+   "CIB": 15
+  },
+  "B2": {
+   "ASGBD": 32,
+   "EIE": 12,
+   "TUT": 6,
+   "ASO": 24,
+   "SAD": 24,
+   "IAW": 16,
+   "DIG": 8,
+   "SXI": 29,
+   "CIB": 19,
+   "PRJ": 30
+  }
+ },
+ "rem": {
+  "B1": {
+   "SAD": 12,
+   "ASO": 12,
+   "SXI": 15,
+   "IAW": 9,
+   "CIB": 9,
+   "ASGBD": 15,
+   "EIE": 6,
+   "TUT": 3,
+   "DIG": 2
+  },
+  "B2": {
+   "ASGBD": 32,
+   "EIE": 12,
+   "TUT": 6,
+   "ASO": 24,
+   "SAD": 24,
+   "IAW": 16,
+   "DIG": 8,
+   "SXI": 29,
+   "CIB": 19,
+   "PRJ": 30
+  }
+ },
+ "res": {
+  "ASO": {
+   "total": 41,
+   "limite15": 6.15,
+   "injust": 1,
+   "retrasos": 2,
+   "cuentan": 2,
+   "pct": 4.9,
+   "margen": 4.15,
+   "just": 3,
+   "limJ10": 4.1,
+   "margenJ": 1.1,
+   "quedanClase": 12
+  },
+  "SAD": {
+   "total": 42,
+   "limite15": 6.3,
+   "injust": 5,
+   "retrasos": 0,
+   "cuentan": 5,
+   "pct": 11.9,
+   "margen": 1.3,
+   "just": 0,
+   "limJ10": 4.2,
+   "margenJ": 4.2,
+   "quedanClase": 12
+  },
+  "SXI": {
+   "total": 55,
+   "limite15": 8.25,
+   "injust": 0,
+   "retrasos": 0,
+   "cuentan": 0,
+   "pct": 0,
+   "margen": 8.25,
+   "just": 0,
+   "limJ10": 5.5,
+   "margenJ": 5.5,
+   "quedanClase": 15
+  },
+  "IAW": {
+   "total": 39,
+   "limite15": 5.85,
+   "injust": 4,
+   "retrasos": 0,
+   "cuentan": 4,
+   "pct": 10.3,
+   "margen": 1.85,
+   "just": 0,
+   "limJ10": 3.9,
+   "margenJ": 3.9,
+   "quedanClase": 9
+  },
+  "ASGBD": {
+   "total": 55,
+   "limite15": 8.25,
+   "injust": 0,
+   "retrasos": 2,
+   "cuentan": 1,
+   "pct": 1.8,
+   "margen": 7.25,
+   "just": 4,
+   "limJ10": 5.5,
+   "margenJ": 1.5,
+   "quedanClase": 15
+  },
+  "EIE": {
+   "total": 22,
+   "limite15": 3.3,
+   "injust": 0,
+   "retrasos": 0,
+   "cuentan": 0,
+   "pct": 0,
+   "margen": 3.3,
+   "just": 0,
+   "limJ10": 2.2,
+   "margenJ": 2.2,
+   "quedanClase": 6
+  },
+  "TUT": {
+   "total": 11,
+   "limite15": 1.65,
+   "injust": 0,
+   "retrasos": 0,
+   "cuentan": 0,
+   "pct": 0,
+   "margen": 1.65,
+   "just": 0,
+   "limJ10": 1.1,
+   "margenJ": 1.1,
+   "quedanClase": 3
+  },
+  "DIG": {
+   "total": 12,
+   "limite15": 1.8,
+   "injust": 4,
+   "retrasos": 0,
+   "cuentan": 4,
+   "pct": 33.3,
+   "margen": -2.2,
+   "just": 0,
+   "limJ10": 1.2,
+   "margenJ": 1.2,
+   "quedanClase": 2
+  },
+  "PRJ": {
+   "total": 30,
+   "limite15": 4.5,
+   "injust": 2,
+   "retrasos": 0,
+   "cuentan": 2,
+   "pct": 6.7,
+   "margen": 2.5,
+   "just": 0,
+   "limJ10": 3,
+   "margenJ": 3,
+   "quedanClase": 0
+  },
+  "CIB": {
+   "total": 15,
+   "limite15": 2.25,
+   "injust": 2,
+   "retrasos": 1,
+   "cuentan": 2,
+   "pct": 13.3,
+   "margen": 0.25,
+   "just": 0,
+   "limJ10": 1.5,
+   "margenJ": 1.5,
+   "quedanClase": 9
+  }
+ },
+ "F": [
+  [
+   "2026-09-21",
+   "ASO",
+   0,
+   "retraso",
+   0
+  ],
+  [
+   "2026-09-22",
+   "IAW",
+   3,
+   "falta",
+   0
+  ],
+  [
+   "2026-09-28",
+   "ASO",
+   3,
+   "falta",
+   1
+  ],
+  [
+   "2026-10-05",
+   "ASO",
+   0,
+   "retraso",
+   0
+  ],
+  [
+   "2026-10-07",
+   "ASGBD",
+   0,
+   "retraso",
+   0
+  ],
+  [
+   "2026-10-08",
+   "SAD",
+   2,
+   "falta",
+   0
+  ],
+  [
+   "2026-10-08",
+   "ASO",
+   1,
+   "falta",
+   0
+  ],
+  [
+   "2026-10-14",
+   "ASGBD",
+   0,
+   "retraso",
+   0
+  ],
+  [
+   "2026-10-15",
+   "DIG",
+   2,
+   "falta",
+   0
+  ],
+  [
+   "2026-10-16",
+   "ASGBD",
+   2,
+   "falta",
+   1
+  ],
+  [
+   "2026-10-21",
+   "PRJ",
+   2,
+   "falta",
+   0
+  ],
+  [
+   "2026-11-02",
+   "SAD",
+   3,
+   "falta",
+   0
+  ],
+  [
+   "2026-11-06",
+   "CIB",
+   2,
+   "falta",
+   0
+  ],
+  [
+   "2026-11-06",
+   "ASGBD",
+   2,
+   "falta",
+   1
+  ],
+  [
+   "2026-11-10",
+   "CIB",
+   0,
+   "retraso",
+   0
+  ],
+  [
+   "2026-11-12",
+   "DIG",
+   2,
+   "falta",
+   0
+  ],
+  [
+   "2026-11-12",
+   "IAW",
+   1,
+   "falta",
+   0
+  ]
+ ]
+}

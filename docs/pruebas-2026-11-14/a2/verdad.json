@@ -1,0 +1,122 @@
+[
+ {
+  "modulo": "Benestar",
+  "sem": 3,
+  "total": 99,
+  "limite": 19.8,
+  "injust": 3,
+  "just": 1,
+  "retrasos": 1,
+  "cuentan": 3,
+  "pct": 3,
+  "quedan": 16.8
+ },
+ {
+  "modulo": "Cures",
+  "sem": 6,
+  "total": 198,
+  "limite": 39.6,
+  "injust": 9,
+  "just": 6,
+  "retrasos": 3,
+  "cuentan": 10,
+  "pct": 5.1,
+  "quedan": 29.6
+ },
+ {
+  "modulo": "FOL",
+  "sem": 2,
+  "total": 66,
+  "limite": 13.2,
+  "injust": 2,
+  "just": 1,
+  "retrasos": 0,
+  "cuentan": 2,
+  "pct": 3,
+  "quedan": 11.2
+ },
+ {
+  "modulo": "Higiene",
+  "sem": 3,
+  "total": 99,
+  "limite": 19.8,
+  "injust": 2,
+  "just": 2,
+  "retrasos": 0,
+  "cuentan": 2,
+  "pct": 2,
+  "quedan": 17.8
+ },
+ {
+  "modulo": "OADS",
+  "sem": 2,
+  "total": 66,
+  "limite": 13.2,
+  "injust": 3,
+  "just": 0,
+  "retrasos": 0,
+  "cuentan": 3,
+  "pct": 4.5,
+  "quedan": 10.2
+ },
+ {
+  "modulo": "Odonto",
+  "sem": 2,
+  "total": 66,
+  "limite": 13.2,
+  "injust": 4,
+  "just": 0,
+  "retrasos": 3,
+  "cuentan": 5,
+  "pct": 7.6,
+  "quedan": 8.2
+ },
+ {
+  "modulo": "Primers auxilis",
+  "sem": 2,
+  "total": 66,
+  "limite": 13.2,
+  "injust": 2,
+  "just": 4,
+  "retrasos": 0,
+  "cuentan": 2,
+  "pct": 3,
+  "quedan": 11.2
+ },
+ {
+  "modulo": "Relacions",
+  "sem": 2,
+  "total": 66,
+  "limite": 13.2,
+  "injust": 0,
+  "just": 0,
+  "retrasos": 0,
+  "cuentan": 0,
+  "pct": 0,
+  "quedan": 13.2
+ },
+ {
+  "modulo": "Suport",
+  "sem": 2,
+  "total": 66,
+  "limite": 13.2,
+  "injust": 11,
+  "just": 0,
+  "retrasos": 0,
+  "cuentan": 11,
+  "pct": 16.7,
+  "quedan": 2.2
+ },
+ {
+  "modulo": "Ésser humà",
+  "sem": 5,
+  "total": 165,
+  "limite": 33,
+  "injust": 3,
+  "just": 2,
+  "retrasos": 2,
+  "cuentan": 3,
+  "pct": 1.8,
+  "quedan": 30
+ }
+]

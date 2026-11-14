@@ -1,0 +1,12 @@
+const {P,H,FEST,TERMS,F,R}=require('./caso_data.js');
+const wd=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).getDay()};
+const LIM=0.20,SEM=33,NRET=3;
+const weekly={};Object.values(H).forEach(a=>a.forEach(m=>weekly[m]=(weekly[m]||0)+1));
+const inj={},just={},ret={};
+F.forEach(([d,ps,j])=>ps.forEach(p=>{const m=H[wd(d)][p-1];(j?just:inj)[m]=((j?just:inj)[m]||0)+1}));
+R.forEach(([d,p,j])=>{if(j)return;const m=H[wd(d)][p-1];ret[m]=(ret[m]||0)+1});
+const rows=[];
+Object.keys(weekly).filter(m=>m!=='Tutoria').sort().forEach(m=>{const tot=weekly[m]*SEM,rf=Math.floor((ret[m]||0)/NRET),abs=(inj[m]||0)+rf,lim=tot*LIM;
+ rows.push({modulo:m,sem:weekly[m],total:tot,limite:+lim.toFixed(1),injust:inj[m]||0,just:just[m]||0,retrasos:ret[m]||0,cuentan:abs,pct:+(abs/tot*100).toFixed(1),quedan:+(lim-abs).toFixed(1)})});
+console.table(rows);require('fs').writeFileSync('verdad.json',JSON.stringify(rows,null,1));
+console.log('horas sem',Object.values(weekly).reduce((a,b)=>a+b),'faltas-hora',F.reduce((n,f)=>n+f[1].length,0),'retrasos',R.length);
