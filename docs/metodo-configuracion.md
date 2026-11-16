@@ -84,19 +84,28 @@ Todas cuentan juntas y 15 %, marcado «aproximado». No se comparte con la clase
 
 Las horas de cada RA no salen del horario: las fija la programación del módulo. Por ahora se calcula por trimestre y se avisa en ámbar de que es aproximado.
 
-### Proyectos y módulos que empiezan a mitad de curso (pedido el 16/11/2026, sin hacer)
+### Proyectos y módulos que empiezan a mitad de curso (hecho el 16/11/2026, tareas 1.5 y 1.11)
 
-Ahora mismo la v2 cuenta cada módulo desde el primer día del curso, y eso da margen de más.
+- **En el alta**, tras el horario: «¿Tu horario cambia durante el curso?» → [No, es igual todo el curso] · [Sí, tiene casos especiales]. Si dice que sí, al acabar va a Ajustes → Asignaturas.
+- **Cada hora puede contar dentro de otra asignatura** (bloque con `cuenta`): las horas y las faltas de esa hora suman en esa asignatura. Así se reparte el PROJ entre E.CLI, CTR y DAW.
+- **Fechas por asignatura** (`config.vigencia[asignatura] = { desde, hasta, antes }`):
+  - fuera de su periodo la asignatura no tiene horas ni margen;
+  - con `antes`, hasta que empieza esas horas son de otra asignatura para Hoy y para las faltas, pero no le suman al total de esa otra (lado estricto).
+- **Semanas con otro horario** (`config.periods` con `todo`): del día X al Y todas las clases son de una asignatura, por ejemplo el proyecto.
+- **Regla propia** (`settings.porAsignatura[asignatura].limites`): manda sobre la general en esa asignatura.
+- **Plantilla:** `cuenta`, `vigencia` y `periodos` viajan en la plantilla del grupo (el servidor los valida). Nunca faltas.
+- **Pruebas** (`tests/v2-casos.test.js`): módulo que empieza en el 2º trimestre, semana de proyecto, curso que acaba en marzo, reparto de PROJ y regla propia. En todos, el margen nunca sale de más.
 
-El plan es la tarea 1.11 de `hoja-de-ruta.md`:
+## Cambiar después, en Ajustes (hecho el 16/11/2026, tarea 1.4)
 
-- **Pregunta en el alta:** «¿Alguna asignatura empieza más tarde o solo dura unas semanas?».
-- **Tres casos por asignatura:** empieza el…, solo unas semanas, acaba el….
-- **Normas solo en su periodo:** su total y su límite se calculan con las horas de ese periodo.
-- **Regla propia** si el centro la tiene.
-- **Plantilla:** todo esto viaja en la plantilla del grupo.
+`alta.html?editar=horario|calendario|reglas|faltas` abre los mismos pasos del alta con lo que ya tienes, sin barra de pasos y volviendo a la app. Solo se guarda la parte cambiada:
 
-El motor de la v1 ya tiene la base (`disabled` con fecha, `project`, `periods` e `history`), pero falta comprobarlo con pruebas.
+- **horario:** pregunta «¿Desde cuándo vale este horario?» (hoy, otro día o siempre) y guarda el anterior en el historial; conserva las «cuenta dentro de» y rehace las semanas especiales;
+- **reglas:** el mismo flujo con ramas, empezando por las respuestas que diste (`settings.respuestas`);
+- **calendario:** trimestres, festivos locales y días de libre disposición;
+- **faltas:** pegar, capturas, IA o a mano; una lista nueva manda sobre lo del mismo día, asignatura y tipo.
+
+Si se comparte con la clase, se publica la versión nueva de la plantilla.
 
 ## Faltas de antes (petición del autor, 16/11/2026)
 
@@ -158,6 +167,4 @@ Otros detalles de cómo funciona:
 ## Pendiente
 
 - Probar en un iPhone y un Android reales: galería, cámara, arrastrar en la rejilla, «Pegar lo que he copiado» y capturas de listas reales de Moodle e iEduca. El autor ya probó en iPhone el alta, el pegado de iEduca y la captura del horario.
-- Ajustes v2: cambiar reglas, días de libre disposición, festivos y horario sin rehacer el alta.
-- Proyectos y módulos que empiezan a mitad de curso (tarea 1.11).
 - Script de PDF de centros: antes, revisar a mano 20 centros con FP. Si 6 o más publican calendario, hacerlo (8–12 h).

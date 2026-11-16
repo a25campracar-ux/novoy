@@ -1,6 +1,6 @@
 # NoVoy · Índice del proyecto
 
-Última revisión: 16/11/2026, tarde (tras 1.1 y 1.2). Este índice dice qué hay, dónde está y en qué estado. Empieza por aquí en cualquier conversación nueva sobre NoVoy.
+Última revisión: 16/11/2026, noche (Fase 1 hecha salvo publicar). Este índice dice qué hay, dónde está y en qué estado. Empieza por aquí en cualquier conversación nueva sobre NoVoy.
 
 **Lo siguiente que toca está en `claude/hoja-de-ruta.md`, apartado 6 «Próximas sesiones».**
 
@@ -16,7 +16,7 @@ NoVoy es una web instalable (PWA) para móvil que dice a un estudiante si puede 
 | Qué | Dónde |
 | --- | --- |
 | App en producción (v1) | https://novoy-72h.pages.dev (Cloudflare Pages, rama `main`) |
-| v2 en pruebas | https://v2.novoy-72h.pages.dev (Hoy nueva; el alta en /alta.html; Resumen, Faltas y Ajustes de la v1 en /clasica.html). Rama `v2`, se publica sola en cada push si pasan las pruebas |
+| v2 en pruebas | https://v2.novoy-72h.pages.dev (Hoy · Faltas · Ajustes; el alta en /alta.html; aviso legal en /legal.html). Rama `v2`, se publica sola en cada push si pasan las pruebas |
 | Despliegue antiguo | https://novoy.netlify.app (sin las funciones nuevas de servidor) |
 | Código | github.com/a25campracar-ux/novoy (público). Pruebas y recorridos en Chrome en GitHub Actions y en la compilación de Cloudflare |
 | Versión anterior | rama `v1-novoy` |
@@ -44,21 +44,15 @@ NoVoy es una web instalable (PWA) para móvil que dice a un estudiante si puede 
 
 Los mismos archivos están en el repositorio, en la carpeta `docs/`. Allí están también los guiones de Playwright y 482 capturas reducidas que no caben aquí.
 
-## Estado a 16/11/2026 (tarde)
+## Estado a 16/11/2026 (noche)
 
-- **En producción (v1, rama `main`):** sin cambios. No compartir el enlace «Pásalo a tu clase», porque borra las faltas de quien lo abre.
-- **Versión 2 (rama `v2`):**
-  - Motor con 1 o 2 límites.
-  - Alta completa: instituto, horario por captura, pintado o plantilla; calendario con festivos locales reales; reglas con ramas; faltas de antes pegando la lista, con capturas o con una IA.
-  - Plantillas compartidas.
-  - Pantalla Hoy nueva con «Fui» y «Falté» por asignatura, «Falté todo el día» y «Falté a…» (tareas 1.1 y 1.2).
-  - Resumen, Faltas y Ajustes siguen siendo los de la v1.
-  - Probada por el autor en iPhone con su lista de iEduca y la captura de su horario: 6 fallos encontrados y arreglados.
-- **Hecho hoy:**
-  - Leer dos veces la lista ya no suma de más.
-  - Fichas de asignatura nuevas, sin repetidas, con cruz y «Deshacer».
-  - El horario desde una captura ya trae sus horas (salía «undefined»).
-- **Siguiente:** 1.5 y 1.11 (repartir PROJ y normas de proyectos y módulos que empiezan a mitad de curso). Mensaje: «Fase 1: tareas 1.5 y 1.11».
+- **En producción (v1, rama `main`):** sin cambios. No compartir el enlace «Pásalo a tu clase» de la v1, porque borra las faltas de quien lo abre.
+- **Versión 2 (rama `v2`): la Fase 1 está hecha salvo publicar.**
+  - Alta completa, con «¿Tu horario cambia durante el curso?» y «Ya tengo cuenta».
+  - Hoy con «Fui» y «Falté», «Falté a…» y Simular.
+  - Faltas por asignatura: justificar y borrar.
+  - Ajustes: horario, asignaturas con casos especiales (PROJ por clase, fechas, semanas especiales, regla propia), reglas, calendario, pasar la lista, enlace de clase, cuenta, instalar, aviso legal y borrar todo.
+- **Pendiente del autor:** poner su reparto de PROJ, probar con sus faltas reales, aprobar el aviso legal y decir «publica».
 - **Sin validar:** que la fórmula coincida con lo que calcula cada centro. **Sin probar con personas reales.**
 
 ## Cómo mantener este proyecto

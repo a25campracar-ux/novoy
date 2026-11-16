@@ -211,3 +211,9 @@ Las decisiones nuevas se añaden al final con fecha.
 - Hecho así; con 2 h o más de una asignatura ese día se añade «Solo a las…» para
   faltar a una hora suelta.
 
+## 16/11/2026 · Resto de la Fase 1
+
+- Pidió hacer las tareas 1.5 y 1.11 y el resto de la Fase 1 siguiendo el rediseño, con una
+  interfaz intuitiva y simple. Hecho todo salvo publicar (1.10), que espera su «publica»,
+  y el aviso legal (1.9), que espera su visto bueno.
+

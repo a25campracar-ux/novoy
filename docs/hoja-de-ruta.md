@@ -1,28 +1,48 @@
 # NoVoy · Hoja de ruta y lista de tareas
 
-Actualizada el 16/11/2026 por la tarde (tras 1.1 y 1.2). Es una lista viva: se actualiza al acabar cada sesión.
+Actualizada el 16/11/2026 por la noche (Fase 1 hecha salvo publicar). Es una lista viva: se actualiza al acabar cada sesión.
 
 - **Quién:** **Tú** = C33 · **Claude** = código, pruebas y documentación.
 - **Estados:** ✅ hecho · 🟡 en curso · ⬜ pendiente · ⏸ aparcado.
 
 ## 1. Dónde estamos
 
-**La v2 tiene el alta completa y la pantalla Hoy nueva, con «Fui», «Falté» y «Falté a…».**
-Resumen, Faltas y Ajustes siguen siendo los de la v1, y nadie aparte de ti ha probado la v2.
+**La v2 está completa: alta, Hoy, Faltas y Ajustes nuevos. Solo falta que la pruebes y digas «publica».**
+Nadie aparte de ti ha probado la v2, y el aviso legal espera tu visto bueno.
 
 | Pieza | Estado | Dónde |
 | --- | --- | --- |
 | App publicada (v1) | Sin cambios. Tiene los 19 fallos de las pruebas | novoy-72h.pages.dev · rama `main` |
-| v2 en pruebas | Alta nueva + Hoy nueva; Resumen, Faltas y Ajustes de la v1 (`clasica.html`) | v2.novoy-72h.pages.dev · rama `v2` |
-| Motor | Reglas con 1 o 2 límites, veredicto estricto, «Solo con justificante». Ya sabe de módulos que empiezan tarde y de semanas de proyecto (v1), pero la v2 no lo pregunta | `site/core.js` |
+| v2 en pruebas | Todo nuevo: tres pestañas Hoy · Faltas · Ajustes. La v1 (`clasica.html`) solo abre los enlaces `#c=` antiguos | v2.novoy-72h.pages.dev · rama `v2` |
+| Motor | Reglas con 1 o 2 límites, «Solo con justificante», clases que cuentan dentro de otra asignatura (PROJ), fechas por asignatura, semanas con otro horario y regla propia por asignatura | `site/core.js` |
 | Alta v2 | Instituto, ciclo y turno; plantilla de clase, captura o pintar; calendario oficial con festivos locales reales; reglas con ramas; faltas de antes (pegar, capturas, IA, a mano) | `site/alta.html`, `site/v2/` |
 | Servidor | Cuentas cifradas, catálogo «Otro», plantillas compartidas `/api/plantilla` | `worker/_worker.js` |
+| Faltas y Ajustes v2 | Faltas por asignatura (justificar, borrar); Ajustes con horario, asignaturas (casos especiales), reglas, calendario, pasar lista, enlace de clase, cuenta, instalar, aviso legal | `site/v2/pantalla-faltas.js`, `pantalla-ajustes.js`, `lista.js`, `ajustes.js`, `cuenta.js` |
 | Pantalla Hoy v2 | Semáforo, tarjeta por asignatura con «Fui» y «Falté», «Falté todo el día», «Falté a…» (hoy o días pasados, horas sueltas, retraso, justificante), pregunta por días sin apuntar | `site/index.html`, `site/v2/hoy.js`, `site/v2/app.js` |
-| Pruebas | 10 pruebas de lógica y 10 recorridos en Chrome en cada push (GitHub Actions). Cloudflare no publica si fallan las de lógica | `tests/`, `scripts/e2e-alta.mjs`, `scripts/e2e-hoy.mjs` |
+| Pruebas | 12 archivos de pruebas de lógica y 16 recorridos en Chrome en cada push (GitHub Actions). Cloudflare no publica si fallan las de lógica | `tests/`, `scripts/e2e-alta.mjs`, `e2e-hoy.mjs`, `e2e-ajustes.mjs` |
 | Probado con datos reales | Tu lista de iEduca y tu captura del horario: 6 fallos encontrados y arreglados. Festivos de 5 municipios | — |
 | Probado con personas | Nadie aparte de ti | — |
 
-### Hecho el 16/11 (última sesión): tareas 1.1 y 1.2
+### Hecho el 16/11 (noche): el resto de la Fase 1
+
+- **Tres pestañas: Hoy · Faltas · Ajustes.** Faltas hace también de Resumen; el simulador está dentro de Hoy.
+- **Faltas (1.3).** Cada asignatura con «te quedan X h», «llevas Y %» y sus barras, la más justa arriba. Al tocarla salen sus faltas por día, con «Justificar» y «Borrar» (con «Deshacer»). Justificar una falta concreta: 3 toques. Elige trimestre. «Apuntar otro día» (cualquier día del curso, nunca un festivo) y «Pasar mi lista».
+- **Ajustes (1.4).** Horario, Asignaturas, Reglas de faltas, Calendario, Pasar mi lista, Pásalo a tu clase, Tu cuenta, Ponla en tu pantalla de inicio, Aviso legal y Borrar todo. Cambiar el horario, las reglas, el calendario o pasar más faltas usa **los mismos pasos del alta**, sin barra de pasos y volviendo a Ajustes. El horario pregunta «¿Desde cuándo vale?» (desde hoy, otro día o desde siempre): con «desde hoy», las faltas de antes siguen con el horario de antes.
+- **Fallo 7 en la v2, arreglado.** Abrir el horario y guardarlo sin tocar lo cambiaba si un día tenía recreo y otro no (el viernes de 17:00 a 19:00 pasaba de 2 h a 3 h). Con prueba.
+- **PROJ por clase (1.5).** Ajustes → Asignaturas → PROJ → «¿Sus clases cuentan dentro de otra asignatura?»: cada hora elige su módulo (E.CLI, CTR, DAW…). Las horas y las faltas de esa hora cuentan en ese módulo, y en Hoy salen dentro de su tarjeta («incluye PROJ»). Se conserva al cambiar el horario.
+- **Mitad de curso (1.11).**
+  - En el alta, tras el horario: «¿Tu horario cambia durante el curso?» (un toque si no). Si dices que sí, al acabar te lleva a Ajustes → Asignaturas.
+  - Por asignatura: «Empieza el…», «Acaba el…» y «Mientras no empieza, sus horas son de…». Fuera de su periodo no tiene horas ni margen; en Hoy sale «Empiezan más tarde: Sistemes (8 ene)».
+  - Semanas con otro horario (Ajustes → Horario): del día X al Y todo es de una asignatura.
+  - Regla propia por asignatura (por ejemplo, el proyecto al 10 %).
+  - Todo viaja en la plantilla del grupo: el compañero lo ve en «¿Es este tu horario?» («con sus casos especiales»).
+  - Pruebas de los cuatro casos (módulo que empieza en el 2º trimestre, semana de proyecto, curso que acaba en marzo, reparto de PROJ): el margen nunca sale de más.
+- **Simulador (1.6).** Botón «Simular» en Hoy: los próximos 10 días de clase y «Tendré justificante». No apunta nada.
+- **Enlace de clase (1.7).** Ajustes → Pásalo a tu clase: el enlace lleva instituto, ciclo y turno, nunca faltas ni horario. El compañero cae en «¿Es este tu horario?». Si quien lo abre ya usa NoVoy, ve «Ya usas NoVoy» y no se le toca nada (fallo 1).
+- **Cuenta (1.8).** Crear (usuario de frutas, requisitos de la contraseña en vivo), guardado automático y cifrado, «Ya tengo cuenta» en la primera pantalla del alta para recuperar en otro móvil, cerrar sesión y **borrar la cuenta** del servidor. A la semana de uso, Hoy propone guardarla (una vez, con «Ahora no»).
+- **Aviso legal (1.9).** Página `legal.html` y una línea al acabar el alta: «La cifra oficial es siempre la de tu centro» y qué datos salen del móvil. **Espera tu visto bueno.**
+
+### Hecho el 16/11 (tarde): tareas 1.1 y 1.2
 
 - **Pantalla Hoy nueva** en la dirección principal de la v2. El semáforo solo mira las clases que aún no has apuntado, así que ya no cuenta dos veces lo de hoy (fallo 4). Nombra la asignatura más justa (fallo 15). Si te has pasado dice «te pasas X h», nunca «0 h» (fallo 9). Con dos límites: «Solo con justificante» y dos barras con su nombre. Debajo, «Comprobado con tu lista hace X días» (cuenta desde el día que pegaste tu lista en el alta).
 - **«Fui» y «Falté» en cada asignatura** (lo que pediste): «Fui» en verde. Tras «Fui», la tarjeta deja de enseñar lo que pasaría si faltas y enseña lo que tienes ahora: «Fuiste · te quedan X h · llevas Y %» y «Llevas A h de B h que puedes faltar». Con 2 h o más ese día: «Fui», «Falté 2 h» y «Solo a las 15:00 / 16:00». Todo con «Deshacer», y «Cambiar» o «Quitar» después.
@@ -46,13 +66,8 @@ Resumen, Faltas y Ajustes siguen siendo los de la v1, y nadie aparte de ti ha pr
 1. La fórmula (horas semanales × 33) no se ha comparado con el porcentaje que da ningún centro.
 2. El límite por RA se calcula por trimestre (aproximado).
 3. La vaga se cuenta como falta sin justificar mientras no se sepa cómo la cuenta cada centro.
-4. En tu centro, las horas de PROJ cuentan dentro de E.CLI, CTR o DAW según el profesor. La v2 todavía no permite repartirlas (la v1 sí, con «unificar»). → tarea 1.5
-5. **Módulos y proyectos que empiezan a mitad de curso.** La v2 cuenta todos los módulos desde el primer día. Pasa en tres casos:
-   - el módulo empieza en el 2º trimestre;
-   - el proyecto ocupa unas semanas concretas;
-   - la estancia en empresa corta las clases.
-
-   En los tres, el total de horas sale de más y por tanto el margen también, que es el lado peligroso. → tarea 1.11
+4. En tu centro, las horas de PROJ cuentan dentro de E.CLI, CTR o DAW según el profesor. Ya se puede repartir hora a hora, pero **tienes que ponerlo tú** en Ajustes → Asignaturas → PROJ. → tarea 1.5
+5. Módulos y proyectos que empiezan a mitad de curso: resuelto (1.11), pero solo si el alumno lo indica. Quien diga «No, es igual todo el curso» sin serlo tendrá margen de más.
 
 ## 2. Hacia dónde vamos
 
@@ -83,15 +98,15 @@ Decidido el 15–16/11: sin acuerdos con centros, sin servidor de pago y sin lee
 | --- | --- | --- | --- | --- | --- |
 | 1.1 | Pantalla Hoy nueva | Claude | ✅ 16/11 | Semáforo con su tono; una tarjeta por clase de hoy con «si faltas, te quedan X h»; dos barras si hay dos límites; «Solo con justificante»; «Comprobado hace X días»; % como dato secundario | Recorrido en Chrome; no repite los fallos 4, 9 y 15 de la v1 |
 | 1.2 | «Falté a…» y «Todo el día» (más «Fui» por clase, pedido el 16/11) | Claude | ✅ 16/11 | Solo las clases de hoy (o de un día pasado), un toque por clase, retraso, deshacer | 3 toques como máximo para un día entero; no deja apuntar en festivos ni fuera de curso (fallo 5) |
-| 1.3 | Faltas: lista, corregir y justificar | Claude | ⬜ | Agrupadas por asignatura; pasar a justificada con un toque; borrar con deshacer | Encontrar y justificar una falta concreta en ≤ 3 toques |
-| 1.4 | Ajustes v2 | Claude | ⬜ | Cambiar reglas (mismo flujo de ramas), días de libre disposición, festivos, trimestres, horario («¿desde cuándo vale?»), módulos que no cursas, pasar más faltas | Cambiar una regla sin rehacer el alta; una prueba demuestra que el horario no se rompe al guardar sin tocar (fallo 7) |
-| 1.5 | Repartir PROJ entre módulos | Claude | ⬜ | En Ajustes y en el alta: «Esta clase cuenta dentro de…» por bloque del horario. Tu caso: PROJ de Álvaro → E.CLI; PROJ de Pol → 1 h E.CLI y 1 h CTR; PROJ de Ermengol → DAW | Tus totales coinciden con tu hoja de Notion |
-| 1.6 | Simulador dentro de Hoy | Claude | ⬜ | Selector de fecha y «Tendré justificante» | Decisión del autor: se conserva |
-| 1.7 | Enlace de clase nuevo | Claude | ⬜ | «Pásalo a tu clase» lleva centro, ciclo y turno: el compañero cae directo en «¿Es este tu horario?». Nunca toca las faltas de nadie | Sustituye al enlace de la v1 que borra faltas (fallo 1) |
-| 1.8 | Cuentas y copia en la v2 | Claude | ⬜ | Reutilizar `acct.js`; aviso para guardar la cuenta tras una semana de uso | Restaurar en otro móvil con usuario y contraseña |
-| 1.9 | Aviso legal mínimo | Claude + Tú | ⬜ | Una línea en el alta y una página: «La cifra oficial es la de tu centro», qué datos salen del móvil y cuáles no | Tú lo apruebas |
+| 1.3 | Faltas: lista, corregir y justificar | Claude | ✅ 16/11 | Agrupadas por asignatura; pasar a justificada con un toque; borrar con deshacer | Encontrar y justificar una falta concreta en ≤ 3 toques |
+| 1.4 | Ajustes v2 | Claude | ✅ 16/11 | Cambiar reglas (mismo flujo de ramas), días de libre disposición, festivos, trimestres, horario («¿desde cuándo vale?»), módulos que no cursas, pasar más faltas | Cambiar una regla sin rehacer el alta; una prueba demuestra que el horario no se rompe al guardar sin tocar (fallo 7) |
+| 1.5 | Repartir PROJ entre módulos | Claude + Tú | 🟡 Hecho; falta que pongas tu reparto | En Ajustes y en el alta: «Esta clase cuenta dentro de…» por bloque del horario. Tu caso: PROJ de Álvaro → E.CLI; PROJ de Pol → 1 h E.CLI y 1 h CTR; PROJ de Ermengol → DAW | Tus totales coinciden con tu hoja de Notion |
+| 1.6 | Simulador dentro de Hoy | Claude | ✅ 16/11 | Selector de fecha y «Tendré justificante» | Decisión del autor: se conserva |
+| 1.7 | Enlace de clase nuevo | Claude | ✅ 16/11 | «Pásalo a tu clase» lleva centro, ciclo y turno: el compañero cae directo en «¿Es este tu horario?». Nunca toca las faltas de nadie | Sustituye al enlace de la v1 que borra faltas (fallo 1) |
+| 1.8 | Cuentas y copia en la v2 | Claude | ✅ 16/11 | Reutilizar `acct.js`; aviso para guardar la cuenta tras una semana de uso | Restaurar en otro móvil con usuario y contraseña |
+| 1.9 | Aviso legal mínimo | Claude + Tú | 🟡 Escrito; falta tu visto bueno | Una línea en el alta y una página: «La cifra oficial es la de tu centro», qué datos salen del móvil y cuáles no | Tú lo apruebas |
 | 1.10 | Publicar | Claude | ⬜ | Fusionar `v2` en `main` cuando tú digas «publica»; la v1 queda en `v1-novoy` | La dirección de siempre abre la v2 y tus datos siguen ahí |
-| **1.11** | **Normas de proyectos y módulos que empiezan a mitad de curso** (pedido el 16/11) | Claude | ⬜ | Ver el detalle debajo de esta tabla | Pruebas con los 4 casos; en tu caso, PROJ y E.CLI dan lo mismo que tu Notion |
+| **1.11** | **Normas de proyectos y módulos que empiezan a mitad de curso** (pedido el 16/11) | Claude | ✅ 16/11 | Ver el detalle debajo de esta tabla | Pruebas con los 4 casos; en tu caso, PROJ y E.CLI dan lo mismo que tu Notion |
 
 **Cómo se hace la 1.11.** El motor de la v1 ya tiene la base (`disabled` con fecha, `project` con semanas propias, `periods` e `history`). Hay que comprobar con pruebas que hace bien el recuento, conectarlo a la v2 y hacerlo fácil de entender:
 
@@ -183,7 +198,9 @@ Decidido el 15–16/11: sin acuerdos con centros, sin servidor de pago y sin lee
 2. ¿El repositorio sigue público? Tiene informes de pruebas dentro.
 3. ¿Catalán antes o después de publicar?
 4. ¿Quién mantiene NoVoy en junio y septiembre?
-5. Para la 1.11: en tu centro, ¿hay algún módulo de 2º que empiece en el 2º o 3º trimestre, o semanas de proyecto sin horario normal? ¿Y el PROJ tiene una norma de faltas propia?
+5. Para la 1.11: en tu centro, ¿hay algún módulo de 2º que empiece en el 2º o 3º trimestre, o semanas de proyecto sin horario normal? ¿Y el PROJ tiene una norma de faltas propia? (La app ya lo admite: dime o ponlo tú en Ajustes.)
+6. **Aviso legal (1.9):** lee `legal.html` en la v2 y dime si lo apruebas o qué cambiar.
+7. **Publicar (1.10):** cuando lo hayas probado con tus faltas reales, di «publica».
 
 ## 5. Cómo trabajamos
 
@@ -198,11 +215,14 @@ Decidido el 15–16/11: sin acuerdos con centros, sin servidor de pago y sin lee
 
 | Sesión | Tareas | Mensaje para empezar |
 | --- | --- | --- |
-| Siguiente | 1.5 y 1.11: repartir PROJ y normas de proyectos y módulos que empiezan a mitad de curso (comparten motor; mejor juntas) | «Fase 1: tareas 1.5 y 1.11» |
-| Después | 1.3, 1.4, 1.6–1.9 y publicar (1.10) | «Fase 1: lo que queda» |
+| Siguiente | Arreglar lo que encuentres al probar, aprobar el aviso legal y publicar (1.9 y 1.10) | «Fase 1: publicar» (y lo que hayas visto) |
+| Después | Fase 2: probar con 5–8 compañeros con cronómetro | «Fase 2: prueba con la clase» |
 
-**Prueba de 10 minutos para tu móvil (1.1 y 1.2):** abre v2.novoy-72h.pages.dev (si ya hiciste el alta, entra directo en Hoy).
-1. Pulsa «Fui» en una asignatura: debe pasar a «Fuiste · te quedan X h» con tu % de ahora. Prueba «Deshacer».
-2. Pulsa «Falté» en otra: «Falta apuntada» y el semáforo ya no la cuenta.
-3. Abre «Falté a…», elige un día pasado de la fila y apunta una hora suelta y un retraso.
-4. Mira si «te quedan X h» cuadra con tu hoja de Notion (todavía sin el reparto de PROJ: eso es la 1.5).
+**Prueba para tu móvil (unos 15 minutos)** en v2.novoy-72h.pages.dev (entras directo en Hoy):
+1. **Tu PROJ (1.5):** Ajustes → Asignaturas → PROJ → «Sí, elegir en qué cuenta cada hora». Álvaro → E.CLI; Pol → una hora E.CLI y otra CTR; Ermengol → DAW. Luego mira en Faltas si E.CLI, CTR y DAW cuadran con tu Notion.
+2. **Faltas:** toca una asignatura, justifica una falta y deshazlo.
+3. **Simular:** en Hoy, «Simular», elige un día y activa «Tendré justificante».
+4. **Cambiar horario:** Ajustes → Horario → Cambiar horario → Siguiente → «Desde siempre» → Guardar. No debe cambiar nada.
+5. **Cuenta:** créala en Ajustes → Tu cuenta. En otra ventana privada, «Ya tengo cuenta» y entra: deben salir tu horario y tus faltas.
+6. **Pásalo a tu clase:** abre el enlace en una ventana privada: debe salir «¿Es este tu horario?».
+7. **Lee el aviso legal** (Ajustes → Aviso legal y privacidad).
