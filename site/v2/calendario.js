@@ -61,11 +61,12 @@
     curso = curso || CURSO_2627;
     if (!municipio || typeof fetch === 'undefined') return [];
     // columnas del conjunto (comprobadas en nov. 2026): any_calendari, data, ajuntament_o_nucli_municipal, festiu
-    // la palabra más larga tal como se escribe (con acentos: upper() de Socrata los conserva)
-    const pal = String(municipio).split(/[\s'’,.()-]+/).filter((w) => !/^(l|el|la|els|les|de|del|i)$/i.test(w)).sort((a, b) => b.length - a.length)[0] || '';
+    // cada palabra tal como se escribe (con acentos: upper() de Socrata los conserva), para no pasar del límite de filas
+    const pals = String(municipio).split(/[\s'’,.()-]+/).filter((w) => w.length > 1 && !/^(l|el|la|els|les|de|del|d|i)$/i.test(w)).slice(0, 4);
     const anys = [curso.inicio.slice(0, 4), curso.fin.slice(0, 4)];
     const u = new URL('https://analisi.transparenciacatalunya.cat/resource/b4eh-r8up.json');
-    u.searchParams.set('$where', "upper(ajuntament_o_nucli_municipal) like '%" + pal.toUpperCase().replace(/'/g, "''") + "%' AND any_calendari in ('" + anys.join("','") + "')");
+    const where = pals.map((w) => "upper(ajuntament_o_nucli_municipal) like '%" + w.toUpperCase().replace(/'/g, "''") + "%'");
+    u.searchParams.set('$where', where.concat("any_calendari in ('" + anys.join("','") + "')").join(' AND '));
     u.searchParams.set('$limit', '200');
     try {
       const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, tm = setTimeout(() => ctl && ctl.abort(), 6000);
