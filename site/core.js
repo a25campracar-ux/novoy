@@ -45,6 +45,54 @@
     if (n > 0) Object.keys(late).forEach((k) => { const h = Math.floor(late[k] / n); if (h) out[k] = (out[k] || 0) + h; });
     return out;
   }
+  /**
+   * Límites del centro: [{ pct, sin, just }]. `sin` y `just` son el peso de cada hora sin justificar y
+   * justificada en ese límite (1 = entera, 0,5 = media, 0 = no cuenta). Hay centros con un límite
+   * (25 % de todas, 20 % solo sin justificar) y centros con dos (10 % sin justificar y 15 % justificadas,
+   * o 15 % de todas juntas). Si no hay `settings.limites`, se sacan de los ajustes antiguos.
+   */
+  function limitsOf(s0) {
+    const s = Object.assign({}, DEF, s0);
+    const ok = (l) => l && +l.pct > 0 && +l.pct <= 100;
+    if (Array.isArray(s.limites) && s.limites.some(ok)) {
+      return s.limites.filter(ok).map((l) => ({ pct: +l.pct, sin: l.sin == null ? 1 : +l.sin, just: l.just == null ? 1 : +l.just }));
+    }
+    const jm = justMode(s), L = +s.limite;
+    if (jm === 'nocuentan') return [{ pct: L, sin: 1, just: 0 }];
+    if (jm === 'separadas') return [{ pct: L, sin: 1, just: 0 }, { pct: +s.limiteJust || L, sin: 0, just: 1 }];
+    return [{ pct: L, sin: 1, just: 1 }];
+  }
+  /** Horas y retrasos por asignatura en un trimestre, separados en sin justificar y justificados. */
+  function countsByTerm(state, term) {
+    const out = {};
+    for (const f of state.faltas || []) {
+      if (faltaTerm(state, f) !== term) continue;
+      const k = canon(state, f.subject), o = out[k] || (out[k] = { hSin: 0, hJust: 0, lSin: 0, lJust: 0 });
+      if (f.type === 'retraso') { if (f.justified) o.lJust++; else o.lSin++; }
+      else if (f.justified) o.hJust = r2(o.hJust + (+f.hours || 0));
+      else o.hSin = r2(o.hSin + (+f.hours || 0));
+    }
+    return out;
+  }
+  /** Horas que pesan en un límite: horas con su peso + 1 h por cada bloque completo de N retrasos. */
+  function usedIn(l, c, perLate) {
+    c = c || { hSin: 0, hJust: 0, lSin: 0, lJust: 0 };
+    const n = +perLate, lates = n > 0 ? Math.floor((l.sin * c.lSin + l.just * c.lJust) / n + 1e-9) : 0;
+    return r2(l.sin * c.hSin + l.just * c.hJust + lates);
+  }
+  /**
+   * Efecto de faltar `h` horas a una asignatura ya resumida (`cur` = fila de summary).
+   * `justificada`: si esa falta tendrá justificante. Devuelve el límite que queda peor.
+   */
+  function afterLoss(cur, h, justificada, aviso) {
+    let best = null;
+    (cur.limits || []).forEach((l) => {
+      const w = justificada ? l.just : l.sin; // un límite que no cuenta este tipo queda igual (y si ya estaba pasado, sigue pasado)
+      const after = r2(l.used + w * h), margin = r1(l.limit - after);
+      if (!best || margin < best.margin) best = { margin, after, pct: r1(after / cur.total * 100), status: status(margin, aviso) };
+    });
+    return best || { margin: cur.margin, after: cur.absent, pct: cur.pct, status: cur.status };
+  }
   /** Retrasos que llevas por asignatura en un trimestre (para enseñar cuántos faltan para la siguiente falta). */
   function latesByTerm(state, term) {
     const s = Object.assign({}, DEF, state.settings), out = {};
@@ -133,16 +181,21 @@
     const fixed = ((s.unificar ? state.totalsUnified : state.totals) || {})[term] || {};
     // las horas fijadas a mano mandan; el resto de asignaturas se calcula con el horario
     const totals = Object.assign(computeTotals(state, term), fixed);
-    const abs = absentByTerm(state, term), nc = state.nocount || [], sep = justMode(s) === 'separadas', jab = sep ? absentByTerm(state, term, true) : {};
+    const cnt = countsByTerm(state, term), nc = state.nocount || [], LIM = limitsOf(s);
     return Object.keys(totals).filter((name) => nc.indexOf(name) < 0).map((name) => {
-      const total = totals[name], absent = abs[name] || 0;
-      const limit = total * s.limite / 100, margin = r1(limit - absent);
-      const o = { name, total, absent, pct: r1(absent / total * 100), limit: r1(limit), margin, status: status(margin, s.aviso), off: offOn(state, name, todayStr()) };
-      if (sep) { // justificadas con su propio límite: el estado es el peor de los dos
-        const ja = jab[name] || 0, jl = total * (+s.limiteJust || s.limite) / 100, jm = r1(jl - ja);
-        o.j = { absent: ja, limit: r1(jl), margin: jm, pct: r1(ja / total * 100), status: status(jm, s.aviso) };
-        if (RANK[o.j.status] > RANK[o.status]) o.status = o.j.status;
-      }
+      const total = totals[name];
+      const limits = LIM.map((l) => {
+        const used = usedIn(l, cnt[name], s.retrasosPorFalta), limit = r2(total * l.pct / 100), margin = r1(limit - used);
+        return { pct: l.pct, sin: l.sin, just: l.just, used, limit, margin, status: status(margin, s.aviso) };
+      });
+      // el dato principal es el límite que cuenta las faltas sin justificar y deja menos margen (lado estricto)
+      const cand = limits.some((l) => l.sin > 0) ? limits.filter((l) => l.sin > 0) : limits;
+      const p = cand.reduce((a, b) => (b.margin < a.margin ? b : a), cand[0]);
+      const worst = limits.reduce((w, l) => (RANK[l.status] > RANK[w] ? l.status : w), 'verde');
+      const o = { name, total, absent: p.used, pct: r1(p.used / total * 100), limit: r1(p.limit), margin: p.margin, status: worst, limits, off: offOn(state, name, todayStr()) };
+      // compatibilidad con la interfaz v1: el límite propio de las justificadas
+      const j = limits.find((l) => !(l.sin > 0) && l.just > 0);
+      if (j) o.j = { absent: j.used, limit: r1(j.limit), margin: j.margin, pct: r1(j.used / total * 100), status: j.status };
       return o;
     });
   }
@@ -346,22 +399,24 @@
     const sum = Object.fromEntries(summary(state, term).map((x) => [x.name, x]));
     const loss = {};
     classes.forEach((c) => { loss[c.canon] = (loss[c.canon] || 0) + c.hours; });
+    // se supone que hoy NO habrá justificante (lado estricto); `conJust` dice qué pasaría con él
     const items = Object.keys(loss).map((name) => {
       const cur = sum[name];
       if (!cur) return { name, hours: loss[name], unknown: true, status: 'amarillo' };
-      const after = r1(cur.absent + loss[name]);
-      const margin = r1(cur.limit - after);
-      return { name, hours: loss[name], now: cur.pct, after: r1(after / cur.total * 100), margin, status: status(margin, s.aviso) };
+      const a = afterLoss(cur, loss[name], false, s.aviso), b = afterLoss(cur, loss[name], true, s.aviso);
+      return { name, hours: loss[name], now: cur.pct, after: a.pct, margin: a.margin, status: a.status,
+        conJust: { margin: b.margin, status: b.status }, soloJust: a.status === 'rojo' && b.status !== 'rojo' };
     });
     const worst = items.reduce((w, i) => (RANK[i.status] > RANK[w] ? i.status : w), 'verde');
+    const worstJ = items.reduce((w, i) => { const st = i.conJust ? i.conJust.status : i.status; return RANK[st] > RANK[w] ? st : w; }, 'verde');
     // cada hora por separado: efecto de faltar solo a esa hora
     const slots = [];
     classes.forEach((c) => hourSlots(c).forEach((sl) => {
       const cur = sum[c.canon]; if (!cur) return slots.push({ subject: c.subject, canon: c.canon, start: sl.start, end: sl.end, hours: sl.hours, unknown: true });
-      const after = r1(cur.absent + sl.hours), margin = r1(cur.limit - after);
-      slots.push({ subject: c.subject, canon: c.canon, start: sl.start, end: sl.end, hours: sl.hours, now: cur.pct, after: r1(after / cur.total * 100), margin, status: status(margin, s.aviso) });
+      const a = afterLoss(cur, sl.hours, false, s.aviso);
+      slots.push({ subject: c.subject, canon: c.canon, start: sl.start, end: sl.end, hours: sl.hours, now: cur.pct, after: a.pct, margin: a.margin, status: a.status });
     }));
-    return { date, term, free: false, status: worst, items, classes, slots };
+    return { date, term, free: false, status: worst, soloJust: worst === 'rojo' && worstJ !== 'rojo', items, classes, slots };
   }
   /** Horas de clase que quedan en un trimestre desde `from` (incluido), por asignatura. */
   function remaining(state, term, from) {
@@ -373,13 +428,15 @@
     return out;
   }
   /** Simulador: efecto de faltar a las horas `idx` (posiciones en verdict().slots) de un día. */
-  function simulate(state, date, idx) {
+  /** `opts.justificada`: simular que esas horas tendrán justificante. */
+  function simulate(state, date, idx, opts) {
     const v = verdict(state, date); if (v.free || !v.term) return { free: true, rows: [], status: 'verde' };
     const s = Object.assign({}, DEF, state.settings), sum = Object.fromEntries(summary(state, v.term).map((x) => [x.name, x])), add = {};
+    const jus = !!(opts && opts.justificada);
     idx.forEach((i) => { const x = v.slots[i]; if (x && !x.unknown) add[x.canon] = (add[x.canon] || 0) + x.hours; });
     const rows = Object.keys(add).filter((k) => sum[k]).map((k) => {
-      const cur = sum[k], after = r1(cur.absent + add[k]), margin = r1(cur.limit - after);
-      return { name: k, hours: r1(add[k]), now: cur.pct, after: r1(after / cur.total * 100), margin, status: status(margin, s.aviso) };
+      const cur = sum[k], a = afterLoss(cur, add[k], jus, s.aviso);
+      return { name: k, hours: r1(add[k]), now: cur.pct, after: a.pct, margin: a.margin, status: a.status };
     });
     return { free: false, rows, status: rows.reduce((w, i) => (RANK[i.status] > RANK[w] ? i.status : w), 'verde'), slots: v.slots };
   }
@@ -389,6 +446,6 @@
     for (let i = 0; i < 40; i++) { d.setDate(d.getDate() + 1); const k = ymd(d); if (dayClasses(state, k).length) return k; }
     return null;
   }
-  const api = { justMode, weeksFactor, nominalFactors, lectiveDays, splitAtBreaks, projectOn, projectWeekHours, offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
+  const api = { limitsOf, countsByTerm, usedIn, afterLoss, justMode, weeksFactor, nominalFactors, lectiveDays, splitAtBreaks, projectOn, projectWeekHours, offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
