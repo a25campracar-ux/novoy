@@ -92,5 +92,10 @@ assert.strictEqual(I.asignatura('Bases de dades avançades', ['Bases', 'Bases de
 const a = I.leer('2026-11-02 ; Programació ; 2 ; falta', opts).faltas, b = I.leer('2026-11-02 ; Programació ; 2 ; falta\n2026-11-09 ; Programació ; 2 ; falta', opts).faltas;
 assert.strictEqual(I.unir(a, b).length, 2);
 assert.deepStrictEqual(I.totales(I.unir(a, b)), { 'Programació': { sin: 4, just: 0, retrasos: 0, vaga: 0 } });
+// volver a pegar corrige una lectura antigua equivocada en vez de sumarse (caso real: 82 h con 0 justificadas)
+const vieja = I.leer('2026-11-02 ; Programació ; 2 ; justificada\n2026-11-02 ; Programació ; retraso', opts).faltas;
+const buena = I.leer('2026-11-02 ; Programació ; 2 ; no justificada', opts).faltas;
+const juntas = I.unir(vieja, buena);
+assert.deepStrictEqual(I.totales(juntas), { 'Programació': { sin: 2, just: 0, retrasos: 1, vaga: 0 } });
 assert.ok(I.promptIA(subs).includes('Programació, Bases de dades'));
 console.log('v2 importar OK');

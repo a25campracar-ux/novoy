@@ -162,9 +162,14 @@
   }
 
   /** Une lecturas sucesivas (varias listas pegadas) sin contar dos veces la misma falta. */
+  /**
+   * Junta una lectura nueva (b) con lo ya leído (a). Para el mismo día, asignatura y clase de registro
+   * (falta o retraso) manda la lectura nueva: si una lectura antigua se equivocó (justificada, horas…),
+   * volver a pegar la lista la corrige en vez de sumarse encima.
+   */
   function unir(a, b) {
-    const k = (x) => x.date + '|' + x.subject + '|' + x.type + '|' + x.justified + '|' + !!x.vaga, seen = new Set(a.map(k));
-    return a.concat(b.filter((x) => !seen.has(k(x))));
+    const k = (x) => x.date + '|' + x.subject + '|' + (x.type === 'retraso' ? 'r' : 'f'), nuevas = new Set(b.map(k));
+    return a.filter((x) => !nuevas.has(k(x))).concat(b);
   }
 
   /** Totales por asignatura: { sub: { sin, just, retrasos } }. */
