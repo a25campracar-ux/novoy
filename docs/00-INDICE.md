@@ -1,35 +1,40 @@
 # NoVoy · Índice del proyecto
 
-Última revisión: 15/11/2026. Este índice dice qué hay, dónde está y en qué estado.
-Empieza por aquí en cualquier conversación nueva sobre NoVoy.
+Última revisión: 16/11/2026, 15:00. Este índice dice qué hay, dónde está y en qué estado. Empieza por aquí en cualquier conversación nueva sobre NoVoy.
+
+**Lo siguiente que toca está en `claude/hoja-de-ruta.md`, apartado 6 «Próximas sesiones».**
 
 ## Qué es
 
-NoVoy es una web instalable (PWA) para móvil que dice a un estudiante si puede faltar
-hoy a clase sin pasar el límite de faltas de su centro. Muestra un semáforo y las horas
-de margen por asignatura. Autor: C33, estudiante de 2º de DAW en el Institut Pedralbes
-(Barcelona). El código lo escribe un asistente de IA bajo su dirección.
+NoVoy es una web instalable (PWA) para móvil que dice a un estudiante si puede faltar hoy a clase sin pasar el límite de faltas de su centro. Muestra un semáforo y las horas de margen por asignatura.
+
+- **Autor:** C33, estudiante de 2º de DAW en el Institut Pedralbes (Barcelona).
+- **Quién escribe el código:** un asistente de IA bajo su dirección. El autor no escribe ni revisa código.
 
 ## Dónde está cada cosa
 
 | Qué | Dónde |
 | --- | --- |
-| App en producción | https://novoy-72h.pages.dev (Cloudflare Pages) |
+| App en producción (v1) | https://novoy-72h.pages.dev (Cloudflare Pages, rama `main`) |
+| v2 en pruebas | https://v2.novoy-72h.pages.dev/alta.html (rama `v2`, se publica sola en cada push si pasan las pruebas) |
 | Despliegue antiguo | https://novoy.netlify.app (sin las funciones nuevas de servidor) |
-| Código | github.com/a25campracar-ux/novoy, rama `main`; cada push despliega |
+| Código | github.com/a25campracar-ux/novoy (público). Pruebas y recorridos en Chrome en GitHub Actions y en la compilación de Cloudflare |
 | Versión anterior | rama `v1-novoy` |
-| Estado completo (documento vivo) | https://claude.ai/artifact/4GyPx8edEdMZ8JoMzqnHTY |
+| Estado completo de la v1 (documento vivo) | https://claude.ai/artifact/4GyPx8edEdMZ8JoMzqnHTY |
 | Dosier de rediseño (13/11) | https://claude.ai/artifact/Vx1sRNY2HGchsNdAG8mp8Z |
 | Briefing completo (13/11) | https://claude.ai/artifact/KiGekJKXFCcpQJtj5RUyMX |
-| Control de faltas del autor en Notion | bases «Asignaturas por trimestre» y «Faltas» |
+| Mockup del nuevo flujo (16/11): uso diario, alta y reglas | https://claude.ai/artifact/NUPztnjbkyAuREcXd1raFj |
+| Control de faltas del autor en Notion | Bases «Asignaturas por trimestre» y «Faltas» |
 
 ## Documentos de este proyecto
 
 | Documento | Contenido | Fecha |
 | --- | --- | --- |
-| `claude/00-INDICE.md` | Este índice | 15/11/2026 |
-| `claude/estado-y-traspaso.md` | Estado completo: producto, dominio, decisiones, pantallas, arquitectura, fórmula, datos externos, 19 fallos, deuda técnica, más de 90 ideas, hoja de ruta | 14/11/2026 |
-| `claude/decisiones-y-memoria.md` | Todo lo que el autor ha decidido y pedido, en orden | 15/11/2026 |
+| `claude/00-INDICE.md` | Este índice | 16/11/2026 |
+| `claude/hoja-de-ruta.md` | **Lista de tareas**: dónde estamos, lo hecho hoy, hitos, tareas por fase (quién, cómo y cuándo está hecho), decisiones pendientes, cómo trabajamos y próximas sesiones | 16/11/2026 |
+| `claude/decisiones-y-memoria.md` | Todo lo que el autor ha decidido y pedido, en orden | 16/11/2026 |
+| `claude/metodo-configuracion.md` | Método de alta, reglas y faltas de antes, y cómo está hecho en la v2 | 16/11/2026 |
+| `claude/estado-y-traspaso.md` | Estado completo de la **v1**: producto, dominio, pantallas, arquitectura, fórmula, datos externos, 19 fallos, deuda técnica, más de 90 ideas. Para la v2, la hoja de ruta | 14/11/2026 |
 | `claude/prompt-rediseno.md` | Prompt para encargar a otra IA el análisis y el rediseño | 14/11/2026 |
 | `claude/origen/plan-de-decisiones.md` | Plan de decisiones del rediseño | 13/11/2026 |
 | `claude/pruebas/BRIEF.md` | Instrucciones y entorno de las pruebas | 14/11/2026 |
@@ -37,28 +42,27 @@ de margen por asignatura. Autor: C33, estudiante de 2º de DAW en el Institut Pe
 | `claude/pruebas/informe-a5-tarragona-nocturno.md` | Informe completo: uso diario y auditoría visual | 14/11/2026 |
 | `claude/pruebas/casos.md` | Los cinco casos de prueba (horarios, reglas y faltas simuladas) | 14/11/2026 |
 
-Los mismos archivos están en el repositorio, carpeta `docs/`, junto con los guiones de
-Playwright y 482 capturas reducidas que no caben aquí.
+Los mismos archivos están en el repositorio, en la carpeta `docs/`. Allí están también los guiones de Playwright y 482 capturas reducidas que no caben aquí.
 
-## Estado a 15/11/2026
+## Estado a 16/11/2026 (tarde)
 
-- **En producción:** alta guiada de 6 pasos, catálogo DAW, fórmula horas semanales × 33,
-  justificadas en 3 modos, importar faltas con IA, simulador, porcentaje secundario.
-- **Sin corregir:** los 19 fallos de las pruebas. El más grave: el enlace «Pásalo a tu
-  clase» borra las faltas de quien lo abre. No compartir ese enlace hasta arreglarlo.
-- **Sin validar:** que la fórmula coincida con lo que calcula cada centro.
-- **A medias:** tres perfiles de prueba (DAW Pedralbes, ASIX dual, vía IA).
-- **Sin probar con personas reales.**
-
-## Siguiente paso recomendado
-
-1. Corregir los fallos 1 a 5 (sección 8 del estado).
-2. Preguntar al tutor cómo se calcula el límite y comparar con el Moodle de 3 o 4 alumnos.
-3. Probar con 5 a 8 compañeros, con cronómetro.
+- **En producción (v1, rama `main`):** sin cambios. No compartir el enlace «Pásalo a tu clase», porque borra las faltas de quien lo abre.
+- **Versión 2 (rama `v2`):**
+  - Motor con 1 o 2 límites.
+  - Alta completa: instituto, horario por captura, pintado o plantilla; calendario con festivos locales reales; reglas con ramas; faltas de antes pegando la lista, con capturas o con una IA.
+  - Plantillas compartidas.
+  - La pantalla Hoy sigue siendo la de la v1.
+  - Probada por el autor en iPhone con su lista de iEduca y la captura de su horario: 6 fallos encontrados y arreglados.
+- **Hecho hoy:**
+  - Leer dos veces la lista ya no suma de más.
+  - Fichas de asignatura nuevas, sin repetidas, con cruz y «Deshacer».
+  - El horario desde una captura ya trae sus horas (salía «undefined»).
+- **Siguiente:** Fase 1 de la hoja de ruta. Primero 1.1 y 1.2 (Hoy nueva y «Falté a…»); después 1.5 y 1.11 (repartir PROJ y normas de proyectos y módulos que empiezan a mitad de curso).
+- **Sin validar:** que la fórmula coincida con lo que calcula cada centro. **Sin probar con personas reales.**
 
 ## Cómo mantener este proyecto
 
 - Cada documento nuevo sobre NoVoy se guarda aquí y se añade a la tabla de arriba.
-- Cuando cambie la app, se actualiza «Estado a…» en este índice y la sección afectada
-  de `estado-y-traspaso.md`.
-- Las decisiones nuevas del autor se añaden al final de `decisiones-y-memoria.md` con fecha.
+- Al acabar cada sesión se actualizan `hoja-de-ruta.md` (estados de las tareas) y el apartado «Estado a…» de este índice.
+- Las decisiones nuevas del autor se añaden al final de `decisiones-y-memoria.md`, con fecha.
+- Los datos reales del autor (su lista de faltas) nunca se suben al repositorio.

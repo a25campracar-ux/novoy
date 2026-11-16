@@ -51,7 +51,8 @@ Las decisiones nuevas se añaden al final con fecha.
 - Rápida y universal: el horario suele estar en el Moodle y cada centro es distinto.
 - Empezar por la rejilla de pintar y un calendario con plantilla.
 - Un único campo para crear módulos (Enter crea uno sin cerrar el teclado).
-- Preguntas de sí/no que muestran opciones solo si hacen falta.
+- Preguntas de sí/no que muestran opciones solo si hacen falta (semanas de proyecto,
+  asignaturas bloqueadas hasta mitad de curso).
 - Poder marcar en cualquier momento semana de proyecto o festivo.
 - Apuntar una falta tocando la asignatura en la rejilla: 1 h por defecto, fecha
   editable, justificada y retraso.
@@ -69,12 +70,13 @@ Las decisiones nuevas se añaden al final con fecha.
 - Quitar la pregunta del curso (se deduce de los módulos).
 - Flujo acordado: demo → centro → ciclo → horario (foto principal, pintar secundario)
   → revisar → faltas que ya lleva → resultado.
-- Criterios acordados: denominador = horas del horario × semanas del curso; catálogo
-  solo como comprobación; lo provisional pasa al catálogo compartido con una segunda
-  confirmación; registrar de forma anónima lo que entra por «Otro»; foto con cuota y,
-  si falla, pasar a pintar sin mostrar el error; catálogo a mano de Pedralbes DAW
-  primero, directorio por API, resto a demanda; validar con el tutor la unidad de
-  cálculo y si cuenta la tutoría.
+- Criterios acordados:
+  - denominador = horas del horario × semanas del curso; el catálogo, solo como comprobación;
+  - lo provisional pasa al catálogo compartido con una segunda confirmación;
+  - registrar de forma anónima lo que entra por «Otro»;
+  - foto con cuota y, si falla, pasar a pintar sin mostrar el error;
+  - primero el catálogo a mano de Pedralbes DAW, después el directorio por API y el resto a demanda;
+  - validar con el tutor la unidad de cálculo y si cuenta la tutoría.
 
 ## 13/11/2026 · Interfaz
 
@@ -118,3 +120,84 @@ Las decisiones nuevas se añaden al final con fecha.
 
 - Pidió que toda la memoria y los archivos sobre la app permanezcan en el proyecto
   «novoy», bien apuntados.
+
+## 15–16/11/2026 · Faltas al día, avisos y centros
+
+- Propuso leer la web o plataforma donde los profesores anotan las faltas para que
+  NoVoy se actualice solo. Quiere que actualizar las faltas cueste segundos o minutos;
+  lo importante es mantenerlas al día.
+- No quiere que la app avise mucho: una sola notificación al día, discreta,
+  «¿Has faltado hoy?», con botones «Sí, todo el día» y «Falté a…».
+- Pidió un mockup para ver la idea: aviso diario, «Falté a…», Hoy, actualizar con
+  captura y activar el aviso (https://claude.ai/artifact/NUPztnjbkyAuREcXd1raFj).
+- Considera que lo más importante es el método de configuración de horario,
+  calendario y porcentajes.
+- Descarta, de momento, pedir acceso o pactar nada con ningún centro: cree que no
+  apoyarían una app para ver si puedes faltar.
+
+## 16/11/2026 · Método de configuración
+
+- Quiere simplificar al máximo el alta de horario y calendario, sin que el usuario
+  tenga que ir cambiando de app.
+- Aceptó como base el método de `metodo-configuracion.md`:
+  - calendario desde datos oficiales (calendario escolar y festivos por municipio);
+  - plantillas de horario por grupo que confirman los compañeros;
+  - captura elegida de la galería dentro de la app;
+  - flujo de 5 pasos.
+
+  Pidió el mockup de ese flujo.
+- Pidió que las reglas admitan cualquier método de porcentaje, con ejemplos reales:
+  - 20 % contando solo las no justificadas;
+  - 25 % contando justificadas y no justificadas;
+  - 10 % no justificadas y 15 % justificadas.
+
+  Y un flujo fácil de hacer y de entender. Considera que, con esto bien hecho, la app
+  estaría casi lista.
+- Las unidades formativas ya no se llaman así: ahora son RA.
+- Las horas totales de cada trimestre se calculan con el horario semanal y el
+  calendario del curso.
+- Flujo de reglas con ramas: según la respuesta de la primera pantalla, se va a una
+  pantalla distinta.
+  - Si cuentan todas juntas: un solo porcentaje, ya preparado para contar sin justificar y justificadas.
+  - Si solo cuentan las no justificadas: un solo porcentaje con esa opción ya activada.
+  - Si son dos porcentajes: los dos.
+
+  El resto del flujo le parece bien.
+- «No lo sé» usa el 15 % (sustituye al 20 % por defecto decidido el 13/11).
+
+## 16/11/2026 · Versión 2
+
+- Aceptó rehacer la interfaz desde cero reutilizando lo que sirve (motor `core.js`,
+  cifrado `acct.js`, servidor `worker/`), en la rama `v2`, sin tocar la v1 publicada.
+- Él no escribe ni revisa código: lo hace Claude. Por eso se elige Preact + htm (un
+  archivo, sin compilar) en vez de Vue.
+- Dio luz verde al paso 1: pruebas con datos inventados y motor con reglas de 1 o 2
+  límites.
+- Pidió hacer el alta y las reglas «como es debido, de forma profesional». Hechas en la
+  rama `v2` (ver `metodo-configuracion.md`, apartado «Cómo está hecho»). La interfaz se
+  hizo sin librerías porque en esa sesión no había red para descargar Preact.
+- Para las faltas previas quiere poder copiar y pegar, hacerlo con una IA o con foto:
+  desde septiembre mucha gente lleva muchas faltas y a mano es demasiado. Hecho
+  (apartado «Faltas de antes» de `metodo-configuracion.md`).
+
+## 16/11/2026 · Pruebas con sus datos y lista de tareas
+
+- Probó el lector con su lista real de iEduca (no se guarda en el repositorio). Contó
+  que en esa lista no hay ninguna falta justificada; al repetir la lectura salían 82 h
+  con justificadas. Corregido: una lectura nueva sustituye a la anterior.
+- Pidió apuntar en la lista de tareas una IA que vigile errores y avisos y construya lo
+  que le falte a un usuario para configurar su caso (Fase 4 de `hoja-de-ruta.md`).
+- Pidió una lista de tareas completa: dónde estamos, hacia dónde vamos, qué falta, qué
+  hacer y cómo (`hoja-de-ruta.md`).
+- Puso las pruebas antes de publicar en Cloudflare (comando de la tarea 0.1).
+- Mandó su horario pintado: el martes a las 9:00 está vacío.
+- No le gustaban las burbujas de asignaturas del alta:
+  - había demasiadas repetidas;
+  - quiere un circulito con una cruz en una esquina para borrar más fácil;
+  - quiere otra forma, más cómoda y original que el óvalo.
+
+  Hecho: fichas con la forma de las casillas del horario, sin repetidas, con cruz y «Deshacer».
+- Pidió que la app pueda aplicar las normas de los proyectos y de los módulos que
+  empiezan a mitad de curso. Apuntado como tarea 1.11 de `hoja-de-ruta.md`.
+- Subió una captura de su horario: salía «undefined a undefined» y no avanzaba.
+  Corregido el 16/11 (el alta no leía las horas que da el lector de capturas).

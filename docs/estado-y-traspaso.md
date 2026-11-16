@@ -2,6 +2,8 @@
 
 Nov 14, 2026 · @c33
 
+> **Nota del 16/11/2026:** este documento describe la **v1**. El estado de la v2 y lo que toca hacer están en `hoja-de-ruta.md`; el índice está en `00-INDICE.md`.
+
 ## 1. Resumen para quien llega
 
 NoVoy funciona y calcula bien cuando los datos entran bien, pero tiene un fallo que borra faltas, tres vías que dan margen de más y un alta que tarda de 7 a 12 minutos en vez de 2. No está lista para difundirse fuera de una clase.
