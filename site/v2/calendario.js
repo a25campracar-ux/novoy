@@ -22,6 +22,9 @@
 
   const ISO = /^\d{4}-\d{2}-\d{2}$/;
   const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  /** Nombre de municipio comparable: sin artículo delante ni detrás («L'Hospitalet» = «Hospitalet, l'»). */
+  const ART = /^(l|el|la|els|les|lo|los|las) | (l|el|la|els|les)$/g;
+  const muni = (s) => norm(s).replace(ART, '').trim();
 
   /** Fecha suelta a 'YYYY-MM-DD': acepta ISO (con hora) y dd/mm/yyyy. */
   function aISO(v) {
@@ -41,12 +44,13 @@
     (rows || []).forEach((r) => {
       if (!r || typeof r !== 'object') return;
       const vals = Object.keys(r).map((k) => [k, r[k]]).filter((kv) => typeof kv[1] === 'string');
-      const esMuni = vals.some((kv) => norm(kv[1]) === m || norm(kv[1]).replace(/^(l |el |la |els |les )/, '') === m.replace(/^(l |el |la |els |les )/, ''));
+      const esMuni = vals.some((kv) => muni(kv[1]) === muni(municipio));
       if (!esMuni) return;
       const fecha = vals.map((kv) => aISO(kv[1])).find(Boolean);
       if (!fecha || (desde && fecha < desde) || (hasta && fecha > hasta) || seen.has(fecha)) return;
       seen.add(fecha);
-      const nombre = vals.map((kv) => kv[1]).find((v) => !aISO(v) && norm(v) !== m && v.length > 3 && v.length < 80 && !/^\d+$/.test(v));
+      // el conjunto oficial solo dice «Festiu local»; si alguna fuente trae el nombre de la fiesta, se usa
+      const nombre = vals.map((kv) => kv[1]).find((v) => !aISO(v) && muni(v) !== muni(municipio) && v.length > 3 && v.length < 80 && !/^[\d\s]+$/.test(v) && !/^festiu|^fiesta local|^festivo/i.test(v.trim()));
       out.push({ from: fecha, to: fecha, label: nombre ? nombre.trim() : 'Fiesta local', local: true });
     });
     return out.sort((a, b) => (a.from < b.from ? -1 : 1));
@@ -56,8 +60,12 @@
   async function festivosLocales(municipio, curso) {
     curso = curso || CURSO_2627;
     if (!municipio || typeof fetch === 'undefined') return [];
+    // columnas del conjunto (comprobadas en nov. 2026): any_calendari, data, ajuntament_o_nucli_municipal, festiu
+    const pal = muni(municipio).split(' ').sort((a, b) => b.length - a.length)[0] || '';
+    const anys = [curso.inicio.slice(0, 4), curso.fin.slice(0, 4)];
     const u = new URL('https://analisi.transparenciacatalunya.cat/resource/b4eh-r8up.json');
-    u.searchParams.set('$q', municipio); u.searchParams.set('$limit', '200');
+    u.searchParams.set('$where', "upper(ajuntament_o_nucli_municipal) like '%" + pal.toUpperCase().replace(/'/g, "''") + "%' AND any_calendari in ('" + anys.join("','") + "')");
+    u.searchParams.set('$limit', '200');
     try {
       const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, tm = setTimeout(() => ctl && ctl.abort(), 6000);
       const r = await fetch(u.toString(), ctl ? { signal: ctl.signal } : {}); clearTimeout(tm);
@@ -102,6 +110,8 @@
     return out.sort((a, b) => (a.from < b.from ? -1 : 1));
   }
 
-  const api = { CURSO_2627, aISO, norm, filtrarLocales, festivosLocales, trimestresPropuestos, errorTrimestres, festivos };
+  /** ¿Faltan los festivos locales del segundo año natural del curso? (se publican en diciembre). */
+  const faltaSegundoAño = (locales, curso) => !(locales || []).some((f) => f.from.slice(0, 4) === (curso || CURSO_2627).fin.slice(0, 4));
+  const api = { faltaSegundoAño, muni, CURSO_2627, aISO, norm, filtrarLocales, festivosLocales, trimestresPropuestos, errorTrimestres, festivos };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.NVCal = api;
 })(this);

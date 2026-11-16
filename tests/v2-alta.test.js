@@ -69,6 +69,11 @@ const filas = [
 assert.deepStrictEqual(K.filtrarLocales(filas, 'Barcelona', '2026-09-08', '2027-06-21').map((f) => f.from + ' ' + f.label),
   ['2026-09-24 La Mercè', '2027-05-17 Segona Pasqua'], 'solo del municipio, dentro del curso y sin repetir');
 assert.deepStrictEqual(K.filtrarLocales([{ m: "L'Hospitalet de Llobregat", d: '13/06/2027', n: 'Fiesta mayor' }], "l'hospitalet de llobregat").length, 1);
+// forma real del conjunto de la Generalitat: el artículo va detrás y no trae el nombre de la fiesta
+const real = [{ any_calendari: '2026', data: '2026-11-13T00:00:00.000', ajuntament_o_nucli_municipal: "Hospitalet de Llobregat, l'", codi_municipal: '08101000', festiu: 'Festiu local' }];
+assert.deepStrictEqual(K.filtrarLocales(real, "L'Hospitalet de Llobregat", '2026-09-08', '2027-06-21'), [{ from: '2026-11-13', to: '2026-11-13', label: 'Fiesta local', local: true }]);
+assert.strictEqual(K.faltaSegundoAño([{ from: '2026-09-24' }]), true, 'los de 2027 aún no están');
+assert.strictEqual(K.faltaSegundoAño([{ from: '2027-05-17' }]), false);
 const tp = K.trimestresPropuestos('2026-09-14', '2027-05-26');
 assert.deepStrictEqual(tp.map((t) => t.from + '/' + t.to), ['2026-09-14/2026-12-21', '2027-01-08/2027-03-19', '2027-03-30/2027-05-26']);
 assert.strictEqual(K.errorTrimestres(tp), '');
