@@ -1,25 +1,34 @@
 # NoVoy · Hoja de ruta y lista de tareas
 
-Actualizada el 16/11/2026 a las 15:00. Es una lista viva: se actualiza al acabar cada sesión.
+Actualizada el 16/11/2026 por la tarde (tras 1.1 y 1.2). Es una lista viva: se actualiza al acabar cada sesión.
 
 - **Quién:** **Tú** = C33 · **Claude** = código, pruebas y documentación.
 - **Estados:** ✅ hecho · 🟡 en curso · ⬜ pendiente · ⏸ aparcado.
 
 ## 1. Dónde estamos
 
-**La v2 tiene el alta completa: instituto, horario, calendario, reglas y faltas de antes.**
-La pantalla de cada día sigue siendo la de la v1, y nadie aparte de ti ha probado la v2.
+**La v2 tiene el alta completa y la pantalla Hoy nueva, con «Fui», «Falté» y «Falté a…».**
+Resumen, Faltas y Ajustes siguen siendo los de la v1, y nadie aparte de ti ha probado la v2.
 
 | Pieza | Estado | Dónde |
 | --- | --- | --- |
 | App publicada (v1) | Sin cambios. Tiene los 19 fallos de las pruebas | novoy-72h.pages.dev · rama `main` |
-| v2 en pruebas | Alta nueva + pantalla Hoy de la v1 | v2.novoy-72h.pages.dev/alta.html · rama `v2` |
+| v2 en pruebas | Alta nueva + Hoy nueva; Resumen, Faltas y Ajustes de la v1 (`clasica.html`) | v2.novoy-72h.pages.dev · rama `v2` |
 | Motor | Reglas con 1 o 2 límites, veredicto estricto, «Solo con justificante». Ya sabe de módulos que empiezan tarde y de semanas de proyecto (v1), pero la v2 no lo pregunta | `site/core.js` |
 | Alta v2 | Instituto, ciclo y turno; plantilla de clase, captura o pintar; calendario oficial con festivos locales reales; reglas con ramas; faltas de antes (pegar, capturas, IA, a mano) | `site/alta.html`, `site/v2/` |
 | Servidor | Cuentas cifradas, catálogo «Otro», plantillas compartidas `/api/plantilla` | `worker/_worker.js` |
-| Pruebas | 9 pruebas de lógica y 5 recorridos en Chrome en cada push (GitHub Actions). Cloudflare no publica si fallan | `tests/`, `scripts/e2e-alta.mjs` |
+| Pantalla Hoy v2 | Semáforo, tarjeta por asignatura con «Fui» y «Falté», «Falté todo el día», «Falté a…» (hoy o días pasados, horas sueltas, retraso, justificante), pregunta por días sin apuntar | `site/index.html`, `site/v2/hoy.js`, `site/v2/app.js` |
+| Pruebas | 10 pruebas de lógica y 10 recorridos en Chrome en cada push (GitHub Actions). Cloudflare no publica si fallan las de lógica | `tests/`, `scripts/e2e-alta.mjs`, `scripts/e2e-hoy.mjs` |
 | Probado con datos reales | Tu lista de iEduca y tu captura del horario: 6 fallos encontrados y arreglados. Festivos de 5 municipios | — |
 | Probado con personas | Nadie aparte de ti | — |
+
+### Hecho el 16/11 (última sesión): tareas 1.1 y 1.2
+
+- **Pantalla Hoy nueva** en la dirección principal de la v2. El semáforo solo mira las clases que aún no has apuntado, así que ya no cuenta dos veces lo de hoy (fallo 4). Nombra la asignatura más justa (fallo 15). Si te has pasado dice «te pasas X h», nunca «0 h» (fallo 9). Con dos límites: «Solo con justificante» y dos barras con su nombre. Debajo, «Comprobado con tu lista hace X días» (cuenta desde el día que pegaste tu lista en el alta).
+- **«Fui» y «Falté» en cada asignatura** (lo que pediste): «Fui» en verde. Tras «Fui», la tarjeta deja de enseñar lo que pasaría si faltas y enseña lo que tienes ahora: «Fuiste · te quedan X h · llevas Y %» y «Llevas A h de B h que puedes faltar». Con 2 h o más ese día: «Fui», «Falté 2 h» y «Solo a las 15:00 / 16:00». Todo con «Deshacer», y «Cambiar» o «Quitar» después.
+- **«Falté todo el día»** (1 toque) y **«Falté a…»**: lista de las clases del día, un toque por clase, horas sueltas en bloques de 2 h o más, «Llegué tarde a una», «Tengo justificante», y una fila de días para apuntar un día pasado. Lo que no marcas queda como «fui». Un día entero en 3 toques. Solo salen días con clase: ni festivos ni fuera de curso (fallo 5).
+- **«El viernes, ¿fuiste a todo?»**: pregunta por los días de la última semana sin nada apuntado, saltando festivos.
+- **Resumen, Faltas y Ajustes** abren la v1 (`clasica.html`) hasta las tareas 1.3 y 1.4. Los enlaces antiguos de clase o de copia también van ahí.
 
 ### Hecho el 16/11 (tarde)
 
@@ -72,8 +81,8 @@ Decidido el 15–16/11: sin acuerdos con centros, sin servidor de pago y sin lee
 
 | # | Tarea | Quién | Estado | Cómo | Hecho cuando |
 | --- | --- | --- | --- | --- | --- |
-| 1.1 | Pantalla Hoy nueva | Claude | ⬜ | Semáforo con su tono; una tarjeta por clase de hoy con «si faltas, te quedan X h»; dos barras si hay dos límites; «Solo con justificante»; «Comprobado hace X días»; % como dato secundario | Recorrido en Chrome; no repite los fallos 4, 9 y 15 de la v1 |
-| 1.2 | «Falté a…» y «Todo el día» | Claude | ⬜ | Solo las clases de hoy (o de un día pasado), un toque por clase, retraso, deshacer | 3 toques como máximo para un día entero; no deja apuntar en festivos ni fuera de curso (fallo 5) |
+| 1.1 | Pantalla Hoy nueva | Claude | ✅ 16/11 | Semáforo con su tono; una tarjeta por clase de hoy con «si faltas, te quedan X h»; dos barras si hay dos límites; «Solo con justificante»; «Comprobado hace X días»; % como dato secundario | Recorrido en Chrome; no repite los fallos 4, 9 y 15 de la v1 |
+| 1.2 | «Falté a…» y «Todo el día» (más «Fui» por clase, pedido el 16/11) | Claude | ✅ 16/11 | Solo las clases de hoy (o de un día pasado), un toque por clase, retraso, deshacer | 3 toques como máximo para un día entero; no deja apuntar en festivos ni fuera de curso (fallo 5) |
 | 1.3 | Faltas: lista, corregir y justificar | Claude | ⬜ | Agrupadas por asignatura; pasar a justificada con un toque; borrar con deshacer | Encontrar y justificar una falta concreta en ≤ 3 toques |
 | 1.4 | Ajustes v2 | Claude | ⬜ | Cambiar reglas (mismo flujo de ramas), días de libre disposición, festivos, trimestres, horario («¿desde cuándo vale?»), módulos que no cursas, pasar más faltas | Cambiar una regla sin rehacer el alta; una prueba demuestra que el horario no se rompe al guardar sin tocar (fallo 7) |
 | 1.5 | Repartir PROJ entre módulos | Claude | ⬜ | En Ajustes y en el alta: «Esta clase cuenta dentro de…» por bloque del horario. Tu caso: PROJ de Álvaro → E.CLI; PROJ de Pol → 1 h E.CLI y 1 h CTR; PROJ de Ermengol → DAW | Tus totales coinciden con tu hoja de Notion |
@@ -189,8 +198,11 @@ Decidido el 15–16/11: sin acuerdos con centros, sin servidor de pago y sin lee
 
 | Sesión | Tareas | Mensaje para empezar |
 | --- | --- | --- |
-| Siguiente | 1.1 y 1.2: Hoy nueva y «Falté a…» | «Fase 1: tareas 1.1 y 1.2» |
-| Después | 1.5 y 1.11: repartir PROJ y normas de proyectos y módulos que empiezan a mitad de curso (comparten motor; mejor juntas) | «Fase 1: tareas 1.5 y 1.11» |
+| Siguiente | 1.5 y 1.11: repartir PROJ y normas de proyectos y módulos que empiezan a mitad de curso (comparten motor; mejor juntas) | «Fase 1: tareas 1.5 y 1.11» |
 | Después | 1.3, 1.4, 1.6–1.9 y publicar (1.10) | «Fase 1: lo que queda» |
 
-Si prefieres que el número de tu caso cuadre antes de tener la pantalla Hoy, haz primero la sesión de 1.5 y 1.11.
+**Prueba de 10 minutos para tu móvil (1.1 y 1.2):** abre v2.novoy-72h.pages.dev (si ya hiciste el alta, entra directo en Hoy).
+1. Pulsa «Fui» en una asignatura: debe pasar a «Fuiste · te quedan X h» con tu % de ahora. Prueba «Deshacer».
+2. Pulsa «Falté» en otra: «Falta apuntada» y el semáforo ya no la cuenta.
+3. Abre «Falté a…», elige un día pasado de la fila y apunta una hora suelta y un retraso.
+4. Mira si «te quedan X h» cuadra con tu hoja de Notion (todavía sin el reparto de PROJ: eso es la 1.5).

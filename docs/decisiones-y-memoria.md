@@ -201,3 +201,13 @@ Las decisiones nuevas se añaden al final con fecha.
   empiezan a mitad de curso. Apuntado como tarea 1.11 de `hoja-de-ruta.md`.
 - Subió una captura de su horario: salía «undefined a undefined» y no avanzaba.
   Corregido el 16/11 (el alta no leía las horas que da el lector de capturas).
+
+## 16/11/2026 · Pantalla Hoy (tareas 1.1 y 1.2)
+
+- Pidió en cada asignatura de hoy dos opciones: «Falté» y «Fui», con «Fui» en verde,
+  para marcar que asistió.
+- Tras pulsar «Fui», la tarjeta no debe enseñar lo que pasaría si faltase, sino el
+  porcentaje y el margen que tiene ahora mismo.
+- Hecho así; con 2 h o más de una asignatura ese día se añade «Solo a las…» para
+  faltar a una hora suelta.
+
