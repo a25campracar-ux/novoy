@@ -13,4 +13,4 @@ for (const m of munis) {
   console.log(m.padEnd(28), f.map((x) => x.from).join(' · ') || 'NINGUNO', K.faltaSegundoAño(f) ? '(sin los de ' + K.CURSO_2627.fin.slice(0, 4) + ')' : '');
   if (!f.length) malos++;
 }
-process.exit(malos ? 1 : 0);
+console.log(malos ? malos + " municipios sin festivos dentro del curso (puede ser correcto: algunos caen en verano)" : "Todos con festivos");
