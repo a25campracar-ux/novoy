@@ -113,3 +113,7 @@ h2 { margin: 0; font-size: 17px; font-weight: 700; }
 .big { font-size: 26px; font-weight: 800; color: var(--ok); margin: 0; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 @media (max-width: 340px) { main { padding-left: 14px; padding-right: 14px; } h1 { font-size: 24px; } .pcts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.area { min-height: 140px; padding: 12px 14px; line-height: 1.4; resize: vertical; font-size: 15px; }
+textarea[readonly] { color: var(--tx2); background: var(--sf2); }
+.pasos { margin: 0; padding-left: 22px; color: var(--tx2); font-size: 15px; line-height: 1.5; display: flex; flex-direction: column; gap: 4px; }

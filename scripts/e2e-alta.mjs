@@ -90,10 +90,28 @@ console.log('A · primer alumno');
   await shot(p, 'reglas4');
   await tap(p, 'Sí, es así');
   await radio(p, /^Sí/);
-  await p.getByRole('button', { name: 'Añadir 1 hora Sin justificante en Programació' }).click();
-  await p.getByRole('button', { name: 'Añadir 1 hora Sin justificante en Programació' }).click();
-  await shot(p, 'previas');
-  await tap(p, 'Siguiente');
+  ok((await h1(p)) === '¿Cómo quieres pasarlas?', 'elige cómo pasar las faltas');
+  await shot(p, 'previas-via');
+  await p.getByRole('button', { name: /Copiar y pegar/ }).click();
+  await p.fill('#imp', `Programació
+Fecha	Descripción	Estado	Puntos
+lun 21 sep 2026 15:00 - 17:00	Sesión regular de clase	Ausente	0 / 2
+mié 23 sep 2026 15:00 - 17:00	Sesión regular de clase	Presente	2 / 2
+lun 5 oct 2026 15:00 - 17:00	Sesión regular de clase	Justificada	1 / 2
+mar 6 oct 2026 15:00 - 17:00	Sesión regular de clase	Ausente	0 / 2`);
+  await shot(p, 'previas-pegar');
+  await tap(p, 'Leer mi lista');
+  ok((await h1(p)) === 'He encontrado 6 h de faltas', 'lista pegada leída (6 h)');
+  ok((await p.locator('.card.amb').innerText()).includes('Ese día no tienes Programació'), 'lo dudoso se enseña');
+  await shot(p, 'previas-revisar');
+  await tap(p, 'Añadir otra lista');
+  await p.getByRole('button', { name: /Con una IA/ }).click();
+  ok((await p.locator('#prm').inputValue()).includes('Bases de dades'), 'mensaje para la IA con sus asignaturas');
+  await shot(p, 'previas-ia');
+  await p.fill('#imp', '2026-10-06 ; Bases de dades ; 2 ; falta\n2026-09-21 ; Programació ; 3 ; falta');
+  await tap(p, 'Leer la respuesta');
+  ok((await h1(p)) === 'He encontrado 8 h de faltas', 'se suma la segunda lista sin repetir');
+  await tap(p, 'Guardar estas faltas');
   ok((await h1(p)) === 'Ya está', 'pantalla final');
   await shot(p, 'listo');
   await tap(p, 'Empezar');
@@ -101,7 +119,7 @@ console.log('A · primer alumno');
   const st = await p.evaluate(() => JSON.parse(localStorage.getItem('ft.v2')));
   ok(st && st.config && st.config.schedule['1'][0].hours === 3, 'estado guardado con el horario');
   ok(JSON.stringify(st.settings.limites) === JSON.stringify([{ pct: 10, sin: 1, just: 0 }, { pct: 15, sin: 0, just: 1 }]), 'reglas guardadas');
-  ok(st.faltas.reduce((a, f) => a + f.hours, 0) === 2 && st.faltas.every((f) => f.note === 'previas' && f.subject === 'Programació'), 'faltas de antes (2 h)');
+  ok(st.faltas.reduce((a, f) => a + f.hours, 0) === 8 && st.faltas.every((f) => f.note === 'importada' && f.date), 'faltas de antes guardadas con su fecha (8 h)');
   await p.waitForTimeout(2600);
   const txt = await p.locator('#app').innerText();
   ok(!/¿En qué instituto|Elige tu centro/.test(txt) && txt.length > 20, 'la app abre directamente en su pantalla principal');
@@ -172,6 +190,31 @@ console.log('C · ramas, oscuro y pantalla pequeña');
   await tap(p, 'Siguiente'); await radio(p, 'De cada RA'); await tap(p, 'Siguiente');
   ok((await p.locator('.card.amb').allInnerTexts()).join(' ').includes('RA'), 'por RA: aviso de aproximado');
   ok(p.errores.length === 0, 'sin errores de JavaScript' + (p.errores.length ? ': ' + p.errores.join(' | ') : ''));
+  await c.close();
+}
+
+// ---------- D · faltas desde una captura (necesita red para cargar el lector: en CI) ----------
+console.log('D · faltas desde una captura');
+{
+  const { c, p } = await ctx();
+  // una «captura» de una lista de asistencia, dibujada en el navegador
+  const img = await (async () => {
+    const q = await c.newPage(); await q.setViewportSize({ width: 900, height: 360 });
+    await q.setContent('<style>body{font:22px Arial;margin:20px}td,th{padding:8px 18px;border-bottom:1px solid #ccc;text-align:left}</style><h2>Programació</h2><table><tr><th>Fecha</th><th>Estado</th><th>Puntos</th></tr>' +
+      '<tr><td>21/09/2026 15:00 - 17:00</td><td>Ausente</td><td>0 / 2</td></tr><tr><td>28/09/2026 15:00 - 17:00</td><td>Presente</td><td>2 / 2</td></tr><tr><td>05/10/2026 15:00 - 17:00</td><td>Ausente</td><td>0 / 2</td></tr></table>');
+    const b = await q.screenshot(); await q.close(); return b;
+  })();
+  await p.goto(BASE + '/alta.html?hoy=2026-11-16');
+  await p.evaluate(() => localStorage.setItem('nv.alta', JSON.stringify({ v: 1, paso: 'previas', hist: ['reglas4'], centro: { id: 'pedralbes', name: 'Institut Pedralbes', city: 'Barcelona' }, ciclo: { code: 'ICC0', name: 'DAW' }, turno: 'tarde',
+    horario: { schedule: { 1: [{ start: '15:00', end: '17:00', subject: 'Programació', hours: 2 }] } }, fuente: 'plantilla', quitar: [], cal: { inicio: '2026-09-14', fin: '2027-05-26', terms: null, locales: [], libres: [], libresLuego: true },
+    reglas: { tipo: 'todas', pct: 25, cuenta: 'todas', ambito: 'trimestre', retrasos: 'no' }, previas: {}, importadas: [], dudosas: [], faltoAntes: true, compartir: false })));
+  await p.reload();
+  await p.getByRole('button', { name: /Con capturas/ }).click();
+  await p.locator('input[data-imp]').setInputFiles({ name: 'lista.png', mimeType: 'image/png', buffer: img });
+  await p.locator('h1', { hasText: /He encontrado|No he encontrado|Elige las capturas/ }).waitFor({ timeout: 90000 }).catch(() => {});
+  const t = await h1(p);
+  if (t === 'Elige las capturas de tu lista' && /conexión/.test(await p.locator('#alta').innerText())) console.log('  – sin red para cargar el lector: se prueba en CI');
+  else { ok(t === 'He encontrado 4 h de faltas', 'captura leída: 2 faltas de 2 h (' + t + ')'); await shot(p, 'previas-captura'); }
   await c.close();
 }
 

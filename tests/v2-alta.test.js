@@ -101,6 +101,9 @@ assert.ok(prog.total > 0, 'total calculado desde horario + calendario');
 assert.strictEqual(prog.limits.length, 2);
 assert.deepStrictEqual(prog.limits.map((l) => l.used), [3, 1], 'previas: 3 sin justificar, 1 justificada');
 assert.ok(C.verdict(state, '2026-11-16').items.length > 0, 'veredicto del lunes');
+// faltas importadas con fecha
+const imp = E.construir(Object.assign({}, d, { previas: {}, importadas: [{ date: '2026-10-05', subject: 'Programació', hours: 2, type: 'falta', justified: true }, { date: '2026-10-07', subject: 'Programació', hours: 0, type: 'retraso', justified: false }] }));
+assert.deepStrictEqual(imp.faltas.map((f) => [f.date, f.hours, f.type, f.justified, f.note]), [['2026-10-05', 2, 'falta', true, 'importada'], ['2026-10-07', 0, 'retraso', false, 'importada']]);
 // errores claros
 assert.ok(E.construir({}).error);
 assert.ok(E.construir(Object.assign({}, d, { horario: { rows, grid: H.vacia() } })).error, 'horario vacío');

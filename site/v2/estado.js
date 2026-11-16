@@ -34,7 +34,8 @@
    * d = { centro:{ id, code, name, city, prov }, ciclo:{ code, name, prov }, turno,
    *       horario: { rows, grid } | { schedule }, quitar: [asignaturas],
    *       cal: { inicio, fin, terms, locales, libres, libresLuego },
-   *       reglas: respuestas, previas: { asignatura: { sin, just } }, hoy: 'YYYY-MM-DD' }
+   *       reglas: respuestas, previas: { asignatura: { sin, just } },
+   *       importadas: [{ date, subject, hours, type, justified }], hoy: 'YYYY-MM-DD' }
    */
   function construir(d) {
     if (!d || !d.centro || !d.centro.name) return { error: 'Falta el instituto.' };
@@ -69,6 +70,11 @@
         const h = Math.round((+p[k] || 0) * 100) / 100;
         if (h > 0) faltas.push({ id: 'p' + (++n) + '-' + Date.now().toString(36), date: '', term: t.id, subject, hours: h, type: 'falta', justified, note: 'previas' });
       });
+    });
+    // faltas leídas de una lista (pegada, captura o IA): con su fecha real
+    (d.importadas || []).forEach((f) => {
+      if (!f || !f.date || !f.subject) return;
+      faltas.push({ id: 'i' + (++n) + '-' + Date.now().toString(36), date: f.date, subject: f.subject, hours: f.type === 'retraso' ? 0 : Math.round((+f.hours || 0) * 100) / 100, type: f.type === 'retraso' ? 'retraso' : 'falta', justified: !!f.justified, note: 'importada' });
     });
     return { config, settings, faltas, since: hoy };
   }

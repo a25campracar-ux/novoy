@@ -194,6 +194,25 @@
     });
     return out;
   }
-  const api = { analyze, read, merge, weak };
+  /** Texto de una o varias capturas (listas de faltas), línea a línea. onProgress(0..1, texto). */
+  async function texto(files, onProgress) {
+    onProgress(0, 'Cargando el lector…');
+    await loadTess();
+    const list = Array.from(files || []), out = [];
+    const w = await root.Tesseract.createWorker('eng', 1, { logger: (m) => { if (m.status === 'recognizing text') onProgress((out.length + m.progress) / list.length, 'Leyendo la captura ' + (out.length + 1) + ' de ' + list.length + '…'); else if (m.progress != null && /load|init/.test(m.status)) onProgress(0, 'Preparando el lector (solo la primera vez)…'); } });
+    try {
+      await w.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' }); // bloque de texto: respeta las filas de la tabla
+      for (const f of list) {
+        const bmp = await createImageBitmap(f), sc = Math.min(2, 2000 / bmp.width), cv = document.createElement('canvas');
+        cv.width = Math.round(bmp.width * sc); cv.height = Math.round(bmp.height * sc);
+        const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(bmp, 0, 0, cv.width, cv.height);
+        const v = variant(cv, 'B') || cv; // gris y, si es oscura, invertida
+        const r = await w.recognize(v);
+        out.push(r.data.text || '');
+      }
+      return out.join('\n');
+    } finally { w.terminate(); }
+  }
+  const api = { analyze, read, merge, weak, texto };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTShot = api;
 })(typeof window !== 'undefined' ? window : globalThis);

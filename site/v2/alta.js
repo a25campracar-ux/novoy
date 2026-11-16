@@ -28,7 +28,7 @@
 
   // ---------- borrador ----------
   const nuevo = () => ({ v: 1, paso: 'centro', hist: [], centro: null, ciclo: null, turno: null, tplGrupo: null, tplCentro: null, plantilla: null,
-    horario: null, fuente: null, quitar: [], cal: { inicio: null, fin: null, terms: null, locales: null, libres: [], libresLuego: false }, reglas: {}, previas: {}, faltoAntes: null, compartir: true });
+    horario: null, fuente: null, quitar: [], cal: { inicio: null, fin: null, terms: null, locales: null, libres: [], libresLuego: false }, reglas: {}, previas: {}, importadas: [], dudosas: [], faltoAntes: null, compartir: true });
   let d = ls.get(DRAFT); if (!d || d.v !== 1) d = nuevo();
   const ui = { q: '', res: [], dirBusy: false, err: '', paint: null, otra: false, horas: false, quitar: false, cambiarFechas: false, cambiarTrim: false, libresForm: false, otroPct: false, busy: null, tplIdx: 0 };
   const save = () => ls.set(DRAFT, d);
@@ -63,10 +63,10 @@
   }
 
   // ---------- piezas ----------
-  const PASOS = { centro: 1, centroOtro: 1, ciclo: 1, plantilla: 2, fuente: 2, leyendo: 2, editor: 2, calendario: 3, reglas1: 4, reglas2a: 4, reglas2b: 4, reglas2c: 4, reglas2m: 4, reglas3: 4, reglas4: 4, previas: 5, listo: 5 };
+  const PASOS = { centro: 1, centroOtro: 1, ciclo: 1, plantilla: 2, fuente: 2, leyendo: 2, editor: 2, calendario: 3, reglas1: 4, reglas2a: 4, reglas2b: 4, reglas2c: 4, reglas2m: 4, reglas3: 4, reglas4: 4, previas: 5, previasMano: 5, impPegar: 5, impFoto: 5, impLeyendo: 5, impIA: 5, impRevisar: 5, listo: 5 };
   function top() {
     const n = PASOS[d.paso] || 1, bars = [1, 2, 3, 4, 5].map((i) => '<i class="' + (i <= n ? 'on' : '') + '"></i>').join('');
-    const canBack = d.hist.length > 0 && d.paso !== 'leyendo';
+    const canBack = d.hist.length > 0 && d.paso !== 'leyendo' && d.paso !== 'impLeyendo';
     return '<div class="top">' + (canBack ? '<button class="back" data-a="back" aria-label="Atrás">' + ICON.back + '</button>' : '') +
       '<div class="prog" role="progressbar" aria-label="Paso ' + n + ' de 5" aria-valuemin="1" aria-valuemax="5" aria-valuenow="' + n + '">' + bars + '</div></div>';
   }
@@ -269,17 +269,60 @@
     return h + foot(next('reglasSi', 'Sí, es así') + '<button class="btn2" data-a="cambiarReglas">Cambiar algo</button>');
   };
 
+  const subsPrevias = () => Object.keys(H.horasSemana(horarioFinal())).filter((x) => !/^(tut|tutor|tutoria|tutoría)\b/i.test(x));
   V.previas = () => {
-    const subs = Object.keys(H.horasSemana(horarioFinal())).filter((s) => !/^(tut|tutor|tutoria|tutoría)\b/i.test(s));
     let h = top() + h1('¿Has faltado alguna vez desde septiembre?');
-    if (d.faltoAntes !== true) return h + '<div class="stack" role="radiogroup">' + radio('faltoAntes', 'no', d.faltoAntes === false, 'No, ninguna') + radio('faltoAntes', 'si', false, 'Sí', 'Las cuento ahora') + '</div>' + foot(next('previasOk', 'Siguiente', d.faltoAntes == null));
-    h += '<p class="lead">Cuenta las horas de cada asignatura. Si no lo sabes exacto, pon de más: es lo seguro.</p><div class="list">';
-    subs.forEach((s) => {
-      const p = d.previas[s] || {};
-      const st = (k, lab) => '<div class="row" style="justify-content:space-between"><small>' + lab + '</small><span class="stepper"><button data-a="prev" data-v="' + esc(s) + '|' + k + '|-1" aria-label="Quitar 1 hora ' + lab + ' en ' + esc(s) + '">−</button><output aria-live="polite">' + num(p[k] || 0) + ' h</output><button data-a="prev" data-v="' + esc(s) + '|' + k + '|1" aria-label="Añadir 1 hora ' + lab + ' en ' + esc(s) + '">+</button></span></div>';
-      h += '<div class="li"><span class="t"><b>' + esc(s) + '</b>' + st('sin', 'Sin justificante') + st('just', 'Con justificante') + '</span></div>';
+    if (d.faltoAntes !== true) return h + '<div class="stack" role="radiogroup">' + radio('faltoAntes', 'no', d.faltoAntes === false, 'No, ninguna') + radio('faltoAntes', 'si', false, 'Sí', 'Las pasamos ahora') + '</div>' + foot(next('previasOk', 'Siguiente', d.faltoAntes == null));
+    const ya = (d.importadas || []).length;
+    return top() + h1(ya ? '¿Añades otra lista?' : '¿Cómo quieres pasarlas?') + '<p class="lead">Elige lo más rápido para ti. Antes de guardar verás lo que he entendido.</p><div class="stack">' +
+      '<button class="opt" data-a="modo" data-v="impPegar"><span class="t"><b>Copiar y pegar</b><small>Desde el Moodle o la web de tu centro. Lo más rápido.</small></span></button>' +
+      '<button class="opt" data-a="modo" data-v="impFoto"><span class="t"><b>Con capturas</b><small>Haz capturas de tu lista y elígelas. Se leen en tu móvil.</small></span></button>' +
+      '<button class="opt" data-a="modo" data-v="impIA"><span class="t"><b>Con una IA</b><small>Si tu lista es rara o está en PDF: te doy un mensaje para ChatGPT o Gemini.</small></span></button>' +
+      '<button class="opt" data-a="modo" data-v="previasMano"><span class="t"><b>Contarlas a mano</b><small>Si son pocas: las horas de cada asignatura.</small></span></button></div>' +
+      (ya ? foot('<button class="btn2" data-a="modo" data-v="impRevisar">Volver a lo que ya tengo (' + ya + ')</button>') : foot('<button class="link" data-a="faltoAntes" data-v="no">En realidad, no he faltado</button>'));
+  };
+  V.previasMano = () => {
+    let h = top() + h1('Cuenta tus faltas') + '<p class="lead">Las horas de cada asignatura. Si no lo sabes exacto, pon de más: es lo seguro.</p><div class="list">';
+    subsPrevias().forEach((x) => {
+      const p = d.previas[x] || {};
+      const st = (k, lab) => '<div class="row" style="justify-content:space-between"><small>' + lab + '</small><span class="stepper"><button data-a="prev" data-v="' + esc(x) + '|' + k + '|-1" aria-label="Quitar 1 hora ' + lab + ' en ' + esc(x) + '">−</button><output aria-live="polite">' + num(p[k] || 0) + ' h</output><button data-a="prev" data-v="' + esc(x) + '|' + k + '|1" aria-label="Añadir 1 hora ' + lab + ' en ' + esc(x) + '">+</button></span></div>';
+      h += '<div class="li"><span class="t"><b>' + esc(x) + '</b>' + st('sin', 'Sin justificante') + st('just', 'Con justificante') + '</span></div>';
     });
-    return h + '</div><button class="link" data-a="faltoAntes" data-v="no">En realidad, no he faltado</button>' + foot(next('previasOk'));
+    return h + '</div>' + foot(next('manoOk'));
+  };
+  V.impPegar = () => top() + h1('Pega tu lista de faltas') +
+    '<ol class="pasos"><li>En la web de tu centro, abre tu asistencia.</li><li>Mantén pulsado sobre la lista, toca «Seleccionar todo» y «Copiar».</li><li>Vuelve aquí y pégalo.</li></ol>' +
+    (navigator.clipboard && navigator.clipboard.readText ? '<button class="btn2" data-a="pegar">Pegar lo que he copiado</button>' : '') +
+    '<div class="field"><label for="imp">Tu lista</label><textarea id="imp" class="input area" data-f="imp" rows="7" placeholder="Fecha, asignatura y si fue falta, justificada o retraso. Da igual el formato.">' + esc(ui.imp || '') + '</textarea></div>' +
+    '<p class="sub">Si tu centro tiene una página por asignatura, pega una y luego «Añadir otra lista».</p>' + errBox() + foot(next('leer', 'Leer mi lista'));
+  V.impFoto = () => top() + h1('Elige las capturas de tu lista') + '<p class="lead">Puedes elegir varias. Que se vean la fecha, la asignatura y si fue falta.</p>' + errBox() +
+    '<label class="btn" tabindex="0" role="button">' + ICON.gallery + 'Elegir capturas<input type="file" accept="image/*" multiple class="sr" data-imp="1"></label>' +
+    foot('<p class="sub">Se leen en tu móvil y no se guardan.</p>');
+  V.impLeyendo = () => top() + h1('Leyendo tus capturas…') + '<p class="lead" id="msg">' + esc((ui.busy && ui.busy.msg) || '') + '</p><div class="bar"><i id="pbar" style="width:' + Math.round(((ui.busy && ui.busy.p) || 0) * 100) + '%"></i></div>';
+  V.impIA = () => {
+    const pr = NVImportar.promptIA(subsPrevias());
+    return top() + h1('Pásalas con una IA') +
+      '<ol class="pasos"><li>Copia este mensaje.</li><li>Pégalo en ChatGPT, Gemini o la que uses, y añade tu lista o tus capturas.</li><li>Copia lo que te responda y pégalo abajo.</li></ol>' +
+      '<div class="field"><label for="prm">Mensaje para la IA</label><textarea id="prm" class="input area" rows="5" readonly>' + esc(pr) + '</textarea></div>' +
+      '<button class="btn2" data-a="copiarPrompt">Copiar el mensaje</button>' +
+      '<div class="field"><label for="imp">Lo que te ha respondido</label><textarea id="imp" class="input area" data-f="imp" rows="6" placeholder="2026-10-19 ; Programació ; 2 ; falta">' + esc(ui.imp || '') + '</textarea></div>' +
+      errBox() + foot(next('leer', 'Leer la respuesta'));
+  };
+  V.impRevisar = () => {
+    const F = d.importadas || [], T = NVImportar.totales(F), dud = d.dudosas || [];
+    const horas = F.reduce((a, f) => a + (f.type === 'retraso' ? 0 : f.hours), 0), ret = F.filter((f) => f.type === 'retraso').length;
+    let h = top() + h1(F.length ? 'He encontrado ' + num(horas) + ' h de faltas' : 'No he encontrado faltas');
+    if (F.length) {
+      h += '<p class="lead">' + (ret ? ret + (ret === 1 ? ' retraso' : ' retrasos') + ' aparte. ' : '') + 'Revisa que esté bien antes de guardar.</p><div class="list">' + Object.keys(T).map((x) => {
+        const t = T[x], partes = [];
+        if (t.sin) partes.push(num(t.sin) + ' h sin justificante'); if (t.just) partes.push(num(t.just) + ' h justificadas'); if (t.retrasos) partes.push(t.retrasos + (t.retrasos === 1 ? ' retraso' : ' retrasos'));
+        return '<div class="li"><span class="t"><b>' + esc(x) + '</b><small>' + esc(partes.join(' · ')) + '</small></span></div>';
+      }).join('') + '</div>';
+      h += ui.verTodas ? '<div class="list">' + F.map((f) => '<div class="kv"><span>' + esc(fecha(f.date) + ' · ' + f.subject) + '</span><b>' + (f.type === 'retraso' ? 'retraso' : num(f.hours) + ' h' + (f.justified ? ' · just.' : '')) + '</b></div>').join('') + '</div>' : '<button class="link" data-a="verTodas" style="align-self:flex-start">Ver una por una (' + F.length + ')</button>';
+    } else h += '<p class="lead">Prueba con «Con una IA»: entiende casi cualquier formato.</p>';
+    if (dud.length) h += '<div class="card amb stack"><p><b>' + dud.length + (dud.length === 1 ? ' línea no la he entendido' : ' líneas no las he entendido') + '</b></p><p class="sub" style="color:var(--tx2)">No las cuento. Si son faltas, añádelas luego a mano.</p><div class="list">' +
+      dud.slice(0, 8).map((x) => '<div class="li"><span class="t"><small>' + esc(x.motivo) + '</small><b style="font-weight:500;font-size:13px">' + esc(x.linea.slice(0, 90)) + '</b></span></div>').join('') + '</div>' + (dud.length > 8 ? '<p class="sub">Y ' + (dud.length - 8) + ' más.</p>' : '') + '</div>';
+    return h + foot((F.length ? next('impOk', 'Guardar estas faltas') : '') + '<button class="btn2" data-a="otraLista">Añadir otra lista</button>' + (F.length || dud.length ? '<button class="link" data-a="borrarImp">Empezar de nuevo</button>' : ''));
   };
 
   V.listo = () => {
@@ -301,7 +344,7 @@
   function horarioFinal() { const hz = d.horario || {}; const sch = hz.schedule ? hz.schedule : H.aHorario(hz.rows || [], hz.grid || {}); return H.sinAsignaturas(sch, d.quitar); }
   function borradorEstado() {
     if (!d.centro || !d.horario) return null;
-    return E.construir({ centro: d.centro, ciclo: d.ciclo, turno: d.turno, horario: d.horario, quitar: d.quitar, cal: d.cal, reglas: d.reglas, previas: d.faltoAntes ? d.previas : {}, hoy: HOY, plantilla: d.plantilla });
+    return E.construir({ centro: d.centro, ciclo: d.ciclo, turno: d.turno, horario: d.horario, quitar: d.quitar, cal: d.cal, reglas: d.reglas, previas: d.faltoAntes ? d.previas : {}, importadas: d.faltoAntes ? d.importadas || [] : [], hoy: HOY, plantilla: d.plantilla });
   }
   const existente = () => ls.get(STATE) || {};
 
@@ -386,9 +429,18 @@
     reglas3Ok: () => { d.reglas = R.conDefecto(d.reglas); save(); go('reglas4'); },
     reglasSi: () => go('previas'),
     cambiarReglas: () => { d.reglasDeTpl = false; go('reglas1'); },
-    faltoAntes: (v) => { d.faltoAntes = v === 'si'; if (v === 'no') d.previas = {}; save(); render(false); },
+    faltoAntes: (v) => { d.faltoAntes = v === 'si'; if (v === 'no') { d.previas = {}; d.importadas = []; d.dudosas = []; } save(); render(false); },
     prev: (v) => { const [s, k, n] = v.split('|'); const p = d.previas[s] || (d.previas[s] = {}); p[k] = Math.max(0, Math.min(200, (+p[k] || 0) + +n)); save(); render(false, '[data-v="' + cssEsc(v) + '"]'); },
     previasOk: () => { if (d.faltoAntes == null) return; go('listo'); },
+    modo: (v) => { ui.imp = ''; ui.err = ''; go(v); },
+    manoOk: () => { d.importadas = []; d.dudosas = []; go('listo'); },
+    pegar: async () => { try { const t = await navigator.clipboard.readText(); if (t) { ui.imp = t; render(false); } } catch (e) { aviso('Mantén pulsado el cuadro y toca «Pegar».'); } },
+    copiarPrompt: async () => { const el = document.getElementById('prm'); try { await navigator.clipboard.writeText(el.value); aviso('Mensaje copiado'); } catch (e) { el.select(); document.execCommand && document.execCommand('copy'); aviso('Mensaje copiado'); } },
+    leer: () => { const t = (val('imp') || '').trim(); if (t.length < 6) { ui.err = 'Pega aquí tu lista.'; return render(false); } leerTexto(t); },
+    verTodas: () => { ui.verTodas = true; render(false); },
+    otraLista: () => { ui.verTodas = false; go('previas'); },
+    borrarImp: () => { d.importadas = []; d.dudosas = []; d.previas = {}; save(); go('previas'); },
+    impOk: () => { d.previas = {}; go('listo'); },
     compartir: (v, el) => { d.compartir = !!el.checked; save(); },
     terminar: () => terminar()
   };
@@ -416,6 +468,39 @@
     const r = R.conDefecto(d.reglas); if (r.tipo !== 'nose') c.reglas = { tipo: r.tipo, pct: r.pct, cuenta: r.cuenta, pctSin: r.pctSin, pctJust: r.pctJust, segundo: r.segundo, ambito: r.ambito, retrasos: r.retrasos };
     envios.push(api('POST', '', { tipo: 'centro', k: keyCentro(), dev, data: c }));
     return Promise.all(envios);
+  }
+
+  /** Opciones del lector: asignaturas, sus otros nombres y cuántas horas hay cada día según el horario. */
+  function optsLector() {
+    const st = borradorEstado(); const S = st && !st.error ? Object.assign({}, st.config, { settings: Object.assign({}, C.DEF, st.settings), faltas: [] }) : null;
+    const subs = subsPrevias(), cy = d.ciclo && d.ciclo.code;
+    const alias = (x) => { const m = cy && CAT.matchModule(cy, x); return m ? [m.short, m.name].concat(m.alias) : [corto(x)]; };
+    const blocks = (date, sub) => (S ? C.dayClasses(S, date) : []).filter((b) => b.subject === sub);
+    const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
+    return { curso: { inicio: (d.cal && d.cal.inicio) || K.CURSO_2627.inicio, fin: K.CURSO_2627.fin }, hoy: HOY, subs, alias,
+      horasDia: (date, sub) => blocks(date, sub).reduce((a, b) => a + (+b.hours || 0), 0),
+      bloquesDia: (date, sub) => blocks(date, sub).map((b) => ({ a: mins(b.start), b: mins(b.end), hours: +b.hours || 0 })) };
+  }
+  function leerTexto(t) {
+    const r = NVImportar.leer(t, optsLector());
+    d.importadas = NVImportar.unir(d.importadas || [], r.faltas);
+    d.dudosas = (d.dudosas || []).concat(r.dudosas).slice(-200);
+    ui.imp = ''; ui.verTodas = false; ui.err = '';
+    if (d.paso === 'impLeyendo') { d.hist.pop(); d.paso = 'impFoto'; }
+    go('impRevisar');
+  }
+  async function leerCapturasFaltas(files) {
+    if (!files || !files.length) return;
+    if (!window.FTShot || !FTShot.texto) { ui.err = 'No he podido cargar el lector. Prueba con «Copiar y pegar».'; return render(false); }
+    ui.busy = { p: 0, msg: 'Cargando el lector…' }; go('impLeyendo');
+    try {
+      const t = await FTShot.texto(files, (p, msg) => { ui.busy = { p, msg }; const b = document.getElementById('pbar'), m = document.getElementById('msg'); if (b) b.style.width = Math.round(p * 100) + '%'; if (m) m.textContent = msg; });
+      ui.busy = null; leerTexto(t || '');
+    } catch (err) {
+      ui.busy = null; d.hist.pop(); d.paso = 'impFoto';
+      ui.err = err && err.message === 'net' ? 'No he podido cargar el lector. Comprueba la conexión o prueba con «Copiar y pegar».' : 'No he podido leer las capturas. Prueba con «Con una IA».';
+      save(); render(true);
+    }
   }
 
   // ---------- pintar con el dedo ----------
@@ -452,6 +537,7 @@
   app.addEventListener('change', (e) => {
     const t = e.target;
     if (t.dataset.file) return leerCaptura(t.files && t.files[0]);
+    if (t.dataset.imp) return leerCapturasFaltas(t.files);
     if (t.tagName === 'INPUT' && t.type === 'checkbox' && t.dataset.a) { const f = A[t.dataset.a]; if (f) f(t.dataset.v, t, e); }
   });
   app.addEventListener('input', (e) => {
@@ -500,5 +586,6 @@
 
   if (d.paso === 'calendario') prepararCalendario();
   if (d.paso === 'leyendo') { d.paso = 'fuente'; }
+  if (d.paso === 'impLeyendo') { d.paso = 'impFoto'; }
   render(true);
 })();
