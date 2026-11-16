@@ -89,11 +89,26 @@ h2 { margin: 0; font-size: 17px; font-weight: 700; }
 .tt.view .h { min-height: 30px; }
 .tt .c.f { border: 0; }
 .tt .gap { grid-column: 1 / -1; font-size: 11px; color: var(--tx3); text-align: center; padding: 2px 0; border-top: 1px dashed var(--line); }
-.pal { display: flex; flex-wrap: wrap; gap: 6px; }
-.pal button { min-height: 44px; border-radius: 999px; border: 2px solid transparent; padding: 0 14px; font-weight: 700; font-size: 14px; cursor: pointer; color: #0E0F11; }
-.pal button[aria-pressed="true"] { border-color: var(--tx); box-shadow: 0 0 0 2px var(--bg) inset; }
-.pal .erase { background: var(--sf2); color: var(--tx); }
-.pal .add { background: transparent; border: 1px dashed var(--tx3); color: var(--tx2); }
+/* Fichas de asignatura: misma forma que las casillas del horario (lo que eliges es lo que pintas). */
+.pal { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px 10px; padding-top: 6px; }
+.ficha { position: relative; }
+.pal .fi { width: 100%; min-height: 56px; border: 0; border-radius: 14px 14px 14px 4px; background: var(--c, var(--sf2)); color: #0E0F11; cursor: pointer;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; padding: 8px 10px; text-align: left;
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,.14); transition: transform .12s, box-shadow .12s; }
+.pal .fi b { font-size: 15px; font-weight: 800; line-height: 1.1; }
+.pal .fi small { font-size: 10.5px; font-weight: 600; opacity: .72; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal .fi:active { transform: translateY(2px); box-shadow: inset 0 -2px 0 rgba(0,0,0,.14); }
+.pal .fi[aria-pressed="true"] { outline: 3px solid var(--tx); outline-offset: 2px; transform: translateY(-2px); }
+.pal .erase { --c: var(--sf2); color: var(--tx); box-shadow: inset 0 0 0 1px var(--line); }
+.pal .add { --c: transparent; color: var(--tx2); box-shadow: inset 0 0 0 1.5px var(--tx3); border-style: dashed; }
+/* Quitar: círculo con cruz en la esquina; zona táctil de 32 px, se puede deshacer. */
+.quita { position: absolute; top: -10px; right: -10px; width: 32px; height: 32px; border: 0; background: transparent; padding: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; }
+.quita span { width: 22px; height: 22px; border-radius: 50%; background: var(--tx); color: var(--bg); font-size: 15px; font-weight: 800; line-height: 22px; text-align: center;
+  box-shadow: 0 0 0 2px var(--bg); }
+.toast:has(.undo) { display: flex; align-items: center; white-space: nowrap; padding: 6px 8px 6px 16px; }
+.toast .undo { margin-left: 12px; border: 0; background: transparent; color: var(--pri); font-weight: 800; min-height: 32px; cursor: pointer; }
+.toast.on:has(.undo) { pointer-events: auto; }
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
 
 .stepper { display: flex; align-items: center; gap: 4px; }

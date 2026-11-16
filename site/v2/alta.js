@@ -54,13 +54,28 @@
     const w = String(s).trim().split(/\s+/);
     return w.length > 1 ? w.map((x) => x[0]).join('').slice(0, 4).toUpperCase() : String(s).slice(0, 5);
   }
-  function colores(subs) { const out = {}; subs.forEach((s, i) => { out[s] = COLORS[i % COLORS.length]; }); return out; }
-  const pintadas = () => (d.horario && d.horario.grid ? H.asignaturas(d.horario.grid) : []);
-  function paleta() {
-    const cat = cicloCat(), base = cat ? cat.modules.map((m) => m.name) : [];
-    const extra = (d.horario && d.horario.extra) || [];
-    return Array.from(new Set(pintadas().concat(extra, base)));
+  /** Color fijo por asignatura: no cambia al pintar, quitar o reordenar (se guarda en el horario). */
+  function colores(subs) {
+    const hz = d.horario || {}, m = hz.col || (hz.col = {}), out = {};
+    subs.forEach((s) => { if (m[s] == null) { const usados = new Set(Object.values(m)); let i = 0; while (usados.has(i) && i < COLORS.length) i++; m[s] = i < COLORS.length ? i : Object.keys(m).length; } out[s] = COLORS[m[s] % COLORS.length]; });
+    return out;
   }
+  const pintadas = () => (d.horario && d.horario.grid ? H.asignaturas(d.horario.grid) : []);
+  /** Módulo del catálogo al que corresponde un nombre (para no repetir «E.CLI» con dos nombres). */
+  const modDe = (s) => { const cy = d.ciclo && d.ciclo.code, m = cy && CAT.matchModule(cy, s); return m ? m.name : null; };
+  /** Asignaturas propias: las pintadas y las añadidas, sin repetir el mismo módulo con otro nombre. */
+  function propias() {
+    const out = [], vistos = new Set();
+    pintadas().concat((d.horario && d.horario.extra) || []).forEach((s) => { const k = modDe(s) || s; if (!vistos.has(k)) { vistos.add(k); out.push(s); } });
+    return out;
+  }
+  /** Módulos del ciclo que aún no usas (ni has quitado). */
+  function delCiclo() {
+    const cat = cicloCat(); if (!cat) return [];
+    const usados = new Set(propias().map((s) => modDe(s) || s)), fuera = new Set((d.horario && d.horario.ocultas) || []);
+    return cat.modules.map((m) => m.name).filter((n) => !usados.has(n) && !fuera.has(n));
+  }
+  const paleta = () => propias().concat(delCiclo());
 
   // ---------- piezas ----------
   const PASOS = { centro: 1, centroOtro: 1, ciclo: 1, plantilla: 2, fuente: 2, leyendo: 2, editor: 2, calendario: 3, reglas1: 4, reglas2a: 4, reglas2b: 4, reglas2c: 4, reglas2m: 4, reglas3: 4, reglas4: 4, previas: 5, previasMano: 5, impPegar: 5, impFoto: 5, impLeyendo: 5, impIA: 5, impRevisar: 5, listo: 5 };
@@ -173,9 +188,12 @@
       '<div class="field"><label for="hrd">El recreo dura</label><select id="hrd" class="input" data-f="hrd">' + [15, 20, 30, 45, 60].map((m) => '<option value="' + m + '"' + (+(f.rdur || 30) === m ? ' selected' : '') + '>' + m + ' min</option>').join('') + '</select></div>' +
       '<button class="btn2" data-a="aplicarHoras">Usar estas horas</button></div>'
       : '<div class="row"><p class="sub grow">' + esc(resumenH) + '</p><button class="link" data-a="verHoras">Cambiar las horas</button></div>';
-    const pal = '<div class="pal" role="radiogroup" aria-label="Asignatura para pintar">' + subs.map((s) => '<button role="radio" aria-checked="' + (ui.paint === s) + '" aria-pressed="' + (ui.paint === s) + '" data-a="paint" data-v="' + esc(s) + '" style="background:' + cols[s] + '" title="' + esc(s) + '">' + esc(corto(s)) + '</button>').join('') +
-      '<button class="erase" role="radio" aria-checked="' + (ui.paint === '') + '" aria-pressed="' + (ui.paint === '') + '" data-a="paint" data-v="">Borrar</button>' +
-      (ui.add ? '' : '<button class="add" data-a="addSub">+ Otra</button>') + '</div>' +
+    const mias = propias(), resto = delCiclo();
+    const ficha = (s) => '<div class="ficha"><button class="fi" role="radio" aria-checked="' + (ui.paint === s) + '" aria-pressed="' + (ui.paint === s) + '" data-a="paint" data-v="' + esc(s) + '" style="--c:' + cols[s] + '" title="' + esc(s) + '"><b>' + esc(corto(s)) + '</b><small>' + esc(s) + '</small></button>' +
+      '<button class="quita" data-a="quitarSub" data-v="' + esc(s) + '" aria-label="Quitar ' + esc(s) + '"><span aria-hidden="true">×</span></button></div>';
+    const pal = '<div class="pal" role="radiogroup" aria-label="Asignatura para pintar">' + mias.concat(resto).map(ficha).join('') +
+      '<div class="ficha"><button class="fi erase" role="radio" aria-checked="' + (ui.paint === '') + '" aria-pressed="' + (ui.paint === '') + '" data-a="paint" data-v=""><b>Borrar</b><small>casillas</small></button></div>' +
+      (ui.add ? '' : '<div class="ficha"><button class="fi add" data-a="addSub"><b>+ Otra</b><small>asignatura</small></button></div>') + '</div>' +
       (ui.add ? '<div class="row"><label class="sr" for="ns">Nueva asignatura</label><input id="ns" class="input grow" data-f="ns" placeholder="Nombre de la asignatura" autocomplete="off"><button class="seg" data-a="addSubOk" style="min-width:88px">Añadir</button></div>' : '');
     const nombre = ui.paint ? '<p class="sub" aria-live="polite">Pintando: <b style="color:var(--tx)">' + esc(ui.paint) + '</b></p>' : ui.paint === '' ? '<p class="sub" aria-live="polite">Toca una casilla para borrarla.</p>' : '<p class="sub">Elige una asignatura y toca sus horas. Puedes arrastrar el dedo.</p>';
     return top() + h1(d.fuente === 'captura' ? 'Revisa tu horario' : 'Pinta tu horario') +
@@ -405,8 +423,17 @@
       d.horario.rows = rows; d.horario.grid = grid; d.horario.cfg = f; ui.horas = false; ui.err = ''; if (ui.paint == null) ui.paint = paleta()[0] || null; save(); render(false);
     },
     paint: (s) => { ui.paint = s; render(false); },
+    quitarSub: (s) => {
+      const hz = d.horario, antes = JSON.stringify({ grid: hz.grid, extra: hz.extra || [], ocultas: hz.ocultas || [] }), paintAntes = ui.paint;
+      const m = modDe(s) || s, mismo = (x) => x === s || modDe(x) === m;
+      Object.keys(hz.grid).forEach((x) => Object.keys(hz.grid[x]).forEach((r) => { if (mismo(hz.grid[x][r])) delete hz.grid[x][r]; }));
+      hz.extra = (hz.extra || []).filter((x) => !mismo(x)); hz.ocultas = Array.from(new Set((hz.ocultas || []).concat(m)));
+      if (ui.paint === s) ui.paint = null;
+      save(); render(false);
+      aviso('Quitada ' + corto(s), () => { Object.assign(d.horario, JSON.parse(antes)); ui.paint = paintAntes; save(); render(false); });
+    },
     addSub: () => { ui.add = true; render(false); focusSoon('ns'); },
-    addSubOk: () => { const n = (val('ns') || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (n.length < 2) return; d.horario.extra = (d.horario.extra || []).concat(n); ui.paint = n; ui.add = false; save(); render(false); },
+    addSubOk: () => { const n = (val('ns') || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (n.length < 2) return; d.horario.extra = (d.horario.extra || []).concat(n); d.horario.ocultas = (d.horario.ocultas || []).filter((x) => x !== (modDe(n) || n)); ui.paint = n; ui.add = false; save(); render(false); },
     cell: (v, el, ev) => { if (ev && ev.detail > 0 && Date.now() - lastPtr < 600) return; pintaCelda(v, null); },
     editorOk: () => { if (!pintadas().length) return; d.plantilla = null; prepararCalendario(); go('calendario'); },
     'cal-fechas': () => { ui.cambiarFechas = !ui.cambiarFechas; render(false); },
@@ -582,7 +609,12 @@
   function pintar(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
   function focusSoon(id) { setTimeout(() => { const el = document.getElementById(id); if (el) el.focus(); }, 30); }
   let toastT = null;
-  function aviso(t) { const el = document.getElementById('aviso'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2200); }
+  /** Aviso breve. deshacer: función opcional; añade un botón «Deshacer» y dura más. */
+  function aviso(t, deshacer) {
+    const el = document.getElementById('aviso'); el.textContent = t;
+    if (deshacer) { const b = document.createElement('button'); b.className = 'undo'; b.textContent = 'Deshacer'; b.onclick = () => { el.classList.remove('on'); deshacer(); }; el.appendChild(b); }
+    el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), deshacer ? 5000 : 2200);
+  }
   /** nuevaPantalla: lleva el foco al título y arriba del todo. keep: selector del elemento que tenía el foco. */
   function render(nuevaPantalla, keep) {
     const v = V[d.paso] || V.centro;

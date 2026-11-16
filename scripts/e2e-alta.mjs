@@ -28,7 +28,7 @@ async function shot(p, name) {
   const over = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   ok(over <= 0, name + ': sin desbordar a lo ancho (' + over + ' px)');
   const small = await p.evaluate(() => Array.from(document.querySelectorAll('#alta button, #alta a, #alta input:not(.sr), #alta select, #alta label[role=button]'))
-    .filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && (r.height < 44 || r.width < 44) && !el.closest('.tt.view') && !el.closest('label.toggle'); })
+    .filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && (r.height < 44 || r.width < 44) && !el.closest('.tt.view') && !el.closest('label.toggle') && !el.matches('.quita, .toast .undo'); })
     .map((el) => (el.textContent || el.getAttribute('aria-label') || el.tagName).trim().slice(0, 24)));
   ok(small.length === 0, name + ': zonas táctiles ≥ 44 px' + (small.length ? ' (' + small.join(', ') + ')' : ''));
   await p.screenshot({ path: OUT + '/' + String(++n).padStart(2, '0') + '-' + name + '.png', fullPage: true });
@@ -70,6 +70,15 @@ console.log('A · primer alumno');
   ok((await cell('2:1').getAttribute('aria-label')).includes('Bases de dades'), 'tocar pinta');
   await cell('4:4').click();
   ok((await cell('4:4').getAttribute('aria-label')).includes('vacía'), 'tocar otra vez la borra');
+  // quitar con la cruz: desaparece la ficha y sus casillas; «Deshacer» lo devuelve
+  const fichas = async () => p.locator('.pal .fi[data-v]:not([data-v=""])').count();
+  const n0 = await fichas();
+  await p.getByRole('button', { name: 'Quitar Bases de dades' }).first().click();
+  ok(await fichas() === n0 - 1 && (await cell('2:1').getAttribute('aria-label')).includes('vacía'), 'la cruz quita la asignatura y sus casillas');
+  await p.locator('#aviso .undo').click();
+  ok(await fichas() === n0 && (await cell('2:1').getAttribute('aria-label')).includes('Bases de dades'), '«Deshacer» la devuelve');
+  const cortos = await p.locator('.pal .fi[data-v]:not([data-v=""]) b').allTextContents();
+  ok(new Set(cortos).size === cortos.length, 'sin fichas repetidas');
   await shot(p, 'editor');
   await tap(p, 'Siguiente');
   ok(/calendario/i.test(await h1(p)), 'calendario');
