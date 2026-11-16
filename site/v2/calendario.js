@@ -61,7 +61,8 @@
     curso = curso || CURSO_2627;
     if (!municipio || typeof fetch === 'undefined') return [];
     // columnas del conjunto (comprobadas en nov. 2026): any_calendari, data, ajuntament_o_nucli_municipal, festiu
-    const pal = muni(municipio).split(' ').sort((a, b) => b.length - a.length)[0] || '';
+    // la palabra más larga tal como se escribe (con acentos: upper() de Socrata los conserva)
+    const pal = String(municipio).split(/[\s'’,.()-]+/).filter((w) => !/^(l|el|la|els|les|de|del|i)$/i.test(w)).sort((a, b) => b.length - a.length)[0] || '';
     const anys = [curso.inicio.slice(0, 4), curso.fin.slice(0, 4)];
     const u = new URL('https://analisi.transparenciacatalunya.cat/resource/b4eh-r8up.json');
     u.searchParams.set('$where', "upper(ajuntament_o_nucli_municipal) like '%" + pal.toUpperCase().replace(/'/g, "''") + "%' AND any_calendari in ('" + anys.join("','") + "')");
