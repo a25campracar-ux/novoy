@@ -30,13 +30,25 @@
     if (f.date) return termOf(state, f.date);
     return state.terms.some((t) => t.id === f.term) ? f.term : (state.terms[0] || {}).id;
   }
+  /**
+   * Asignatura en la que cuenta una falta. Si tiene fecha y hora, la de la clase en la que cayó: una hora de
+   * proyecto que «cuenta dentro de» un módulo (bloque con `cuenta`) suma en ese módulo. Si no, por su nombre.
+   */
+  function faltaCanon(state, f, memo) {
+    if (f.date && f.start) {
+      const m = memo || {}, cl = m[f.date] || (m[f.date] = dayClasses(state, f.date));
+      const b = cl.find((x) => x.subject === f.subject && mn(x.start) <= mn(f.start) && mn(f.start) < mn(x.end));
+      if (b) return b.canon;
+    }
+    return canon(state, f.subject);
+  }
   function absentByTerm(state, term, justOnly) {
-    const s = Object.assign({}, DEF, state.settings), out = {}, late = {}, jm = justMode(s);
+    const s = Object.assign({}, DEF, state.settings), out = {}, late = {}, jm = justMode(s), memo = {};
     for (const f of state.faltas) {
       if (faltaTerm(state, f) !== term) continue;
-      if (justOnly) { if (f.justified && f.type !== 'retraso') { const k = canon(state, f.subject); out[k] = (out[k] || 0) + f.hours; } continue; }
+      if (justOnly) { if (f.justified && f.type !== 'retraso') { const k = faltaCanon(state, f, memo); out[k] = (out[k] || 0) + f.hours; } continue; }
       if (f.justified && jm !== 'juntas') continue;
-      const k = canon(state, f.subject);
+      const k = faltaCanon(state, f, memo);
       if (f.type === 'retraso') { late[k] = (late[k] || 0) + 1; continue; }
       out[k] = (out[k] || 0) + f.hours;
     }
@@ -64,10 +76,10 @@
   }
   /** Horas y retrasos por asignatura en un trimestre, separados en sin justificar y justificados. */
   function countsByTerm(state, term) {
-    const out = {};
+    const out = {}, memo = {};
     for (const f of state.faltas || []) {
       if (faltaTerm(state, f) !== term) continue;
-      const k = canon(state, f.subject), o = out[k] || (out[k] = { hSin: 0, hJust: 0, lSin: 0, lJust: 0 });
+      const k = faltaCanon(state, f, memo), o = out[k] || (out[k] = { hSin: 0, hJust: 0, lSin: 0, lJust: 0 });
       if (f.type === 'retraso') { if (f.justified) o.lJust++; else o.lSin++; }
       else if (f.justified) o.hJust = r2(o.hJust + (+f.hours || 0));
       else o.hSin = r2(o.hSin + (+f.hours || 0));
@@ -95,10 +107,10 @@
   }
   /** Retrasos que llevas por asignatura en un trimestre (para enseñar cuántos faltan para la siguiente falta). */
   function latesByTerm(state, term) {
-    const s = Object.assign({}, DEF, state.settings), out = {};
+    const s = Object.assign({}, DEF, state.settings), out = {}, memo = {};
     for (const f of state.faltas) {
       if (f.type !== 'retraso' || faltaTerm(state, f) !== term || (f.justified && justMode(s) !== 'juntas')) continue;
-      const k = canon(state, f.subject); out[k] = (out[k] || 0) + 1;
+      const k = faltaCanon(state, f, memo); out[k] = (out[k] || 0) + 1;
     }
     return out;
   }
@@ -144,12 +156,12 @@
   function nominalFactors(state) {
     const s = Object.assign({}, DEF, state.settings), w = +s.semanas;
     if (!(w > 0) || s.formula === 'calendario') return { '*': 1 };
-    const key = JSON.stringify([state.terms, state.holidays, state.schedule, state.periods, state.history, state.nocount, state.disabled, state.alias, s.unificar, w]);
+    const key = JSON.stringify([state.terms, state.holidays, state.schedule, state.periods, state.history, state.nocount, state.disabled, state.vigencia, state.alias, s.unificar, w]);
     if (nominalFactors.k === key) return nominalFactors.v;
     const all = {}, weekly = {};
     (state.terms || []).forEach((t) => { const c = rawCount(state, t); Object.keys(c).forEach((k) => { all[k] = (all[k] || 0) + c[k]; }); });
     const nc = state.nocount || [];
-    Object.keys(state.schedule || {}).forEach((d) => (state.schedule[d] || []).forEach((b) => { if (nc.indexOf(b.subject) >= 0) return; const k = canon(state, b.subject); weekly[k] = (weekly[k] || 0) + (+b.hours || 0); }));
+    Object.keys(state.schedule || {}).forEach((d) => (state.schedule[d] || []).forEach((b) => { if (nc.indexOf(b.subject) >= 0) return; const k = b.cuenta || canon(state, b.subject); weekly[k] = (weekly[k] || 0) + (+b.hours || 0); }));
     const v = { '*': weeksFactor(state) };
     Object.keys(all).forEach((k) => { if (weekly[k] && all[k]) v[k] = Math.min(1, (weekly[k] * w) / all[k]); });
     nominalFactors.k = key; nominalFactors.v = v; return v;
@@ -183,8 +195,10 @@
     const totals = Object.assign(computeTotals(state, term), fixed);
     const cnt = countsByTerm(state, term), nc = state.nocount || [], LIM = limitsOf(s);
     return Object.keys(totals).filter((name) => nc.indexOf(name) < 0).map((name) => {
-      const total = totals[name];
-      const limits = LIM.map((l) => {
+      const total = totals[name], own = (s.porAsignatura || {})[name];
+      // regla propia de una asignatura (p. ej. el proyecto con otro %): manda sobre la general
+      const LL = own && Array.isArray(own.limites) && own.limites.length ? limitsOf({ limites: own.limites }) : LIM;
+      const limits = LL.map((l) => {
         const used = usedIn(l, cnt[name], s.retrasosPorFalta), limit = r2(total * l.pct / 100), margin = r1(limit - used);
         return { pct: l.pct, sin: l.sin, just: l.just, used, limit, margin, status: status(margin, s.aviso) };
       });
@@ -192,7 +206,7 @@
       const cand = limits.some((l) => l.sin > 0) ? limits.filter((l) => l.sin > 0) : limits;
       const p = cand.reduce((a, b) => (b.margin < a.margin ? b : a), cand[0]);
       const worst = limits.reduce((w, l) => (RANK[l.status] > RANK[w] ? l.status : w), 'verde');
-      const o = { name, total, absent: p.used, pct: r1(p.used / total * 100), limit: r1(p.limit), margin: p.margin, status: worst, limits, off: offOn(state, name, todayStr()) };
+      const o = { name, total, propia: LL !== LIM, absent: p.used, pct: r1(p.used / total * 100), limit: r1(p.limit), margin: p.margin, status: worst, limits, off: offOn(state, name, todayStr()) };
       // compatibilidad con la interfaz v1: el límite propio de las justificadas
       const j = limits.find((l) => !(l.sin > 0) && l.just > 0);
       if (j) o.j = { absent: j.used, limit: r1(j.limit), margin: j.margin, pct: r1(j.used / total * 100), status: j.status };
@@ -219,11 +233,18 @@
    */
   function dayClasses(state, date, raw) {
     if ((state.holidays || []).some((h) => date >= h.from && date <= (h.to || h.from))) return [];
-    const nc = state.nocount || []; // clases que no cuentan faltas (p. ej. tutoría): no existen para el cálculo
-    let out = (scheduleOn(state, date)[weekday(date)] || []).filter((b0) => nc.indexOf(b0.subject) < 0).map((b0) => {
-      const b = Object.assign({}, b0);
-      if (!raw && offOn(state, b.subject, date)) { b.covers = b.subject; b.subject = state.disabled[b.subject].cover; }
-      return b;
+    const nc = state.nocount || [], vig = state.vigencia || {}; // nocount: clases que no cuentan faltas (p. ej. tutoría)
+    let out = [];
+    (scheduleOn(state, date)[weekday(date)] || []).forEach((b0) => {
+      if (nc.indexOf(b0.subject) >= 0) return;
+      const b = Object.assign({}, b0), v = vig[b.subject];
+      if (v && ((v.desde && date < v.desde) || (v.hasta && date > v.hasta))) {
+        // fuera de su periodo la asignatura no existe: ni horas ni margen. Antes de empezar, si otra da esas
+        // horas, son de esa otra para Hoy y para las faltas, pero no le suman horas al total (lado estricto).
+        if (raw || !v.antes || !(v.desde && date < v.desde) || nc.indexOf(v.antes) >= 0) return;
+        b.covers = b.subject; b.subject = v.antes; delete b.cuenta;
+      } else if (!raw && offOn(state, b.subject, date)) { b.covers = b.subject; b.subject = state.disabled[b.subject].cover; delete b.cuenta; }
+      out.push(b);
     });
     if (!raw && projectOn(state, date)) {
       const pb = ((state.project.schedule || {})[weekday(date)] || []);
@@ -234,7 +255,8 @@
         out = keep.concat(pb.map((p) => Object.assign({}, p, { subject: state.project.name, project: true }))).sort((a, b) => mn(a.start) - mn(b.start));
       }
     }
-    return out.map((b) => Object.assign(b, { canon: canon(state, b.subject) }));
+    // `cuenta`: esta clase cuenta dentro de otra asignatura (p. ej. una hora de proyecto que es de un módulo)
+    return out.map((b) => Object.assign(b, { canon: b.cuenta || canon(state, b.subject) }));
   }
   /** Horas de proyecto de una semana (lo marcado en la rejilla). */
   function projectWeekHours(p) { let h = 0; Object.keys((p && p.schedule) || {}).forEach((d) => (p.schedule[d] || []).forEach((b) => { h += +b.hours || 0; })); return r2(h); }
@@ -446,6 +468,6 @@
     for (let i = 0; i < 40; i++) { d.setDate(d.getDate() + 1); const k = ymd(d); if (dayClasses(state, k).length) return k; }
     return null;
   }
-  const api = { limitsOf, countsByTerm, usedIn, afterLoss, justMode, weeksFactor, nominalFactors, lectiveDays, splitAtBreaks, projectOn, projectWeekHours, offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
+  const api = { faltaCanon, limitsOf, countsByTerm, usedIn, afterLoss, justMode, weeksFactor, nominalFactors, lectiveDays, splitAtBreaks, projectOn, projectWeekHours, offOn, disabledOn, DEF, ymd, parse, weekday, scheduleOn, withHistory, normalize, unitsOf, orphans, pruneTotals, renameSubjects, allSubjects, termOf, faltaTerm, canon, scope, computeTotals, status, absentByTerm, latesByTerm, summary, dayClasses, hourSlots, remaining, simulate, verdict, nextClassDay };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

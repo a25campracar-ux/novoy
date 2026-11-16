@@ -155,4 +155,13 @@ u = F.estado(); u.fui = { '2026-01-01': ['x|15:00'], [LUNES]: [K.bd] };
 Hd.ordenar(u, LUNES);
 assert.deepStrictEqual(Object.keys(u.fui), [LUNES]);
 
+// ---------- simulador (1.6) ----------
+u = nuevo({ settings: { limites: [{ pct: 10, sin: 1, just: 0 }, { pct: 15, sin: 0, just: 1 }] }, faltas: F.previas('Llenguatges de marques', 4) });
+assert.strictEqual(Hd.dia(u, LUNES).semaforo.titulo, 'Solo con justificante.');
+d = Hd.dia(u, LUNES, { justificada: true });
+assert.notStrictEqual(d.semaforo.status, 'rojo', 'con justificante ya no es rojo');
+assert.strictEqual(g(d, 'Llenguatges de marques').si.limites[1].queda, 5.3, 'gasta del límite de justificadas');
+assert.deepStrictEqual(Hd.diasSiguientes(nuevo(), '2026-12-07', 3), ['2026-12-07', '2026-12-09', '2026-12-10'], 'salta el festivo');
+const uv = nuevo(); uv.config.vigencia = { Sistemes: { desde: '2027-01-08' } };
+assert.deepStrictEqual(Hd.empiezanLuego(uv, LUNES), [{ name: 'Sistemes', desde: '2027-01-08' }]);
 console.log('v2-hoy: todo correcto');

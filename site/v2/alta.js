@@ -29,11 +29,38 @@
   // ---------- borrador ----------
   const nuevo = () => ({ v: 1, paso: 'centro', hist: [], centro: null, ciclo: null, turno: null, tplGrupo: null, tplCentro: null, plantilla: null,
     horario: null, fuente: null, quitar: [], cal: { inicio: null, fin: null, terms: null, locales: null, libres: [], libresLuego: false }, reglas: {}, previas: {}, importadas: [], dudosas: [], tutoria: 0, sinVaga: false, faltoAntes: null, compartir: true });
-  let d = ls.get(DRAFT); if (!d || d.v !== 1) d = nuevo();
+  const AJ = window.NVAjustes;
+  // Ajustes de la app (1.4): alta.html?editar=horario|calendario|reglas|faltas reutiliza estos mismos pasos
+  const EDITAR = ['horario', 'calendario', 'reglas', 'faltas'].indexOf(qs.get('editar')) >= 0 && (ls.get(STATE) || {}).config ? qs.get('editar') : null;
+  // Enlace de clase (1.7): alta.html?unirse=… trae instituto, ciclo y turno
+  const UNIRSE = qs.get('unirse') ? AJ.leerEnlace(qs.get('unirse')) : null;
+  let d = EDITAR ? deEstado(EDITAR) : ls.get(DRAFT); if (!d || d.v !== 1) d = nuevo();
+  if (UNIRSE && !EDITAR) {
+    d = nuevo(); d.centro = UNIRSE.centro; d.ciclo = UNIRSE.ciclo; d.turno = UNIRSE.turno; d.unido = true;
+    d.paso = (ls.get(STATE) || {}).config ? 'yaTienes' : 'uniendo';
+  }
+  /** Borrador a partir de lo que ya tiene la app, para cambiar una parte sin rehacer el alta. */
+  function deEstado(que) {
+    const st = ls.get(STATE), cfg = st.config, set = st.settings || {}, cat = cfg.catalog || {}, x = nuevo();
+    x.editar = que; x.hist = [];
+    x.centro = cat.centre || { name: cfg.center || 'Mi instituto', city: '' }; x.ciclo = cat.cycle || null; x.turno = cat.turno || null;
+    const hz = H.deHorario(cfg.schedule || {}), r0 = hz.rows[0];
+    x.horario = { rows: hz.rows, grid: hz.grid, extra: [], cfg: { n: hz.rows.length, inicio: r0 ? r0.start : '08:00', dur: r0 ? H.min(r0.end) - H.min(r0.start) : 60 } }; x.fuente = 'pintado';
+    const terms = (cfg.terms || []).slice().sort((a, b) => (a.from < b.from ? -1 : 1)), gen = new Set(K.CURSO_2627.festivos.map((f) => f.from + '|' + f.to));
+    const hol = cfg.holidays || [];
+    x.cal = { inicio: terms.length ? terms[0].from : null, fin: terms.length ? terms[terms.length - 1].to : null, terms: terms.map((t) => Object.assign({}, t)),
+      locales: hol.filter((h) => !gen.has(h.from + '|' + (h.to || h.from)) && h.label !== 'Libre disposición').map((h) => ({ from: h.from, to: h.to || h.from, label: h.label })),
+      libres: hol.filter((h) => h.label === 'Libre disposición').map((h) => h.from), libresLuego: !!set.libresPendientes };
+    x.reglas = AJ.respuestasDe(set);
+    x.faltoAntes = true; x.compartir = true;
+    x.paso = { horario: 'editor', calendario: 'calendario', reglas: 'reglas1', faltas: 'previas' }[que];
+    return x;
+  }
   const ui = { q: '', res: [], dirBusy: false, err: '', paint: null, otra: false, horas: false, quitar: false, cambiarFechas: false, cambiarTrim: false, libresForm: false, otroPct: false, busy: null, tplIdx: 0 };
-  const save = () => ls.set(DRAFT, d);
+  const save = () => { if (!d.editar) ls.set(DRAFT, d); };
+  const salir = () => { location.href = './' + (HOY !== C.ymd(new Date()) ? '?hoy=' + HOY : '') + (d.editar === 'faltas' ? '#faltas' : d.editar ? '#ajustes' : ''); };
   function go(paso) { d.hist.push(d.paso); d.paso = paso; ui.err = ''; save(); render(true); }
-  function back() { d.paso = d.hist.pop() || 'centro'; ui.err = ''; save(); render(true); }
+  function back() { if (d.editar && !d.hist.length) return salir(); if (d.paso === 'entrar' && !d.hist.length) { d.paso = 'centro'; return render(true); } d.paso = d.hist.pop() || 'centro'; ui.err = ''; save(); render(true); }
 
   // ---------- claves de plantilla (sin datos del alumno) ----------
   const nk = (s) => K.norm(s).slice(0, 60);
@@ -78,10 +105,12 @@
   const paleta = () => propias().concat(delCiclo());
 
   // ---------- piezas ----------
-  const PASOS = { centro: 1, centroOtro: 1, ciclo: 1, plantilla: 2, fuente: 2, leyendo: 2, editor: 2, calendario: 3, reglas1: 4, reglas2a: 4, reglas2b: 4, reglas2c: 4, reglas2m: 4, reglas3: 4, reglas4: 4, previas: 5, previasMano: 5, impPegar: 5, impFoto: 5, impLeyendo: 5, impIA: 5, impRevisar: 5, listo: 5 };
+  const PASOS = { entrar: 1, yaTienes: 1, uniendo: 2, especial: 2, desde: 2, centro: 1, centroOtro: 1, ciclo: 1, plantilla: 2, fuente: 2, leyendo: 2, editor: 2, calendario: 3, reglas1: 4, reglas2a: 4, reglas2b: 4, reglas2c: 4, reglas2m: 4, reglas3: 4, reglas4: 4, previas: 5, previasMano: 5, impPegar: 5, impFoto: 5, impLeyendo: 5, impIA: 5, impRevisar: 5, listo: 5 };
+  const TIT = { horario: 'Cambiar horario', calendario: 'Cambiar calendario', reglas: 'Cambiar reglas', faltas: 'Pasar faltas' };
   function top() {
+    if (d.editar) return '<div class="top"><button class="back" data-a="back" aria-label="' + (d.hist.length ? 'Atrás' : 'Volver a la app') + '">' + ICON.back + '</button><p class="sub grow">' + TIT[d.editar] + '</p></div>';
     const n = PASOS[d.paso] || 1, bars = [1, 2, 3, 4, 5].map((i) => '<i class="' + (i <= n ? 'on' : '') + '"></i>').join('');
-    const canBack = d.hist.length > 0 && d.paso !== 'leyendo' && d.paso !== 'impLeyendo';
+    const canBack = (d.hist.length > 0 || d.paso === 'entrar') && d.paso !== 'leyendo' && d.paso !== 'impLeyendo';
     return '<div class="top">' + (canBack ? '<button class="back" data-a="back" aria-label="Atrás">' + ICON.back + '</button>' : '') +
       '<div class="prog" role="progressbar" aria-label="Paso ' + n + ' de 5" aria-valuemin="1" aria-valuemax="5" aria-valuenow="' + n + '">' + bars + '</div></div>';
   }
@@ -119,7 +148,7 @@
   V.centro = () => top() + h1('¿En qué instituto estudias?') +
     '<div class="search">' + ICON.search + '<label class="sr" for="q">Busca tu instituto</label><input id="q" class="input" type="search" autocomplete="off" enterkeyhint="search" placeholder="Nombre o ciudad" value="' + esc(ui.q) + '"></div>' +
     '<div id="res" class="stack">' + resultados() + '</div>' +
-    foot('<button class="link" data-a="centroOtro">No está mi instituto</button>');
+    foot('<button class="link" data-a="centroOtro">No está mi instituto</button><button class="link" data-a="entrar">Ya tengo cuenta</button>');
   function resultados() {
     if (ui.q.trim().length < 2) return '<p class="sub">Escribe al menos dos letras.</p>';
     const list = ui.res.map((c, i) => '<button class="opt" data-a="pickCentro" data-v="' + i + '"><span class="t"><b>' + esc(c.name) + '</b><small>' + esc(c.city || '') + (c.id ? ' · listo para tu clase' : '') + '</small></span></button>').join('');
@@ -162,9 +191,30 @@
       : '<button class="btn2" data-a="verQuitar" style="width:auto;align-self:flex-start">No voy a todos: quitar alguno</button>';
     return top() + h1('¿Es este tu horario?') + '<p class="lead">' + esc((cicloCat() ? cicloCat().short : d.ciclo.name) + ' · ' + (d.turno === 'tarde' ? 'tarde' : 'mañana') + ' · ' + d.centro.name) + '</p>' + tabs +
       '<span class="badge">' + ICON.people + 'Lo ' + (v.conf === 1 ? 'ha subido 1 compañero' : 'han confirmado ' + v.conf + ' compañeros') + '</span>' +
-      '<div class="card">' + rejilla(hz.rows, hz.grid, false) + '</div>' + leyenda(hz.grid) + quitar +
+      '<div class="card">' + rejilla(hz.rows, hz.grid, false) + '</div>' + leyenda(hz.grid) +
+      (AJ.resumenEspeciales(v.data).length ? '<div class="card"><p class="sub" style="color:var(--tx2)"><b>Con sus casos especiales:</b> ' + esc(AJ.resumenEspeciales(v.data).join(' · ')) + '.</p></div>' : '') + quitar +
       foot(next('tplSi', 'Sí, es este') + '<button class="btn2" data-a="tplNo">No, es otro</button>');
   };
+
+  // casos especiales (1.5 y 1.11): una pregunta de un toque; si hay, se ponen en Ajustes al acabar
+  V.especial = () => top() + h1('¿Tu horario cambia durante el curso?') + '<div class="stack" role="radiogroup">' +
+    radio('especial', 'no', d.especial === false, 'No, es igual todo el curso') +
+    radio('especial', 'si', d.especial === true, 'Sí, tiene casos especiales', 'El proyecto cuenta dentro de otros módulos, una asignatura empieza más tarde o hay semanas con otro horario. Lo pones al acabar, en un minuto.') + '</div>' +
+    foot(next('especialOk', 'Siguiente', d.especial == null));
+  // «¿desde cuándo vale este horario?» (al cambiarlo desde Ajustes)
+  V.desde = () => top() + h1('¿Desde cuándo vale este horario?') + '<p class="lead">Así las faltas de antes siguen contando con el horario de antes.</p><div class="stack" role="radiogroup">' +
+    radio('desde', 'hoy', d.desde === 'hoy', 'Desde hoy', 'Me han cambiado el horario') + radio('desde', 'otro', d.desde === 'otro', 'Desde otro día') + radio('desde', 'siempre', d.desde === 'siempre', 'Desde siempre', 'Estaba mal puesto') + '</div>' +
+    (d.desde === 'otro' ? '<div class="field"><label for="dd">Desde el</label><input id="dd" class="input" type="date" data-f="dd" value="' + esc(ui.dd || HOY) + '" max="' + K.CURSO_2627.fin + '"></div>' : '') +
+    errBox() + foot(next('guardarEdicion', 'Guardar', !d.desde));
+  // ya usa NoVoy y abre un enlace de clase: no se le toca nada
+  V.yaTienes = () => top() + h1('Ya usas NoVoy') + '<p class="lead">Este enlace es para quien empieza. Tus faltas y tu horario siguen como estaban.</p>' +
+    '<div class="card"><p>' + esc(d.centro.name + ' · ' + d.ciclo.name + ' · ' + (d.turno === 'tarde' ? 'tarde' : 'mañana')) + '</p></div>' +
+    foot(next('irApp', 'Ir a NoVoy') + '<button class="btn2" data-a="unirseIgual">Cambiar mi horario por el de este grupo</button><p class="sub">Si lo cambias, tus faltas se quedan.</p>');
+  V.uniendo = () => top() + h1('Buscando el horario de tu clase…') + '<p class="lead">' + esc(d.centro.name) + '</p>';
+  // «Ya tengo cuenta» (1.8)
+  V.entrar = () => top() + h1('Entra en tu cuenta') + '<p class="lead">Recupera tu horario y tus faltas.</p>' +
+    '<form class="stack" id="fentrar" autocomplete="on"><div class="field"><label for="eu">Usuario</label><input id="eu" name="username" class="input" autocomplete="username" autocapitalize="off" spellcheck="false"></div>' +
+    '<div class="field"><label for="ep">Contraseña</label><input id="ep" name="password" type="password" class="input" autocomplete="current-password"></div>' + errBox() + '<button class="btn" data-a="entrarOk">Entrar</button></form>';
 
   V.fuente = () => top() + h1('¿Tienes una captura de tu horario?') +
     '<p class="lead">Eres el primero de tu clase. Lo que subas lo usarán tus compañeros.</p>' + errBox() +
@@ -297,10 +347,10 @@
       '<button class="opt" data-a="modo" data-v="impFoto"><span class="t"><b>Con capturas</b><small>Haz capturas de tu lista y elígelas. Se leen en tu móvil.</small></span></button>' +
       '<button class="opt" data-a="modo" data-v="impIA"><span class="t"><b>Con una IA</b><small>Si tu lista es rara o está en PDF: te doy un mensaje para ChatGPT o Gemini.</small></span></button>' +
       '<button class="opt" data-a="modo" data-v="previasMano"><span class="t"><b>Contarlas a mano</b><small>Si son pocas: las horas de cada asignatura.</small></span></button></div>' +
-      (ya ? foot('<button class="btn2" data-a="modo" data-v="impRevisar">Volver a lo que ya tengo (' + ya + ')</button>') : foot('<button class="link" data-a="faltoAntes" data-v="no">En realidad, no he faltado</button>'));
+      (ya ? foot('<button class="btn2" data-a="modo" data-v="impRevisar">Volver a lo que ya tengo (' + ya + ')</button>') : d.editar ? '' : foot('<button class="link" data-a="faltoAntes" data-v="no">En realidad, no he faltado</button>'));
   };
   V.previasMano = () => {
-    let h = top() + h1('Cuenta tus faltas') + '<p class="lead">Las horas de cada asignatura. Si no lo sabes exacto, pon de más: es lo seguro.</p><div class="list">';
+    let h = top() + h1('Cuenta tus faltas') + '<p class="lead">' + (d.editar ? 'Solo las horas que aún no tengas apuntadas: se suman a las que ya hay.' : 'Las horas de cada asignatura. Si no lo sabes exacto, pon de más: es lo seguro.') + '</p><div class="list">';
     subsPrevias().forEach((x) => {
       const p = d.previas[x] || {};
       const st = (k, lab) => '<div class="row" style="justify-content:space-between"><small>' + lab + '</small><span class="stepper"><button data-a="prev" data-v="' + esc(x) + '|' + k + '|-1" aria-label="Quitar 1 hora ' + lab + ' en ' + esc(x) + '">−</button><output aria-live="polite">' + num(p[k] || 0) + ' h</output><button data-a="prev" data-v="' + esc(x) + '|' + k + '|1" aria-label="Añadir 1 hora ' + lab + ' en ' + esc(x) + '">+</button></span></div>';
@@ -362,14 +412,14 @@
       (T[1] === 'ok' && !v.free ? '<p>Luz verde, que no se haga costumbre.</p>' : '') + '</div>' +
       '<label class="toggle card"><input type="checkbox" data-a="compartir"' + (d.compartir ? ' checked' : '') + '><span class="t"><b>Compartir horario y reglas con mi clase</b><br><small class="sub">Así tus compañeros solo tienen que confirmar. Nunca se comparten tus faltas.</small></span></label>' +
       (viejo ? '<div class="card"><p class="sub" style="color:var(--tx2)">Esto cambia tu horario, tu calendario y tus reglas. Las faltas que ya tenías se quedan.</p></div>' : '') +
-      foot(next('terminar', 'Empezar'));
+      foot(next('terminar', 'Empezar') + '<p class="sub center">La cifra oficial es siempre la de tu centro.</p><a class="link" href="legal.html">Qué datos salen de tu móvil</a>');
   };
 
   // ---------- datos derivados ----------
   function horarioFinal() { const hz = d.horario || {}; const sch = hz.schedule ? hz.schedule : H.aHorario(hz.rows || [], hz.grid || {}); return H.sinAsignaturas(sch, d.quitar); }
   function borradorEstado() {
     if (!d.centro || !d.horario) return null;
-    return E.construir({ centro: d.centro, ciclo: d.ciclo, turno: d.turno, horario: d.horario, quitar: d.quitar, cal: d.cal, reglas: d.reglas, previas: d.faltoAntes ? d.previas : {}, importadas: d.faltoAntes ? (d.importadas || []).filter((f) => !(d.sinVaga && f.vaga)) : [], hoy: HOY, plantilla: d.plantilla });
+    return E.construir({ centro: d.centro, ciclo: d.ciclo, turno: d.turno, horario: d.horario, quitar: d.quitar, cal: d.cal, reglas: d.reglas, previas: d.faltoAntes ? d.previas : {}, importadas: d.faltoAntes ? (d.importadas || []).filter((f) => !(d.sinVaga && f.vaga)) : [], hoy: HOY, plantilla: d.plantilla, especiales: d.especiales });
   }
   const existente = () => ls.get(STATE) || {};
 
@@ -411,7 +461,15 @@
     tplIdx: (i) => { ui.tplIdx = +i; d.quitar = []; render(false); },
     verQuitar: () => { ui.quitar = true; render(false); },
     quitar: (s, el) => { const i = d.quitar.indexOf(s); if (el.checked && i >= 0) d.quitar.splice(i, 1); if (!el.checked && i < 0) d.quitar.push(s); save(); render(false); },
-    tplSi: () => { const v = d.tplGrupo[ui.tplIdx] || d.tplGrupo[0]; d.horario = { schedule: v.data.schedule }; d.plantilla = { k: keyGrupo(), h: v.h }; d.fuente = 'plantilla'; prepararCalendario(); go('calendario'); },
+    tplSi: () => { const v = d.tplGrupo[ui.tplIdx] || d.tplGrupo[0]; d.horario = { schedule: v.data.schedule }; d.especiales = v.data.vigencia || v.data.periodos ? { vigencia: v.data.vigencia, periodos: v.data.periodos } : null; d.plantilla = { k: keyGrupo(), h: v.h }; d.fuente = 'plantilla'; prepararCalendario(); go(d.especiales ? 'calendario' : 'especial'); },
+    especial: (v) => { d.especial = v === 'si'; save(); render(false); },
+    especialOk: () => { if (d.especial == null) return; prepararCalendario(); go('calendario'); },
+    desde: (v) => { d.desde = v; render(false); },
+    guardarEdicion: () => guardarEdicion(),
+    irApp: () => { location.href = './'; },
+    unirseIgual: () => { d.paso = 'uniendo'; d.hist = []; render(true); unirse(); },
+    entrar: () => { ui.err = ''; d.hist = []; d.paso = 'entrar'; render(true); focusSoon('eu'); },
+    entrarOk: () => entrarCuenta(),
     tplNo: () => { d.quitar = []; go('fuente'); },
     pintarYo: () => { const f = { inicio: d.turno === 'tarde' ? '15:00' : '08:00', dur: 60, n: 6, tras: 3, rdur: 30 }; d.horario = { rows: H.franjas(f.inicio, f.dur, f.n, { tras: f.tras, dur: f.rdur }), grid: H.vacia(), cfg: f, extra: [] }; d.fuente = 'pintado'; ui.paint = paleta()[0] || null; ui.horas = true; go('editor'); },
     verHoras: () => { ui.horas = true; render(false); },
@@ -435,7 +493,7 @@
     addSub: () => { ui.add = true; render(false); focusSoon('ns'); },
     addSubOk: () => { const n = (val('ns') || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (n.length < 2) return; d.horario.extra = (d.horario.extra || []).concat(n); d.horario.ocultas = (d.horario.ocultas || []).filter((x) => x !== (modDe(n) || n)); ui.paint = n; ui.add = false; save(); render(false); },
     cell: (v, el, ev) => { if (ev && ev.detail > 0 && Date.now() - lastPtr < 600) return; pintaCelda(v, null); },
-    editorOk: () => { if (!pintadas().length) return; d.plantilla = null; prepararCalendario(); go('calendario'); },
+    editorOk: () => { if (!pintadas().length) return; if (d.editar) return go('desde'); d.plantilla = null; go('especial'); },
     'cal-fechas': () => { ui.cambiarFechas = !ui.cambiarFechas; render(false); },
     'cal-local': () => { ui.localForm = !ui.localForm; render(false); focusSoon('ld'); },
     'cal-trim': () => { ui.cambiarTrim = !ui.cambiarTrim; render(false); },
@@ -448,6 +506,7 @@
     calOk: () => {
       if (d.cal.locales == null) d.cal.locales = [];
       const e = K.errorTrimestres(d.cal.terms || []); if (e) { ui.err = e; return render(false); }
+      if (d.editar) return guardarEdicion();
       const tr = d.tplCentro && d.tplCentro.data && d.tplCentro.data.reglas;
       if (tr && !d.reglas.tipo) { d.reglas = Object.assign({}, tr); d.reglasDeTpl = true; go('reglas4'); } else go('reglas1');
     },
@@ -461,13 +520,13 @@
     ambito: (v) => { d.reglas = Object.assign(R.conDefecto(d.reglas), { ambito: v }); save(); render(false); },
     retrasos: (v) => { d.reglas = Object.assign(R.conDefecto(d.reglas), { retrasos: v }); save(); render(false); },
     reglas3Ok: () => { d.reglas = R.conDefecto(d.reglas); save(); go('reglas4'); },
-    reglasSi: () => go('previas'),
+    reglasSi: () => (d.editar ? guardarEdicion() : go('previas')),
     cambiarReglas: () => { d.reglasDeTpl = false; go('reglas1'); },
     faltoAntes: (v) => { d.faltoAntes = v === 'si'; if (v === 'no') { d.previas = {}; d.importadas = []; d.dudosas = []; } save(); render(false); },
     prev: (v) => { const [s, k, n] = v.split('|'); const p = d.previas[s] || (d.previas[s] = {}); p[k] = Math.max(0, Math.min(200, (+p[k] || 0) + +n)); save(); render(false, '[data-v="' + cssEsc(v) + '"]'); },
     previasOk: () => { if (d.faltoAntes == null) return; go('listo'); },
     modo: (v) => { ui.imp = ''; ui.err = ''; go(v); },
-    manoOk: () => { d.importadas = []; d.dudosas = []; go('listo'); },
+    manoOk: () => { d.importadas = []; d.dudosas = []; if (d.editar) return guardarEdicion(); go('listo'); },
     pegar: async () => { try { const t = await navigator.clipboard.readText(); if (t) { ui.imp = t; render(false); } } catch (e) { aviso('Mantén pulsado el cuadro y toca «Pegar».'); } },
     copiarPrompt: async () => { const el = document.getElementById('prm'); try { await navigator.clipboard.writeText(el.value); aviso('Mensaje copiado'); } catch (e) { el.select(); document.execCommand && document.execCommand('copy'); aviso('Mensaje copiado'); } },
     leer: () => { const t = (val('imp') || '').trim(); if (t.length < 6) { ui.err = 'Pega aquí tu lista.'; return render(false); } leerTexto(t); },
@@ -475,7 +534,7 @@
     otraLista: () => { ui.verTodas = false; go('previas'); },
     borrarImp: () => { d.importadas = []; d.dudosas = []; d.previas = {}; d.tutoria = 0; d.sinVaga = false; save(); go('previas'); },
     sinVaga: (v, el) => { d.sinVaga = !!el.checked; save(); render(false, '[data-a="sinVaga"]'); },
-    impOk: () => { d.previas = {}; go('listo'); },
+    impOk: () => { d.previas = {}; if (d.editar) return guardarEdicion(); go('listo'); },
     compartir: (v, el) => { d.compartir = !!el.checked; save(); },
     terminar: () => terminar()
   };
@@ -485,7 +544,9 @@
     const st = borradorEstado(); if (!st || st.error) { ui.err = (st && st.error) || 'Falta algo.'; return render(false); }
     const old = existente(), oldF = old.faltas || [], hayPrevias = oldF.some((f) => f.note === 'previas');
     // no se pierde nada de lo que ya había: faltas, cuenta, avisos…
-    const out = Object.assign({}, old, { config: st.config, settings: Object.assign({}, old.settings || {}, st.settings), faltas: oldF.concat(hayPrevias ? [] : st.faltas), since: old.since || st.since });
+    const out = Object.assign({}, old, { config: st.config, settings: Object.assign({}, old.settings || {}, st.settings, { respuestas: R.conDefecto(d.reglas) }), faltas: oldF.concat(hayPrevias ? [] : st.faltas), since: old.since || st.since });
+    // lo que se puso en Ajustes (casos especiales, reglas propias) no se pierde al rehacer el alta con el mismo horario
+    if (old.config && !d.especiales) { ['vigencia'].forEach((k) => { if (old.config[k]) out.config[k] = old.config[k]; }); }
     // «Comprobado con tu lista hace X días» en Hoy: solo si las faltas vienen de la lista del centro (pegada, captura o IA)
     if (st.faltas.some((f) => /^importada/.test(f.note || ''))) out.comprobado = HOY;
     ls.set(STATE, out);
@@ -494,12 +555,69 @@
       await Promise.race([publicar(), new Promise((ok) => setTimeout(ok, 3000))]); // sin red, no se espera más
     }
     ls.del(DRAFT);
+    location.href = './' + (HOY !== C.ymd(new Date()) ? '?hoy=' + HOY : '') + (d.especial ? '#ajustes/asig' : '');
+  }
+
+  /** Guarda solo la parte cambiada (modo editar desde Ajustes) y vuelve a la app. Nunca toca las faltas salvo en «faltas». */
+  async function guardarEdicion() {
+    const old = existente(), out = JSON.parse(JSON.stringify(old)), cfg0 = old.config;
+    if (d.editar === 'horario') {
+      let desde = d.desde === 'siempre' ? null : d.desde === 'otro' ? val('dd') : HOY;
+      if (d.desde === 'otro' && !/^\d{4}-\d{2}-\d{2}$/.test(desde || '')) { ui.err = 'Pon el día desde el que vale.'; return render(false); }
+      let sch = horarioFinal();
+      sch = AJ.reponerCuentas({ schedule: sch }, AJ.cuentas(cfg0)).schedule; // «cuenta dentro de» se conserva
+      let cfg = Object.assign({}, cfg0, { schedule: sch });
+      if (desde) cfg = C.withHistory(cfg0, cfg, desde);
+      const sem = (cfg0.periods || []).filter((p) => p.todo); cfg.periods = (cfg0.periods || []).filter((p) => !p.todo);
+      sem.forEach((p) => { const r = AJ.ponerSemanas(cfg, p); if (r.cfg) cfg = r.cfg; });
+      out.config = cfg;
+    } else if (d.editar === 'calendario') {
+      const e = K.errorTrimestres(d.cal.terms || []); if (e) { ui.err = e; return render(false); }
+      out.config.terms = d.cal.terms.map((t) => ({ id: t.id, label: t.label, from: t.from, to: t.to }));
+      out.config.holidays = K.festivos(K.CURSO_2627, d.cal.locales, d.cal.libres);
+      if (d.cal.libres.length) delete out.settings.libresPendientes; else out.settings.libresPendientes = K.CURSO_2627.diasLibreDisposicion;
+    } else if (d.editar === 'reglas') {
+      const s = E.settingsDe(d.reglas); if (s.error) { ui.err = s.error; return render(false); }
+      out.settings = Object.assign({}, old.settings, s, { respuestas: R.conDefecto(d.reglas) });
+      if (!(s.aproximado || []).length) delete out.settings.aproximado;
+    } else if (d.editar === 'faltas') {
+      const st = E.construir({ centro: d.centro, ciclo: d.ciclo, turno: d.turno, horario: { schedule: cfg0.schedule }, cal: { terms: cfg0.terms }, reglas: { tipo: 'nose' }, previas: d.previas, importadas: (d.importadas || []).filter((f) => !(d.sinVaga && f.vaga)), hoy: HOY });
+      if (st.error) { ui.err = st.error; return render(false); }
+      // una lista nueva manda sobre lo apuntado el mismo día, asignatura y tipo (como en el alta)
+      const nuevas = st.faltas, k = (f) => f.date + '|' + f.subject + '|' + f.type, pisa = new Set(nuevas.filter((f) => f.date).map(k));
+      out.faltas = (old.faltas || []).filter((f) => !f.date || !pisa.has(k(f))).concat(nuevas);
+      if (nuevas.some((f) => /^importada/.test(f.note || ''))) out.comprobado = HOY;
+    }
+    ls.set(STATE, out);
+    if (d.compartir && d.editar !== 'faltas' && d.ciclo && d.turno) await Promise.race([publicarDe(out.config, out.settings), new Promise((ok) => setTimeout(ok, 2500))]);
+    salir();
+  }
+  /** Comparte la versión nueva con la clase (horario con sus casos especiales, calendario y reglas). Nunca faltas. */
+  function publicarDe(cfg, set) {
+    const dev = devId(), env = [api('POST', '', { tipo: 'grupo', k: keyGrupo(), dev, data: AJ.datosGrupo(cfg) })];
+    const ts = cfg.terms.slice().sort((a, b) => (a.from < b.from ? -1 : 1)), c = { inicio: ts[0].from, fin: ts[ts.length - 1].to, terms: cfg.terms };
+    const libres = (cfg.holidays || []).filter((h) => h.label === 'Libre disposición').map((h) => h.from); if (libres.length) c.libres = libres;
+    const r = R.conDefecto((set && set.respuestas) || AJ.respuestasDe(set)); if (r.tipo !== 'nose') c.reglas = { tipo: r.tipo, pct: r.pct, cuenta: r.cuenta, pctSin: r.pctSin, pctJust: r.pctJust, segundo: r.segundo, ambito: r.ambito, retrasos: r.retrasos };
+    env.push(api('POST', '', { tipo: 'centro', k: keyCentro(), dev, data: c }));
+    return Promise.all(env);
+  }
+  /** Enlace de clase: busca la plantilla del grupo y salta a «¿Es este tu horario?». */
+  async function unirse() {
+    const r = await api('GET', '?g=' + encodeURIComponent(keyGrupo()) + '&c=' + encodeURIComponent(keyCentro()));
+    d.tplGrupo = (r && r.grupo) || []; d.tplCentro = (r && r.centro) || null; ui.tplIdx = 0; d.hist = ['centro', 'ciclo'];
+    d.paso = d.tplGrupo.length ? 'plantilla' : 'fuente'; save(); render(true);
+  }
+  async function entrarCuenta() {
+    const b = app.querySelector('[data-a="entrarOk"]'); if (b) { b.disabled = true; b.textContent = 'Entrando…'; }
+    const r = await window.NVCuenta.entrar(val('eu'), val('ep'));
+    if (r.error) { ui.err = r.error; return render(false); }
+    ls.set(STATE, Object.assign({}, r.estado, { acct: r.acct })); ls.del(DRAFT);
     location.href = './';
   }
   function publicar() {
     const dev = devId();
     const envios = [];
-    if (d.fuente !== 'plantilla' || d.plantilla) { const hz = d.horario.schedule || H.aHorario(d.horario.rows, d.horario.grid); envios.push(api('POST', '', { tipo: 'grupo', k: keyGrupo(), dev, data: { schedule: hz } })); }
+    if (d.fuente !== 'plantilla' || d.plantilla) { const hz = d.horario.schedule || H.aHorario(d.horario.rows, d.horario.grid); envios.push(api('POST', '', { tipo: 'grupo', k: keyGrupo(), dev, data: Object.assign({ schedule: hz }, d.especiales && d.especiales.vigencia ? { vigencia: d.especiales.vigencia } : {}, d.especiales && d.especiales.periodos ? { periodos: d.especiales.periodos } : {}) })); }
     const c = { inicio: d.cal.inicio, fin: d.cal.fin, terms: d.cal.terms };
     if (d.cal.libres.length) c.libres = d.cal.libres;
     const r = R.conDefecto(d.reglas); if (r.tipo !== 'nose') c.reglas = { tipo: r.tipo, pct: r.pct, cuenta: r.cuenta, pctSin: r.pctSin, pctJust: r.pctJust, segundo: r.segundo, ambito: r.ambito, retrasos: r.retrasos };
@@ -587,6 +705,7 @@
     const lab = e.target.closest('label[role="button"]');
     if (lab && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); lab.querySelector('input').click(); }
     if (e.key === 'Enter' && e.target.id === 'ns') { e.preventDefault(); A.addSubOk(); }
+    if (e.key === 'Enter' && (e.target.id === 'eu' || e.target.id === 'ep')) { e.preventDefault(); A.entrarOk(); }
   });
 
   async function leerCaptura(file) {
@@ -630,6 +749,7 @@
   }
 
   if (d.paso === 'calendario') prepararCalendario();
+  if (d.paso === 'uniendo') unirse();
   if (d.paso === 'leyendo') { d.paso = 'fuente'; }
   if (d.paso === 'impLeyendo') { d.paso = 'impFoto'; }
   render(true);

@@ -139,7 +139,8 @@
   }
 
   /** Todo lo que enseña la pantalla Hoy para una fecha. */
-  function dia(u, date) {
+  /** opts.justificada (simulador, 1.6): «si faltas» con justificante. */
+  function dia(u, date, opts) {
     const S = calc(u), termReal = C.termOf(u.config, date), t = (u.config.terms || []).find((x) => x.id === termReal);
     const base = { date, trimestre: t ? t.label : null, comprobado: u.comprobado ? diasEntre(u.comprobado, date) : null };
     const hol = (S.holidays || []).find((h) => date >= h.from && date <= (h.to || h.from));
@@ -150,6 +151,7 @@
       return Object.assign(base, { libre: true, motivo, proximo: prox, semaforo: { status: 'verde', titulo: 'Día libre.', frase: motivo } });
     }
     const m = marcas(u, date, sl), gs = grupos(u, S, date, sl, m);
+    if (opts && opts.justificada) gs.forEach((g) => { if (g.conJust) g.si = g.conJust; });
     const faltado = r2(sl.filter((s) => m[s.key] && m[s.key].tipo === 'falta').reduce((a, s) => a + s.hours, 0));
     return Object.assign(base, { libre: false, grupos: gs, semaforo: semaforo(gs, date, faltado), pendientes: sl.filter((s) => !m[s.key]).map((s) => s.key) });
   }
@@ -170,6 +172,18 @@
     const S = calc(u), out = [];
     for (let i = 0; i <= 21 && out.length < (n || 8); i++) { const k = addDays(hoy, -i); if (C.termOf(S, k) && C.dayClasses(S, k).length) out.push(k); }
     return out;
+  }
+
+  /** Días de clase desde `desde` (incluido) hacia delante, como mucho `n` (simulador). */
+  function diasSiguientes(u, desde, n) {
+    const S = calc(u), out = [];
+    for (let i = 0; i <= 60 && out.length < (n || 10); i++) { const k = addDays(desde, i); if (C.termOf(S, k) && C.dayClasses(S, k).length) out.push(k); }
+    return out;
+  }
+  /** Asignaturas que todavía no han empezado (1.11): [{ name, desde }]. */
+  function empiezanLuego(u, hoy) {
+    const v = (u.config && u.config.vigencia) || {};
+    return Object.keys(v).filter((k) => v[k].desde && v[k].desde > hoy).map((k) => ({ name: k, desde: v[k].desde })).sort((a, b) => (a.desde < b.desde ? -1 : 1));
   }
 
   /** Días de clase de la última semana sin nada apuntado (ni «fui» ni faltas), del más reciente al más antiguo. */
@@ -218,6 +232,6 @@
   /** «Fui a todo»: lo que queda por apuntar, como asistido. */
   function fuiATodo(u, date) { const S = calc(u); if (!C.termOf(S, date)) return { error: 'Ese día no es de curso.' }; const sl = horas(S, date), m = marcas(u, date, sl); return fijar(u, date, todas(sl.filter((s) => !m[s.key]).map((s) => s.key), 'fui')); }
 
-  const api = { ordenar, calc, horas, marcas, dia, clases, diasRecientes, sinApuntar, fijar, todoElDia, fuiATodo, todas, fmt, clave, addDays };
+  const api = { ordenar, calc, horas, marcas, dia, clases, diasRecientes, diasSiguientes, empiezanLuego, sinApuntar, fijar, todoElDia, fuiATodo, todas, fmt, clave, addDays };
   if (isNode) module.exports = api; else root.NVHoy = api;
 })(this);

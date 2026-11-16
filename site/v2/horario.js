@@ -43,7 +43,8 @@
       rows.forEach((row, i) => {
         const s = g[i]; if (!s) return;
         const prev = list[list.length - 1];
-        if (prev && prev.subject === s && prev._last === i - 1 && huecoTras(rows, i - 1) === 0) { prev.end = row.end; prev.hours++; prev._last = i; }
+        // se une con la anterior si es la misma asignatura y empieza justo cuando acaba (sin recreo en medio)
+        if (prev && prev.subject === s && prev.end === row.start) { prev.end = row.end; prev.hours++; prev._last = i; }
         else list.push({ start: row.start, end: row.end, subject: s, hours: 1, _last: i });
       });
       if (list.length) out[d] = list.map((b) => ({ start: b.start, end: b.end, subject: b.subject, hours: b.hours }));
@@ -53,22 +54,20 @@
 
   /** Horario del motor → rejilla editable. Las franjas salen de las horas de inicio y fin que aparecen. */
   function deHorario(schedule) {
-    const cuts = new Set(), blocks = [];
+    // Una fila por cada sesión distinta que aparece (inicio–fin). Si un día tiene recreo y otro no, salen filas que
+    // se solapan (18:00–19:00 y 18:20–19:20): así volver a guardar sin tocar da exactamente el mismo horario (fallo 7).
+    const filas = new Map(), blocks = [];
     DIAS.forEach((d) => (schedule[d] || []).forEach((b) => {
       const s = min(b.start), e = min(b.end), h = Math.max(1, Math.round(+b.hours || 1));
       if (!(s >= 0 && e > s)) return;
-      const step = (e - s) / h; // una franja por sesión
-      for (let k = 0; k <= h; k++) cuts.add(Math.round(s + k * step));
-      blocks.push({ d, s, e, h, step, subject: b.subject });
+      const step = (e - s) / h, ses = [];
+      for (let k = 0; k < h; k++) { const a = Math.round(s + k * step), z = k === h - 1 ? e : Math.round(s + (k + 1) * step); filas.set(a + '-' + z, [a, z]); ses.push(a + '-' + z); }
+      blocks.push({ d, ses, subject: b.subject });
     }));
-    const pts = Array.from(cuts).sort((a, b) => a - b), rows = [];
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i], b = pts[i + 1];
-      // un hueco entre dos bloques (recreo) no es franja si ningún bloque lo cubre
-      if (blocks.some((x) => x.s <= a && x.e >= b)) rows.push({ start: hhmm(a), end: hhmm(b) });
-    }
+    const orden = Array.from(filas.values()).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    const rows = orden.map((x) => ({ start: hhmm(x[0]), end: hhmm(x[1]) })), idx = new Map(orden.map((x, i) => [x[0] + '-' + x[1], i]));
     const grid = vacia();
-    blocks.forEach((x) => rows.forEach((r, i) => { if (min(r.start) >= x.s && min(r.end) <= x.e) grid[x.d][i] = x.subject; }));
+    blocks.forEach((x) => x.ses.forEach((k) => { grid[x.d][idx.get(k)] = x.subject; }));
     return { rows, grid };
   }
 

@@ -6,6 +6,7 @@
   const H = isNode ? require('./horario.js') : root.NVHorario;
   const R = isNode ? require('./reglas.js') : root.NVReglas;
   const K = isNode ? require('./calendario.js') : root.NVCal;
+  const AJ = isNode ? require('./ajustes.js') : root.NVAjustes;
 
   /** Trimestre en el que cae una fecha (o el último que ya empezó). */
   function trimestreDe(terms, iso) {
@@ -61,6 +62,8 @@
       periods: [], alias: {}, nocount: [], totals: {}, totalsUnified: {},
       origen: { version: 2, plantilla: d.plantilla || null, calendario: curso.id }
     };
+    // casos especiales que vienen en la plantilla del grupo (1.11): fechas por asignatura y semanas con otro horario
+    if (d.especiales && AJ) Object.assign(config, AJ.conEspeciales(config, d.especiales));
     // faltas que ya llevaba: sin fecha, en el trimestre de hoy (el formato «previas» de la v1)
     const hoy = d.hoy || new Date().toISOString().slice(0, 10), t = trimestreDe(config.terms, hoy), faltas = [];
     let n = 0;

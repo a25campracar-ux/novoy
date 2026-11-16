@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Hoy · NoVoy</title>
+<title>NoVoy</title>
 <meta name="theme-color" content="#F4F6F8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E0F11" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -23,15 +23,24 @@
 <a class="skip" href="#app">Saltar al contenido</a>
 <main id="app"></main>
 <nav id="tabs" aria-label="Secciones">
-  <a href="./" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4.5l8 6.7V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg><span>Hoy</span></a>
-  <a href="clasica.html#resumen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20v-7M12 20V5M18 20v-10"/></svg><span>Resumen</span></a>
-  <a href="clasica.html#faltas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".8"/><circle cx="4.5" cy="12" r=".8"/><circle cx="4.5" cy="18" r=".8"/></svg><span>Faltas</span></a>
-  <a href="clasica.html#ajustes"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg><span>Ajustes</span></a>
+  <a href="#hoy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4.5l8 6.7V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg><span>Hoy</span></a>
+  <a href="#faltas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".8"/><circle cx="4.5" cy="12" r=".8"/><circle cx="4.5" cy="18" r=".8"/></svg><span>Faltas</span></a>
+  <a href="#ajustes"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/></svg><span>Ajustes</span></a>
 </nav>
 <div id="aviso" class="toast" role="status" aria-live="polite"></div>
 <noscript><p class="noscript">NoVoy necesita JavaScript para funcionar.</p></noscript>
 <script src="core.js"></script>
+<script src="acct.js"></script>
+<script src="setup.js"></script>
+<script src="v2/reglas.js"></script>
+<script src="v2/horario.js"></script>
 <script src="v2/hoy.js"></script>
+<script src="v2/lista.js"></script>
+<script src="v2/ajustes.js"></script>
+<script src="v2/cuenta.js"></script>
 <script src="v2/app.js"></script>
+<script src="v2/pantalla-hoy.js"></script>
+<script src="v2/pantalla-faltas.js"></script>
+<script src="v2/pantalla-ajustes.js"></script>
 </body>
 </html>

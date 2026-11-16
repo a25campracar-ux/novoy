@@ -22,6 +22,7 @@ async function abrir(estado, opts, fecha) {
   const c = await browser.newContext(Object.assign({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, locale: 'es-ES', serviceWorkers: 'block' }, opts || {}));
   await c.addInitScript((s) => { if (!sessionStorage.getItem('nv.e2e')) { localStorage.setItem('ft.v2', s); sessionStorage.setItem('nv.e2e', '1'); } }, JSON.stringify(estado));
   const p = await c.newPage();
+  p.setDefaultTimeout(8000);
   p.errores = [];
   p.on('pageerror', (e) => p.errores.push(e.message));
   p.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g|ERR_|Failed to load resource/.test(m.text())) p.errores.push(m.text()); });
@@ -40,6 +41,8 @@ async function shot(p, name) {
   await p.screenshot({ path: OUT + '/' + String(++n).padStart(2, '0') + '-' + name + '.png', fullPage: true });
 }
 const sem = (p) => p.locator('.sem .big').innerText();
+/** Espera a que el título sea `t` (las vueltas atrás del navegador llegan un instante después). */
+const titulo = async (p, t) => { await p.locator('h1', { hasText: t }).first().waitFor({ timeout: 4000 }).catch(() => {}); return p.locator('h1').first().innerText(); };
 const card = (p, name) => p.locator('article.tj', { has: p.locator('.nm', { hasText: name }) });
 const estado = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('ft.v2')));
 const delDia = (st) => st.faltas.filter((f) => f.date === LUNES);
@@ -121,7 +124,7 @@ console.log('C · Todo el día y Falté a…');
   ok((await p.locator('.foot .btn').innerText()) === 'Apuntar 4 h', 'botón «Apuntar 4 h»');
   await shot(p, 'falte-todas');
   await p.getByRole('button', { name: 'Apuntar 4 h' }).click();
-  ok((await p.locator('h1').innerText()) === 'Hoy' && delDia(await estado(p)).length === 4, '3 toques para un día entero');
+  ok((await titulo(p, 'Hoy')) === 'Hoy' && delDia(await estado(p)).length === 4, '3 toques para un día entero');
   // corregir: abre con lo apuntado; dejar solo una hora de Programació, retraso en Bases de dades, con justificante
   await p.getByRole('button', { name: 'Cambiar lo de hoy' }).click();
   ok(await p.locator('.clase[aria-pressed="true"]').count() === 3, 'abre con lo ya apuntado marcado');
@@ -134,7 +137,7 @@ console.log('C · Todo el día y Falté a…');
   await p.getByText('Tengo justificante').click();
   ok((await p.locator('.foot .btn').innerText()) === 'Apuntar 1 h y 1 retraso', 'botón «Apuntar 1 h y 1 retraso»');
   await shot(p, 'falte-tarde');
-  await p.locator('.foot .btn').click();
+  await p.locator('.foot .btn').click(); await titulo(p, 'Hoy');
   const d = delDia(await estado(p));
   ok(d.length === 2 && d.some((f) => f.type === 'retraso' && f.subject === 'Bases de dades') && d.some((f) => f.type === 'falta' && f.start === '16:00') && d.every((f) => f.justified), 'guarda 1 h (16:00) y 1 retraso, justificados');
   ok((await estado(p)).fui[LUNES].includes('Llenguatges de marques|18:20'), 'lo no marcado queda como «fui»');
@@ -147,7 +150,7 @@ console.log('C · Todo el día y Falté a…');
   await p.locator('.clase', { hasText: 'Sistemes' }).click();
   await p.locator('.foot .btn').click();
   ok((await estado(p)).faltas.filter((f) => f.date === '2026-11-13').length === 2, 'apunta en el viernes (2 h de Sistemes)');
-  ok((await p.locator('h1').innerText()) === 'Hoy', 'vuelve a Hoy');
+  ok((await titulo(p, 'Hoy')) === 'Hoy', 'vuelve a Hoy');
   ok(p.errores.length === 0, 'sin errores de JavaScript' + (p.errores.length ? ': ' + p.errores.join(' | ') : ''));
   await c.close();
 }
@@ -165,7 +168,7 @@ console.log('D · festivos, días sin apuntar y dos límites');
   ok(/Ayer|El /.test(await p.locator('.preg').innerText()) && /lunes 7 dic/.test(await p.locator('.preg').innerText()), 'pregunta por el último día sin apuntar, saltando el festivo');
   await p.getByRole('button', { name: 'Falté a alguna' }).click();
   ok(!(await p.locator('.dias').innerText()).includes('Mar 8'), '«Falté a…» no ofrece el festivo');
-  await p.locator('.top .back').click();
+  await p.locator('.top .back').click(); await titulo(p, 'Hoy');
   await p.getByRole('button', { name: 'Sí, a todo' }).click();
   ok(/viernes 4 dic/.test(await p.locator('.preg').innerText()), '«Sí, a todo» pasa al día anterior');
   await c.close();
@@ -180,18 +183,22 @@ console.log('D · festivos, días sin apuntar y dos límites');
   await c.close();
 }
 
-// ---------- E · Resumen, Faltas y Ajustes siguen en la v1 ----------
-console.log('E · pestañas de la v1');
+// ---------- E · simulador (1.6) ----------
+console.log('E · simulador');
 {
-  const { c, p } = await abrir(F.estado());
-  await p.locator('#tabs a', { hasText: 'Faltas' }).click();
-  await p.waitForURL(/clasica/);
-  await p.waitForTimeout(400);
-  ok(/Faltas/.test(await p.locator('#app').innerText()), 'Faltas abre en la v1');
-  await p.locator('#tabs [data-tab="hoy"]').click();
-  await p.waitForURL((u) => !/clasica/.test(u.pathname));
-  await p.locator('h1').first().waitFor();
-  ok((await p.locator('h1').innerText()) === 'Hoy', '«Hoy» de la v1 vuelve a la Hoy nueva');
+  const { c, p } = await abrir(F.estado({ settings: { limites: [{ pct: 10, sin: 1, just: 0 }, { pct: 15, sin: 0, just: 1 }] }, faltas: F.previas('Llenguatges de marques', 4) }));
+  await p.getByRole('button', { name: 'Simular' }).click();
+  ok(/¿Y si falto el lunes 16 nov\?/.test(await p.locator('h1').innerText()), 'abre el simulador en hoy');
+  ok((await sem(p)) === 'Solo con justificante.', 'mismo semáforo que Hoy');
+  await p.getByText('Tendré justificante').click();
+  ok((await sem(p)) !== 'Solo con justificante.' && (await sem(p)) !== 'Hoy no.', '«Tendré justificante» cambia el semáforo');
+  await p.getByRole('radio', { name: 'Mañana' }).click();
+  ok(/martes 17 nov/.test(await p.locator('h1').innerText()) && /Entorns/.test(await p.locator('#app').innerText()), 'otro día: sus clases');
+  ok(!(await p.locator('#app button', { hasText: /^Falté$/ }).count()), 'simular no tiene botones de apuntar');
+  await shot(p, 'simular');
+  const antes = (await estado(p)).faltas.length;
+  await p.locator('.top .back').click();
+  ok((await titulo(p, 'Hoy')) === 'Hoy' && (await estado(p)).faltas.length === antes, 'vuelve a Hoy sin haber apuntado nada');
   ok(p.errores.length === 0, 'sin errores de JavaScript' + (p.errores.length ? ': ' + p.errores.join(' | ') : ''));
   await c.close();
 }

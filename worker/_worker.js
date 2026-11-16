@@ -180,6 +180,10 @@ async function api(req, env, url) {
       await kv.put(KEY(b.id), JSON.stringify({ a: b.newAuth, d: b.data, t }), { metadata: Object.assign({}, meta, { t, n: b.data.length }) });
       return J(200, { ok: 1, t });
     }
+    if (b.op === 'del') { // el alumno borra su cuenta y su copia cifrada
+      await kv.delete(KEY(b.id));
+      return J(200, { ok: 1 });
+    }
     if (b.op === 'put') {
       if (!okData) return J(400, { error: 'bad-data' });
       const t = Date.now();
@@ -222,10 +226,33 @@ function validaGrupo(d) {
     for (const b of l) {
       if (!b || !HHMM.test(b.start) || !HHMM.test(b.end) || b.start >= b.end || !limpio(b.subject, 40)) return null;
       const h = +b.hours; if (!(h >= 1 && h <= 8 && Number.isInteger(h))) return null;
-      out[k].push({ start: b.start, end: b.end, subject: b.subject.trim(), hours: h }); total++;
+      const o = { start: b.start, end: b.end, subject: b.subject.trim(), hours: h };
+      if (b.cuenta != null) { if (!limpio(b.cuenta, 40)) return null; o.cuenta = b.cuenta.trim(); } // 1.5: esta clase cuenta dentro de otra
+      out[k].push(o); total++;
     }
   }
-  return total ? { schedule: out } : null;
+  if (!total) return null;
+  const res = { schedule: out };
+  // 1.11: asignaturas que empiezan o acaban a mitad de curso, y semanas con otro horario
+  if (d.vigencia != null) {
+    if (typeof d.vigencia !== 'object' || Object.keys(d.vigencia).length > 20) return null;
+    res.vigencia = {};
+    for (const n of Object.keys(d.vigencia)) {
+      const v = d.vigencia[n]; if (!limpio(n, 40) || !v || typeof v !== 'object') return null;
+      const o = {};
+      if (v.desde != null) { if (!YMD.test(v.desde)) return null; o.desde = v.desde; }
+      if (v.hasta != null) { if (!YMD.test(v.hasta)) return null; o.hasta = v.hasta; }
+      if (v.antes != null) { if (!limpio(v.antes, 40)) return null; o.antes = v.antes; }
+      if (!o.desde && !o.hasta) return null;
+      res.vigencia[n] = o;
+    }
+  }
+  if (d.periodos != null) {
+    if (!Array.isArray(d.periodos) || d.periodos.length > 10) return null;
+    res.periodos = [];
+    for (const p of d.periodos) { if (!p || !YMD.test(p.from) || !YMD.test(p.to) || p.from > p.to || !limpio(p.todo, 40)) return null; res.periodos.push({ from: p.from, to: p.to, todo: p.todo.trim() }); }
+  }
+  return res;
 }
 function validaCentro(d) {
   if (!d || typeof d !== 'object') return null;
