@@ -1,0 +1,80 @@
+/* NoVoy v2 · Hoy y «Falté a…». Va después de alta.css (mismos colores, letra y zonas táctiles de 44 px). */
+body.contabs main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+body.contabs .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+.hd { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
+.hd h1 { font-size: 30px; }
+.row.wrap { flex-wrap: wrap; }
+.btn2.auto { width: auto; flex: 1 1 auto; }
+
+/* semáforo */
+.sem { border-radius: 22px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--ok-line); background: var(--ok-bg); }
+.sem.amarillo { background: var(--amb-bg); border-color: var(--amb-line); }
+.sem.rojo { background: var(--bad-bg); border-color: var(--bad); }
+.sem .big { font-size: 27px; line-height: 1.15; }
+.sem.amarillo .big { color: var(--amb); } .sem.amarillo .light { background: var(--amb); }
+.sem.rojo .big { color: var(--bad); } .sem.rojo .light { background: var(--bad); }
+.sem .frase { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; }
+.sem .tono { margin: 0; font-size: 14px; color: var(--tx2); }
+.sem .comp { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; font-size: 13px; color: var(--tx2); }
+.sem .comp svg { flex: none; }
+
+.acc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.acc.uno { grid-template-columns: 1fr; }
+.preg { display: flex; flex-direction: column; gap: 10px; }
+.preg .sub { margin-top: -6px; }
+
+/* tarjeta de asignatura */
+.tj { background: var(--sf); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.tj.hecha { background: transparent; }
+.tj .top1 { display: flex; gap: 12px; align-items: flex-start; }
+.tj .t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tj .nm { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.25; }
+.tj .meta { font-size: 13px; color: var(--tx3); font-variant-numeric: tabular-nums; }
+.tj .der { flex: none; max-width: 52%; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
+.tj .lbl { font-size: 12px; font-weight: 700; color: var(--tx3); }
+.q { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.q.verde { color: var(--tx); } .q.amarillo { color: var(--amb); } .q.rojo { color: var(--bad); }
+.tj .pct { font-size: 12px; color: var(--tx3); font-variant-numeric: tabular-nums; }
+.tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: var(--sf2); color: var(--tx2); }
+.tag.fui { background: var(--ok-bg); color: var(--ok); }
+.tag svg { width: 13px; height: 13px; }
+.lims { display: flex; flex-direction: column; gap: 6px; }
+.lrow { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--tx2); }
+.lrow .q { font-size: 13px; }
+.mt { height: 8px; border-radius: 4px; background: var(--sf2); overflow: hidden; display: flex; }
+.mt i, .mt u { display: block; height: 100%; }
+.mt i.verde, .mt u.verde { background: var(--ok); } .mt i.amarillo, .mt u.amarillo { background: var(--amb); } .mt i.rojo, .mt u.rojo { background: var(--bad); }
+.mt u { opacity: .35; }
+.nota { margin: 0; font-size: 13px; color: var(--tx3); line-height: 1.4; }
+.bts { display: flex; gap: 8px; }
+.bfui, .bfal { flex: 1; min-height: 48px; border-radius: 14px; font-weight: 800; font-size: 16px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; }
+.bfui { border: 1.5px solid var(--ok); background: var(--ok-bg); color: var(--ok); }
+.bfal { border: 1px solid var(--line); background: var(--sf2); color: var(--tx); }
+.solos { display: flex; gap: 6px; flex-wrap: wrap; }
+.solo { min-height: 44px; border-radius: 12px; border: 1px dashed var(--line); background: transparent; color: var(--tx2); font-weight: 600; font-size: 14px; padding: 0 12px; cursor: pointer; }
+.pie { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pie .link { min-width: 44px; }
+
+/* «Falté a…» */
+.dias { display: flex; gap: 6px; overflow-x: auto; margin: 0 -20px; padding: 2px 20px 4px; scrollbar-width: none; }
+.dias::-webkit-scrollbar { display: none; }
+.dias .seg { flex: none; min-width: 64px; min-height: 44px; }
+.blq { display: flex; flex-direction: column; gap: 6px; }
+.clase { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--sf); text-align: left; cursor: pointer; }
+.clase[aria-pressed="true"] { background: var(--ok-bg); border-color: var(--ok); }
+.clase .hora { width: 46px; flex: none; font-size: 14px; color: var(--tx3); font-variant-numeric: tabular-nums; }
+.clase .t { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.clase b { font-size: 16px; } .clase small { font-size: 13px; color: var(--tx3); }
+.box { width: 28px; height: 28px; flex: none; border-radius: 8px; border: 2px solid var(--tx3); display: flex; align-items: center; justify-content: center; }
+.clase[aria-pressed="true"] .box { background: var(--pri); border-color: var(--pri); color: var(--pri-tx); }
+.subs { display: flex; gap: 6px; flex-wrap: wrap; padding-left: 58px; }
+.subs .seg { min-width: 72px; min-height: 44px; }
+
+/* pestañas */
+#tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--bg); border-top: 1px solid var(--line); padding: 6px 8px max(8px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 480px; margin: 0 auto; }
+#tabs[hidden] { display: none; }
+#tabs a { min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; font-weight: 700; color: var(--tx3); text-decoration: none; border-radius: 12px; }
+#tabs a[aria-current="page"] { color: var(--ok); }
+#tabs svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@media (min-width: 481px) { #tabs { border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-radius: 16px 16px 0 0; } }
+@media (max-width: 340px) { .dias { margin: 0 -14px; padding: 2px 14px 4px; } .tj .der { max-width: 58%; } .subs { padding-left: 0; } }

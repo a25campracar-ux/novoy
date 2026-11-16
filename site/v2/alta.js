@@ -486,6 +486,8 @@
     const old = existente(), oldF = old.faltas || [], hayPrevias = oldF.some((f) => f.note === 'previas');
     // no se pierde nada de lo que ya había: faltas, cuenta, avisos…
     const out = Object.assign({}, old, { config: st.config, settings: Object.assign({}, old.settings || {}, st.settings), faltas: oldF.concat(hayPrevias ? [] : st.faltas), since: old.since || st.since });
+    // «Comprobado con tu lista hace X días» en Hoy: solo si las faltas vienen de la lista del centro (pegada, captura o IA)
+    if (st.faltas.some((f) => /^importada/.test(f.note || ''))) out.comprobado = HOY;
     ls.set(STATE, out);
     if (d.compartir) {
       const b = app.querySelector('[data-a="terminar"]'); if (b) { b.disabled = true; b.textContent = 'Guardando…'; }

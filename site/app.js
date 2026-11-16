@@ -62,6 +62,8 @@
   const qd = new URLSearchParams(location.search).get('d');
   const today = () => (qd && /^\d{4}-\d\d-\d\d$/.test(qd) ? qd : C.ymd(new Date()));
   let tab = user.config ? 'hoy' : (!user.acct && !location.hash && (() => { try { return localStorage.getItem('ft.intro') !== '1'; } catch (e) { return false; } })() ? 'intro' : 'setup'), viewTerm = null, undo = null, ed = null, efId = null, fday = '', simDay = null, simSel = [], wipe = null, instTab = /iphone|ipad|ipod/i.test(navigator.userAgent) ? 'ios' : 'android';
+  const CLASICA = /clasica(\.html)?$/.test(location.pathname);
+  { const h0 = /^#(resumen|faltas|ajustes)$/.exec(location.hash); if (h0 && user.config) { tab = h0[1]; history.replaceState(null, '', location.pathname + location.search); } }
   let sx = { mode: 'setup', step: 1, text: '', res: null, copied: false, ai: false, scr: '' };
 
   function toast(msg, fn) {
@@ -1213,6 +1215,8 @@
     if (sp) { const bar = document.querySelector('.i-dots i.on'); if (bar) bar.style.animationDelay = sp + 'ms'; }
     iTimer = setTimeout(() => { iScene++; render(); }, (REDUCED ? 3500 : 3000) + sp); }
   function render() {
+    // v2: la pantalla Hoy es la nueva (index.html). Esta copia de la v1 solo sirve Resumen, Faltas y Ajustes.
+    if (tab === 'hoy' && user.config && CLASICA) { location.replace('./' + location.search); return; }
     document.body.classList.toggle('setup', tab === 'intro' || tab === 'centro' || tab === 'ciclo' || tab === 'previas' || tab === 'desde' || tab === 'setup' || tab === 'editor' || tab === 'join' || tab === 'sim' || tab === 'install' || tab === 'quick' || tab === 'admin');
     app.innerHTML = VIEWS[tab]();
     document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));

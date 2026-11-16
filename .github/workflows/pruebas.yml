@@ -28,6 +28,9 @@ jobs:
         run: node scripts/comprobar-festivos.mjs
       - name: Recorrer el alta en Chrome
         run: node scripts/e2e-alta.mjs capturas
+      - name: Recorrer Hoy y «Falté a…» en Chrome
+        if: always()
+        run: node scripts/e2e-hoy.mjs capturas/hoy
       - uses: actions/upload-artifact@v4
         if: always()
         with:
