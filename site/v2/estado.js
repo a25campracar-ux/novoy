@@ -74,7 +74,7 @@
     // faltas leídas de una lista (pegada, captura o IA): con su fecha real
     (d.importadas || []).forEach((f) => {
       if (!f || !f.date || !f.subject) return;
-      faltas.push({ id: 'i' + (++n) + '-' + Date.now().toString(36), date: f.date, subject: f.subject, hours: f.type === 'retraso' ? 0 : Math.round((+f.hours || 0) * 100) / 100, type: f.type === 'retraso' ? 'retraso' : 'falta', justified: !!f.justified, note: 'importada' });
+      faltas.push({ id: 'i' + (++n) + '-' + Date.now().toString(36), date: f.date, subject: f.subject, hours: f.type === 'retraso' ? 0 : Math.round((+f.hours || 0) * 100) / 100, type: f.type === 'retraso' ? 'retraso' : 'falta', justified: !!f.justified, note: f.vaga ? 'importada-vaga' : 'importada' });
     });
     return { config, settings, faltas, since: hoy };
   }

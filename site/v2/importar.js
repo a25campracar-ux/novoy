@@ -17,6 +17,10 @@
   const MES = {}; MESES.forEach((l, i) => l.forEach((w) => { MES[w] = i + 1; }));
 
   // estados de asistencia (palabras sueltas y abreviaturas de las plataformas)
+  // «No justificada» va antes que «justificada»: si no, una falta sin justificar se leería como justificada
+  const NOJUST = /\b(no justificad[ao]s?|no justificats?|sin justificar|sense justificar|injustificad[ao]s?|unjustified|unexcused|not excused|nj)\b/;
+  const VAGA = /\b(vaga|huelga|strike)\b/;
+  const TUT = /^(tut|tutoria|tutor|tutoria grup)$/;
   const PRESENTE = /\b(present|presente|assistit|asistio|asistencia correcta|attended)\b/;
   const JUST = /\b(justificad[ao]s?|justificat|justificada|justified|excused|excusad[ao]|fj)\b/;
   const RETRASO = /\b(retard|retards|retraso|retrasos|late|tard|impuntual|llegada tarde|arribada tard)\b/;
@@ -49,6 +53,8 @@
     // fuera los tramos horarios («de 15:00 a 17:00», «3PM - 5PM»): su «a» no es «Absent»
     const s = fold(line).replace(/\d{1,2}[:.h]\d{2}\s*(?:-|–|a|to|fins)\s*\d{1,2}[:.h]\d{2}/g, ' ')
       .replace(/\d{1,2}(?::\d{2})?\s*(?:am|pm)\s*(?:-|–|to)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)/g, ' ').replace(/[^a-z0-9/ ]+/g, ' ');
+    if (VAGA.test(s)) return 'vaga';
+    if (NOJUST.test(s)) return RETRASO.test(s) ? 'retraso' : 'falta';
     if (RETRASO.test(s) && JUST.test(s)) return 'retraso-just';
     if (RETRASO.test(s)) return 'retraso';
     if (JUST.test(s)) return 'just';
@@ -110,7 +116,7 @@
   function leer(texto, opts) {
     const curso = opts.curso, hoy = opts.hoy || curso.fin;
     const lineas = desdeJSON(texto) || String(texto || '').split(/\r?\n/);
-    const brutas = [], dudosas = []; let ignoradas = 0, ctxSub = null, ctxFecha = null;
+    const brutas = [], dudosas = []; let ignoradas = 0, tutoria = 0, ctxSub = null, ctxFecha = null;
     lineas.forEach((raw) => {
       const linea = raw.replace(/\s+/g, ' ').trim(); if (!linea) return;
       const f = fecha(linea, curso), sub = asignatura(linea, opts.subs, opts.alias), st = estado(linea);
@@ -119,6 +125,8 @@
       if (f) ctxFecha = f.iso;
       if (!st) { ignoradas++; return; } // una fila con fecha pero sin estado: cabecera de día o columna suelta
       if (st === 'presente') { ignoradas++; return; }
+      // la tutoría no cuenta para el límite: se dice cuántas había, sin pedir que se revisen
+      if (!sub && words(linea).split(' ').some((w) => TUT.test(w))) { tutoria++; return; }
       const subject = sub || ctxSub;
       if (!date) return dudosas.push({ linea, motivo: 'No veo la fecha' });
       if (!subject) return dudosas.push({ linea, motivo: 'No sé de qué asignatura es' });
@@ -133,27 +141,29 @@
         if (bl.length) hours = bl.reduce((s, x) => s + x.hours, 0);
       }
       if (hours == null && tr) hours = Math.ceil((tr.b - tr.a) / 60); // sin horario que lo diga: redondea hacia arriba
+      // una sola hora («08:00»): la plataforma pone una fila por sesión → 1 h
+      if (hours == null && !tr && /(^|\D)\d{1,2}:\d{2}(\D|$)/.test(linea.replace(/\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}/g, ''))) hours = Math.min(1, enHorario || 1);
       const type = st.indexOf('retraso') === 0 ? 'retraso' : 'falta';
       if (hours == null) hours = type === 'retraso' ? 0 : enHorario || 1; // sin horas: la clase entera (lo seguro)
-      brutas.push({ date, subject, hours: type === 'retraso' ? 0 : hours, type, justified: st === 'just' || st === 'retraso-just', tope: enHorario });
+      brutas.push({ date, subject, hours: type === 'retraso' ? 0 : hours, type, justified: st === 'just' || st === 'retraso-just', vaga: st === 'vaga', tope: enHorario });
     });
     // mismo día, asignatura y tipo: se suman (una plataforma lista una fila por hora), con tope en las horas de clase
     const map = new Map();
     brutas.forEach((x) => {
-      const k = x.date + '|' + x.subject + '|' + x.type + '|' + x.justified;
+      const k = x.date + '|' + x.subject + '|' + x.type + '|' + x.justified + '|' + x.vaga;
       const y = map.get(k);
       if (!y) return map.set(k, Object.assign({}, x));
       if (x.type === 'retraso') return; // un retraso por clase
       y.hours = Math.min(y.hours + x.hours, x.tope || Infinity);
     });
-    const faltas = Array.from(map.values()).map((x) => ({ date: x.date, subject: x.subject, hours: Math.round(x.hours * 100) / 100, type: x.type, justified: x.justified }))
+    const faltas = Array.from(map.values()).map((x) => Object.assign({ date: x.date, subject: x.subject, hours: Math.round(x.hours * 100) / 100, type: x.type, justified: x.justified }, x.vaga ? { vaga: true } : {}))
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.subject < b.subject ? -1 : 1));
-    return { faltas, dudosas, ignoradas };
+    return { faltas, dudosas, ignoradas, tutoria };
   }
 
   /** Une lecturas sucesivas (varias listas pegadas) sin contar dos veces la misma falta. */
   function unir(a, b) {
-    const k = (x) => x.date + '|' + x.subject + '|' + x.type + '|' + x.justified, seen = new Set(a.map(k));
+    const k = (x) => x.date + '|' + x.subject + '|' + x.type + '|' + x.justified + '|' + !!x.vaga, seen = new Set(a.map(k));
     return a.concat(b.filter((x) => !seen.has(k(x))));
   }
 
@@ -161,8 +171,8 @@
   function totales(faltas) {
     const out = {};
     faltas.forEach((f) => {
-      const o = out[f.subject] || (out[f.subject] = { sin: 0, just: 0, retrasos: 0 });
-      if (f.type === 'retraso') o.retrasos++; else if (f.justified) o.just += f.hours; else o.sin += f.hours;
+      const o = out[f.subject] || (out[f.subject] = { sin: 0, just: 0, retrasos: 0, vaga: 0 });
+      if (f.type === 'retraso') o.retrasos++; else if (f.vaga) o.vaga += f.hours; else if (f.justified) o.just += f.hours; else o.sin += f.hours;
     });
     return out;
   }

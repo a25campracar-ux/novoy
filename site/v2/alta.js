@@ -28,7 +28,7 @@
 
   // ---------- borrador ----------
   const nuevo = () => ({ v: 1, paso: 'centro', hist: [], centro: null, ciclo: null, turno: null, tplGrupo: null, tplCentro: null, plantilla: null,
-    horario: null, fuente: null, quitar: [], cal: { inicio: null, fin: null, terms: null, locales: null, libres: [], libresLuego: false }, reglas: {}, previas: {}, importadas: [], dudosas: [], faltoAntes: null, compartir: true });
+    horario: null, fuente: null, quitar: [], cal: { inicio: null, fin: null, terms: null, locales: null, libres: [], libresLuego: false }, reglas: {}, previas: {}, importadas: [], dudosas: [], tutoria: 0, sinVaga: false, faltoAntes: null, compartir: true });
   let d = ls.get(DRAFT); if (!d || d.v !== 1) d = nuevo();
   const ui = { q: '', res: [], dirBusy: false, err: '', paint: null, otra: false, horas: false, quitar: false, cambiarFechas: false, cambiarTrim: false, libresForm: false, otroPct: false, busy: null, tplIdx: 0 };
   const save = () => ls.set(DRAFT, d);
@@ -310,15 +310,22 @@
   };
   V.impRevisar = () => {
     const F = d.importadas || [], T = NVImportar.totales(F), dud = d.dudosas || [];
-    const horas = F.reduce((a, f) => a + (f.type === 'retraso' ? 0 : f.hours), 0), ret = F.filter((f) => f.type === 'retraso').length;
+    const vagaH = F.filter((f) => f.vaga).reduce((a, f) => a + f.hours, 0);
+    const horas = F.reduce((a, f) => a + (f.type === 'retraso' || (d.sinVaga && f.vaga) ? 0 : f.hours), 0), ret = F.filter((f) => f.type === 'retraso').length;
     let h = top() + h1(F.length ? 'He encontrado ' + num(horas) + ' h de faltas' : 'No he encontrado faltas');
     if (F.length) {
-      h += '<p class="lead">' + (ret ? ret + (ret === 1 ? ' retraso' : ' retrasos') + ' aparte. ' : '') + 'Revisa que esté bien antes de guardar.</p><div class="list">' + Object.keys(T).map((x) => {
+      const extra = [];
+      if (ret) extra.push(ret + (ret === 1 ? ' retraso' : ' retrasos') + ' aparte.');
+      if (d.tutoria) extra.push(d.tutoria + (d.tutoria === 1 ? ' de tutoría, que no cuenta.' : ' de tutoría, que no cuentan.'));
+      h += '<p class="lead">' + esc(extra.join(' ') + ' Revisa que esté bien antes de guardar.') + '</p><div class="list">' + Object.keys(T).map((x) => {
         const t = T[x], partes = [];
-        if (t.sin) partes.push(num(t.sin) + ' h sin justificante'); if (t.just) partes.push(num(t.just) + ' h justificadas'); if (t.retrasos) partes.push(t.retrasos + (t.retrasos === 1 ? ' retraso' : ' retrasos'));
+        if (t.sin) partes.push(num(t.sin) + ' h sin justificante'); if (t.just) partes.push(num(t.just) + ' h justificadas'); if (t.vaga) partes.push(num(t.vaga) + ' h de vaga' + (d.sinVaga ? ' (no cuentan)' : ''));
+        if (t.retrasos) partes.push(t.retrasos + (t.retrasos === 1 ? ' retraso' : ' retrasos'));
         return '<div class="li"><span class="t"><b>' + esc(x) + '</b><small>' + esc(partes.join(' · ')) + '</small></span></div>';
       }).join('') + '</div>';
-      h += ui.verTodas ? '<div class="list">' + F.map((f) => '<div class="kv"><span>' + esc(fecha(f.date) + ' · ' + f.subject) + '</span><b>' + (f.type === 'retraso' ? 'retraso' : num(f.hours) + ' h' + (f.justified ? ' · just.' : '')) + '</b></div>').join('') + '</div>' : '<button class="link" data-a="verTodas" style="align-self:flex-start">Ver una por una (' + F.length + ')</button>';
+      if (vagaH) h += '<div class="card amb stack"><p><b>' + num(vagaH) + ' h de vaga</b></p><p class="sub" style="color:var(--tx2)">Las cuento como faltas sin justificar, porque no sé cómo las cuenta tu centro. Si sabes que no cuentan, quítalas.</p>' +
+        '<label class="toggle"><input type="checkbox" data-a="sinVaga"' + (d.sinVaga ? ' checked' : '') + '><span>No contar las de vaga</span></label></div>';
+      h += ui.verTodas ? '<div class="list">' + F.map((f) => '<div class="kv"><span>' + esc(fecha(f.date) + ' · ' + f.subject) + '</span><b>' + (f.type === 'retraso' ? 'retraso' : num(f.hours) + ' h' + (f.vaga ? ' · vaga' : f.justified ? ' · just.' : '')) + '</b></div>').join('') + '</div>' : '<button class="link" data-a="verTodas" style="align-self:flex-start">Ver una por una (' + F.length + ')</button>';
     } else h += '<p class="lead">Prueba con «Con una IA»: entiende casi cualquier formato.</p>';
     if (dud.length) h += '<div class="card amb stack"><p><b>' + dud.length + (dud.length === 1 ? ' línea no la he entendido' : ' líneas no las he entendido') + '</b></p><p class="sub" style="color:var(--tx2)">No las cuento. Si son faltas, añádelas luego a mano.</p><div class="list">' +
       dud.slice(0, 8).map((x) => '<div class="li"><span class="t"><small>' + esc(x.motivo) + '</small><b style="font-weight:500;font-size:13px">' + esc(x.linea.slice(0, 90)) + '</b></span></div>').join('') + '</div>' + (dud.length > 8 ? '<p class="sub">Y ' + (dud.length - 8) + ' más.</p>' : '') + '</div>';
@@ -344,7 +351,7 @@
   function horarioFinal() { const hz = d.horario || {}; const sch = hz.schedule ? hz.schedule : H.aHorario(hz.rows || [], hz.grid || {}); return H.sinAsignaturas(sch, d.quitar); }
   function borradorEstado() {
     if (!d.centro || !d.horario) return null;
-    return E.construir({ centro: d.centro, ciclo: d.ciclo, turno: d.turno, horario: d.horario, quitar: d.quitar, cal: d.cal, reglas: d.reglas, previas: d.faltoAntes ? d.previas : {}, importadas: d.faltoAntes ? d.importadas || [] : [], hoy: HOY, plantilla: d.plantilla });
+    return E.construir({ centro: d.centro, ciclo: d.ciclo, turno: d.turno, horario: d.horario, quitar: d.quitar, cal: d.cal, reglas: d.reglas, previas: d.faltoAntes ? d.previas : {}, importadas: d.faltoAntes ? (d.importadas || []).filter((f) => !(d.sinVaga && f.vaga)) : [], hoy: HOY, plantilla: d.plantilla });
   }
   const existente = () => ls.get(STATE) || {};
 
@@ -439,7 +446,8 @@
     leer: () => { const t = (val('imp') || '').trim(); if (t.length < 6) { ui.err = 'Pega aquí tu lista.'; return render(false); } leerTexto(t); },
     verTodas: () => { ui.verTodas = true; render(false); },
     otraLista: () => { ui.verTodas = false; go('previas'); },
-    borrarImp: () => { d.importadas = []; d.dudosas = []; d.previas = {}; save(); go('previas'); },
+    borrarImp: () => { d.importadas = []; d.dudosas = []; d.previas = {}; d.tutoria = 0; d.sinVaga = false; save(); go('previas'); },
+    sinVaga: (v, el) => { d.sinVaga = !!el.checked; save(); render(false, '[data-a="sinVaga"]'); },
     impOk: () => { d.previas = {}; go('listo'); },
     compartir: (v, el) => { d.compartir = !!el.checked; save(); },
     terminar: () => terminar()
@@ -485,6 +493,7 @@
     const r = NVImportar.leer(t, optsLector());
     d.importadas = NVImportar.unir(d.importadas || [], r.faltas);
     d.dudosas = (d.dudosas || []).concat(r.dudosas).slice(-200);
+    d.tutoria = (d.tutoria || 0) + (r.tutoria || 0);
     ui.imp = ''; ui.verTodas = false; ui.err = '';
     if (d.paso === 'impLeyendo') { d.hist.pop(); d.paso = 'impFoto'; }
     go('impRevisar');

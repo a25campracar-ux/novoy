@@ -37,6 +37,27 @@ r = I.leer(`Data	Hora	Matèria	Tipus
 dl. 26 d'oct. de 2026	Programació	Absència`, opts);
 assert.deepStrictEqual(fmt(r), ['2026-10-20 Bases de dades 2 falta false', '2026-10-22 Llenguatges de marques 0 retraso false', '2026-10-23 FOL 2 falta true', '2026-10-26 Programació 2 falta false'], 'catalán, filas por hora');
 
+// --- formato iEduca (una fila por sesión con su hora; «No justificada»; vaga; tutoría)
+r = I.leer(`\t16/11/2026\t15:00\tPROG\tNo justificada
+\t16/11/2026\t16:00\tPROG\tNo justificada
+\t16/11/2026\t17:00\tPROG\tNo justificada
+17/11/2026\t15:00\tBD\tRetard
+\t13/11/2026\t15:00\tFOL\tVaga
+\t13/11/2026\t16:00\tFOL\tVaga
+\t10/11/2026\t15:00\tBD\tJustificada
+\t09/11/2026\t18:00\tTUT\tNo justificada`, Object.assign({}, opts, { hoy: '2026-11-17' }));
+assert.deepStrictEqual(fmt(r), ['2026-11-10 Bases de dades 1 falta true', '2026-11-13 FOL 2 falta false', '2026-11-16 Programació 2 falta false', '2026-11-17 Bases de dades 0 retraso false'],
+  'iEduca: «No justificada» es sin justificar; 1 h por fila con tope en las horas de clase');
+assert.ok(r.faltas.find((f) => f.subject === 'FOL').vaga, 'la vaga queda marcada');
+assert.strictEqual(r.tutoria, 1, 'la tutoría se cuenta aparte');
+assert.strictEqual(r.dudosas.length, 0);
+assert.strictEqual(I.estado('No justificada'), 'falta');
+assert.strictEqual(I.estado('Falta no justificada'), 'falta');
+assert.strictEqual(I.estado('Sin justificar'), 'falta');
+assert.strictEqual(I.estado('Injustificada'), 'falta');
+assert.strictEqual(I.estado('Justificada'), 'just');
+assert.deepStrictEqual(I.totales(r.faltas)['FOL'], { sin: 0, just: 0, retrasos: 0, vaga: 2 });
+
 // --- Moodle en inglés con letras de estado y horas AM/PM
 r = I.leer(`Course: Programming
 Mon 9 Nov 2026 3PM - 5PM Regular class session A 0/2
@@ -70,6 +91,6 @@ assert.strictEqual(I.asignatura('Bases de dades avançades', ['Bases', 'Bases de
 // unir dos listas sin repetir
 const a = I.leer('2026-11-02 ; Programació ; 2 ; falta', opts).faltas, b = I.leer('2026-11-02 ; Programació ; 2 ; falta\n2026-11-09 ; Programació ; 2 ; falta', opts).faltas;
 assert.strictEqual(I.unir(a, b).length, 2);
-assert.deepStrictEqual(I.totales(I.unir(a, b)), { 'Programació': { sin: 4, just: 0, retrasos: 0 } });
+assert.deepStrictEqual(I.totales(I.unir(a, b)), { 'Programació': { sin: 4, just: 0, retrasos: 0, vaga: 0 } });
 assert.ok(I.promptIA(subs).includes('Programació, Bases de dades'));
 console.log('v2 importar OK');
