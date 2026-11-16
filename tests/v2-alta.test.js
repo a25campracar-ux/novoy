@@ -109,4 +109,15 @@ assert.ok(E.construir({}).error);
 assert.ok(E.construir(Object.assign({}, d, { horario: { rows, grid: H.vacia() } })).error, 'horario vacío');
 assert.strictEqual(E.construir(Object.assign({}, d, { cal: Object.assign({}, d.cal, { libres: [], libresLuego: true }) })).settings.libresPendientes, 4);
 assert.strictEqual(E.construir(Object.assign({}, d, { reglas: { tipo: 'todas', ambito: 'ra' } })).settings.ambito, 'trimestre', 'RA se calcula por trimestre y queda marcado');
+// captura → rejilla: el lector de capturas da las horas como { s, e } (fallo real del 16/11: «undefined a undefined»)
+{
+  const Hc = require('../site/v2/horario.js');
+  const r = { ok: true, rows: [{ s: '08:00', e: '09:00' }, { s: '09:00', e: '10:00' }], blocks: { 1: [{ subject: 'DAW', r0: 0, n: 2 }] }, subjects: ['DAW'] };
+  const hz = Hc.deCaptura(r);
+  assert.deepStrictEqual(hz.rows, [{ start: '08:00', end: '09:00' }, { start: '09:00', end: '10:00' }]);
+  assert.strictEqual(hz.horasDudosas, false);
+  assert.strictEqual(hz.grid[1][1], 'DAW');
+  assert.strictEqual(Hc.deCaptura(Object.assign({}, r, { guessed: true })).horasDudosas, true);
+  assert.strictEqual(Hc.deCaptura({ rows: [{}], blocks: {} }).horasDudosas, true);
+}
 console.log('v2 alta OK');

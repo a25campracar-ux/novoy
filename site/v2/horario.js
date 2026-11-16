@@ -76,7 +76,9 @@
   function deCaptura(r) {
     const grid = vacia();
     Object.keys(r.blocks || {}).forEach((d) => (r.blocks[d] || []).forEach((b) => { for (let i = 0; i < b.n; i++) grid[d][b.r0 + i] = b.subject; }));
-    return { rows: (r.rows || []).map((x) => ({ start: x.start, end: x.end })), grid, subjects: (r.subjects || []).slice() };
+    // el lector de capturas (shot.js) da las horas como { s, e }; se aceptan también { start, end }
+    const rows = (r.rows || []).map((x) => ({ start: x.start || x.s, end: x.end || x.e }));
+    return { rows, grid, subjects: (r.subjects || []).slice(), horasDudosas: !!r.guessed || rows.some((x) => !/^\d\d:\d\d$/.test(x.start || '') || !/^\d\d:\d\d$/.test(x.end || '')) };
   }
 
   /** Horas por semana de cada asignatura. */

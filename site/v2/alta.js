@@ -179,8 +179,8 @@
   V.editor = () => {
     const hz = d.horario, rows = hz.rows, subs = paleta(), cols = colores(subs);
     const any = pintadas().length > 0;
-    const f = hz.cfg || {}, resumenH = rows.length ? rows[0].start + ' a ' + rows[rows.length - 1].end + ' · ' + rows.length + ' clases' : '';
-    const formH = ui.horas || !rows.length ? '<div class="card stack">' +
+    const f = hz.cfg || {}, horasOk = rows.length && rows.every((x) => x.start && x.end), resumenH = horasOk ? rows[0].start + ' a ' + rows[rows.length - 1].end + ' · ' + rows.length + ' clases' : '';
+    const formH = ui.horas || !horasOk ? '<div class="card stack">' +
       '<div class="grid2"><div class="field"><label for="hi">Empiezas a las</label><input id="hi" class="input" type="time" data-f="hi" value="' + esc(f.inicio || (d.turno === 'tarde' ? '15:00' : '08:00')) + '"></div>' +
       '<div class="field"><label for="hd">Cada clase dura</label><select id="hd" class="input" data-f="hd">' + [45, 50, 55, 60, 90, 120].map((m) => '<option value="' + m + '"' + (+(f.dur || 60) === m ? ' selected' : '') + '>' + m + ' min</option>').join('') + '</select></div></div>' +
       '<div class="grid2"><div class="field"><label for="hn">Clases al día</label><select id="hn" class="input" data-f="hn">' + [3, 4, 5, 6, 7, 8, 9, 10].map((m) => '<option' + (+(f.n || 6) === m ? ' selected' : '') + '>' + m + '</option>').join('') + '</select></div>' +
@@ -594,7 +594,9 @@
     try {
       const r = await window.FTShot.read(file, (p, msg) => { ui.busy = { p, msg }; const b = document.getElementById('pbar'), m = document.getElementById('msg'); if (b) b.style.width = Math.round(p * 100) + '%'; if (m) m.textContent = msg; });
       if (!r || !r.ok || !r.rows || !r.rows.length) throw new Error('vacío');
-      const hz = H.deCaptura(r); d.horario = { rows: hz.rows, grid: hz.grid, extra: hz.subjects, cfg: {} }; d.fuente = 'captura';
+      const hz = H.deCaptura(r); const r0 = hz.rows[0] || {}, dur0 = r0.start && r0.end ? H.min(r0.end) - H.min(r0.start) : 0;
+      d.horario = { rows: hz.rows, grid: hz.grid, extra: hz.subjects, cfg: { n: hz.rows.length, inicio: hz.horasDudosas ? (d.turno === 'tarde' ? '15:00' : '08:00') : r0.start, dur: dur0 > 0 ? dur0 : 60 } }; d.fuente = 'captura';
+      ui.horas = hz.horasDudosas; // si no se leyeron bien las horas, se piden antes de nada
       ui.paint = hz.subjects[0] || null; ui.busy = null; d.hist.pop(); d.paso = 'fuente'; go('editor');
     } catch (err) {
       ui.busy = null; d.hist.pop(); d.paso = 'fuente';

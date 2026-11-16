@@ -227,6 +227,30 @@ console.log('D · faltas desde una captura');
   await c.close();
 }
 
+// ---------- E · horario desde una captura (lector simulado con el formato real de shot.js) ----------
+console.log('E · horario desde una captura');
+{
+  const { c, p } = await ctx();
+  await p.route('**/shot.js', (r) => r.fulfill({ contentType: 'application/javascript', body:
+    "window.FTShot = { read: async () => ({ ok: true, rows: [{ s: '08:00', e: '09:00' }, { s: '09:00', e: '10:00' }, { s: '10:00', e: '11:00' }, { s: '11:30', e: '12:30' }]," +
+    " blocks: { 1: [{ subject: 'IPO II', r0: 0, n: 2 }], 2: [{ subject: 'DAW', r0: 0, n: 2 }] }, subjects: ['IPO II', 'DAW'] }) };" }));
+  await p.goto(BASE + '/alta.html?hoy=2026-11-16');
+  await p.fill('#q', 'pedral'); await p.getByRole('button', { name: /Institut Pedralbes/ }).click();
+  await radio(p, /^DAW ·/); await radio(p, 'Mañana'); await tap(p, 'Siguiente');
+  await h1(p, 'captura');
+  await p.locator('#file1').setInputFiles({ name: 'horario.png', mimeType: 'image/png', buffer: Buffer.from('x') });
+  ok((await h1(p, 'Revisa')) === 'Revisa tu horario', 'la captura lleva a «Revisa tu horario»');
+  const txt = await p.locator('#alta').innerText();
+  ok(!/undefined|NaN/.test(txt), 'sin «undefined» ni «NaN» en pantalla');
+  ok(/08:00 a 12:30 · 4 clases/.test(txt), 'muestra las horas leídas (08:00 a 12:30 · 4 clases)');
+  ok((await p.locator('#tt [data-v="2:1"]').getAttribute('aria-label')).includes('DAW'), 'la rejilla trae lo leído');
+  await shot(p, 'captura-horario');
+  await tap(p, 'Siguiente');
+  ok(/calendario/i.test(await h1(p)), 'desde la captura se sigue al calendario');
+  ok(p.errores.length === 0, 'sin errores de JavaScript' + (p.errores.length ? ': ' + p.errores.join(' | ') : ''));
+  await c.close();
+}
+
 await browser.close();
 srv.kill();
 console.log(fallos.length ? '\n' + fallos.length + ' FALLOS' : '\nTodo correcto');
