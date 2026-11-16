@@ -239,12 +239,12 @@ function validaCentro(d) {
     for (const t of d.terms) { if (!t || !/^[0-9a-z]{1,4}$/.test(t.id) || !limpio(t.label, 30) || !YMD.test(t.from) || !YMD.test(t.to) || t.from > t.to) return null; out.terms.push({ id: t.id, label: t.label, from: t.from, to: t.to }); }
   }
   if (d.reglas != null) {
-    const r = d.reglas, T = ['todas', 'sin', 'dos'], A = ['trimestre', 'curso', 'ra'], RT = ['no', '1', '2', '3'];
+    const r = d.reglas, T = ['todas', 'sin', 'dos', 'mitad'], A = ['trimestre', 'curso', 'ra'], RT = ['no', '1', '2', '3'];
     if (!r || T.indexOf(r.tipo) < 0 || A.indexOf(r.ambito) < 0 || RT.indexOf(String(r.retrasos)) < 0) return null; // «No lo sé» no se comparte
     const pc = (x) => { const v = +x; return v > 0 && v <= 100 ? Math.round(v * 10) / 10 : null; };
     const o = { tipo: r.tipo, ambito: r.ambito, retrasos: String(r.retrasos) };
     if (r.tipo === 'dos') { o.pctSin = pc(r.pctSin); o.pctJust = pc(r.pctJust); o.segundo = r.segundo === 'todas' ? 'todas' : 'aparte'; if (!o.pctSin || !o.pctJust) return null; }
-    else { o.pct = pc(r.pct); o.cuenta = r.cuenta === 'sin' ? 'sin' : 'todas'; if (!o.pct) return null; }
+    else { o.pct = pc(r.pct); if (r.tipo !== 'mitad') o.cuenta = r.cuenta === 'sin' ? 'sin' : 'todas'; if (!o.pct) return null; }
     out.reglas = o;
   }
   return Object.keys(out).length ? out : null;

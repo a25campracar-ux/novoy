@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Configura NoVoy</title>
+<meta name="theme-color" content="#F4F6F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E0F11" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Configura tu horario, tu calendario y las reglas de faltas de tu centro.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap">
+<link rel="stylesheet" href="v2/alta.css">
+</head>
+<body>
+<a class="skip" href="#alta">Saltar al contenido</a>
+<main id="alta" aria-live="polite"></main>
+<div id="aviso" class="toast" role="status" aria-live="polite"></div>
+<noscript><p class="noscript">NoVoy necesita JavaScript para funcionar.</p></noscript>
+<script src="core.js"></script>
+<script src="catalog.js"></script>
+<script src="shot.js"></script>
+<script src="v2/reglas.js"></script>
+<script src="v2/horario.js"></script>
+<script src="v2/calendario.js"></script>
+<script src="v2/estado.js"></script>
+<script src="v2/alta.js"></script>
+</body>
+</html>

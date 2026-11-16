@@ -12,6 +12,8 @@
 
   // ---------- estado (solo en este dispositivo) ----------
   let user = tidy(load());
+  // v2: quien llega sin configurar pasa por el alta nueva (alta.html). Los enlaces con parámetros siguen aquí.
+  if (!user.config && !location.search.replace(/^\?/, '').replace(/(^|&)hoy=[^&]*/, '')) { location.replace('alta.html'); return; }
   try { if (user.config) localStorage.setItem(KEY, JSON.stringify(user)); } catch (e) {} // guarda ya la versión con ids y unidades
   /** Ids fijos de asignaturas y faltas, y cada falta partida en unidades de una clase. */
   function tidy(u) { if (u && u.config) { const n = C.normalize(u.config, u.faltas || []); u.config = n.cfg; u.faltas = n.faltas; tutAuto(u.config); if (!u.since) u.since = C.ymd(new Date()); } return u; }

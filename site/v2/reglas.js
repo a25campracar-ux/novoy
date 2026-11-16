@@ -8,7 +8,8 @@
     todas: { pct: 25, cuenta: 'todas' },
     sin: { pct: 20, cuenta: 'sin' },
     dos: { pctSin: 10, pctJust: 15, segundo: 'aparte' },
-    nose: { pct: 15, cuenta: 'todas' } // decisión del autor (16/11/2026): la más estricta
+    nose: { pct: 15, cuenta: 'todas' }, // decisión del autor (16/11/2026): la más estricta
+    mitad: { pct: 25 } // «Otra forma»: las justificadas cuentan la mitad
   };
   const PCTS = [10, 15, 20, 25];
   const RETRASOS = { no: 0, '1': 1, '2': 2, '3': 3 };
@@ -17,8 +18,9 @@
 
   /** Respuestas con los valores por defecto de su forma de contar, sin pisar lo que ya eligió el alumno. */
   function conDefecto(a) {
-    const t = (a && a.tipo) || 'nose';
-    return Object.assign({ tipo: t, ambito: 'trimestre', retrasos: 'no' }, DEFECTO[t], a);
+    const t = (a && a.tipo) || 'nose', def = {};
+    Object.keys(a || {}).forEach((k) => { if (a[k] !== undefined && a[k] !== null && a[k] !== '') def[k] = a[k]; });
+    return Object.assign({ tipo: t, ambito: 'trimestre', retrasos: 'no' }, DEFECTO[t], def);
   }
 
   /**
@@ -37,7 +39,7 @@
     } else {
       const p = okPct(a.pct);
       if (!p) return { error: 'Pon un porcentaje entre 1 y 100.' };
-      limites = [{ pct: p, sin: 1, just: a.cuenta === 'sin' ? 0 : 1 }];
+      limites = [{ pct: p, sin: 1, just: a.tipo === 'mitad' ? 0.5 : a.cuenta === 'sin' ? 0 : 1 }];
       if (a.tipo === 'nose') aprox.push('nose');
     }
     const ambito = ['trimestre', 'curso', 'ra'].indexOf(a.ambito) >= 0 ? a.ambito : 'trimestre';
@@ -98,6 +100,7 @@
     }
     if (L.length === 1) {
       const nose = ((s && s.aproximado) || []).indexOf('nose') >= 0;
+      if (L[0].just > 0 && L[0].just < 1) return Object.assign(base, { tipo: 'mitad', pct: L[0].pct });
       return Object.assign(base, { tipo: nose ? 'nose' : L[0].just ? 'todas' : 'sin', pct: L[0].pct, cuenta: L[0].just ? 'todas' : 'sin' });
     }
     return base;

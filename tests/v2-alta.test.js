@@ -15,8 +15,10 @@ assert.deepStrictEqual(nose.aproximado, ['nose']);
 assert.deepStrictEqual(R.aSettings({ tipo: 'todas', ambito: 'ra' }).aproximado, ['ra'], 'por RA: aproximado');
 assert.strictEqual(R.aSettings({ tipo: 'todas', retrasos: '3' }).retrasosPorFalta, 3);
 assert.ok(R.aSettings({ tipo: 'todas', pct: 0 }).error, 'porcentaje inválido');
-assert.ok(R.aSettings({ tipo: 'dos', pctSin: 10, pctJust: '' }).error);
+assert.ok(R.aSettings({ tipo: 'dos', pctSin: 10, pctJust: 'abc' }).error);
 assert.strictEqual(R.aSettings({ tipo: 'todas', pct: '12,5' }).limites[0].pct, 12.5, 'acepta coma');
+assert.deepStrictEqual(R.aSettings({ tipo: 'mitad' }).limites, [{ pct: 25, sin: 1, just: 0.5 }], 'otra forma: la mitad');
+assert.deepStrictEqual([R.conDefecto({ tipo: 'dos', ambito: undefined, retrasos: null }).ambito, R.conDefecto({ tipo: 'dos', retrasos: undefined }).retrasos], ['trimestre', 'no'], 'un valor sin elegir no borra el de por defecto');
 // frases
 const fr = (a) => R.resumen(R.aSettings(a)).principal;
 assert.strictEqual(fr({ tipo: 'dos', retrasos: '3' }), 'Puedes faltar el 10 % sin justificante y otro 15 % con justificante, en cada módulo y cada trimestre.');
@@ -24,11 +26,12 @@ assert.strictEqual(fr({ tipo: 'todas', ambito: 'curso' }), 'Puedes faltar el 25 
 assert.strictEqual(fr({ tipo: 'sin' }), 'Puedes faltar el 20 % de las clases sin justificante, en cada módulo y cada trimestre.');
 assert.strictEqual(R.resumen(R.aSettings({ tipo: 'sin' })).nota, 'Las justificadas no cuentan.');
 assert.strictEqual(R.resumen(R.aSettings({ tipo: 'todas' })).nota, '');
+assert.strictEqual(R.resumen(R.aSettings({ tipo: 'mitad' })).nota, 'Las justificadas cuentan la mitad.');
 assert.strictEqual(fr({ tipo: 'dos', segundo: 'todas' }), 'Puedes faltar el 10 % sin justificante, y el 15 % contando todas, en cada módulo y cada trimestre.');
 assert.strictEqual(R.resumen(R.aSettings({ tipo: 'dos', retrasos: '3' })).retrasos, '3 retrasos cuentan como 1 falta.');
 assert.deepStrictEqual(R.ejemplo(R.aSettings({ tipo: 'dos' }).limites, 66), [{ etiqueta: 'Sin justificante, hasta', horas: 6.6 }, { etiqueta: 'Con justificante, hasta', horas: 9.9 }]);
 // ida y vuelta
-['todas', 'sin', 'dos', 'nose'].forEach((t) => {
+['todas', 'sin', 'dos', 'nose', 'mitad'].forEach((t) => {
   const s = R.aSettings({ tipo: t, ambito: 'curso', retrasos: '2' }), back = R.aRespuestas(s);
   assert.deepStrictEqual(R.aSettings(back).limites, s.limites, 'ida y vuelta ' + t);
   assert.strictEqual(back.ambito, 'curso'); assert.strictEqual(back.retrasos, '2');
