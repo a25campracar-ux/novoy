@@ -193,10 +193,111 @@ async function api(req, env, url) {
   } catch (e) { return J(502, { error: 'almacen-caido' }); }
 }
 
+/* ---------- Plantillas compartidas (v2) ----------
+   Lo que configura el primero de una clase para que los demás solo confirmen:
+   - grupo (centro + ciclo + turno): el horario semanal.
+   - centro: fechas del curso, trimestres, días de libre disposición y reglas de faltas.
+   NUNCA faltas ni nada del alumno. `dev` es un número al azar del móvil (se guarda resumido)
+   y sirve solo para que un mismo móvil no confirme dos veces.
+   Cada clave guarda hasta 4 versiones distintas; se sirve la más confirmada. */
+const TPL_MAX_VERSIONES = 4, TPL_MAX_BYTES = 12000, TPL_ESCRITURAS_IP_DIA = 40;
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/, YMD = /^\d{4}-\d{2}-\d{2}$/;
+const KEYTXT = /^[a-z0-9@|. -]{3,160}$/;
+const limpio = (t, max) => typeof t === 'string' && t.trim().length > 0 && t.length <= max && !/[<>{}]|https?:|www\./i.test(t);
+async function sha(t) {
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+  return Array.from(new Uint8Array(h)).slice(0, 12).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+/** JSON con las claves ordenadas: dos plantillas iguales dan la misma huella. */
+const canon = (v) => (Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}' : JSON.stringify(v));
+
+function validaGrupo(d) {
+  if (!d || typeof d.schedule !== 'object') return null;
+  const out = {}; let total = 0;
+  for (const k of Object.keys(d.schedule)) {
+    if (!/^[1-5]$/.test(k) || !Array.isArray(d.schedule[k])) return null;
+    const l = d.schedule[k];
+    if (l.length > 14) return null;
+    out[k] = [];
+    for (const b of l) {
+      if (!b || !HHMM.test(b.start) || !HHMM.test(b.end) || b.start >= b.end || !limpio(b.subject, 40)) return null;
+      const h = +b.hours; if (!(h >= 1 && h <= 8 && Number.isInteger(h))) return null;
+      out[k].push({ start: b.start, end: b.end, subject: b.subject.trim(), hours: h }); total++;
+    }
+  }
+  return total ? { schedule: out } : null;
+}
+function validaCentro(d) {
+  if (!d || typeof d !== 'object') return null;
+  const out = {};
+  if (d.inicio != null) { if (!YMD.test(d.inicio)) return null; out.inicio = d.inicio; }
+  if (d.fin != null) { if (!YMD.test(d.fin)) return null; out.fin = d.fin; }
+  if (d.libres != null) { if (!Array.isArray(d.libres) || d.libres.length > 6 || !d.libres.every((x) => YMD.test(x))) return null; out.libres = d.libres.slice().sort(); }
+  if (d.terms != null) {
+    if (!Array.isArray(d.terms) || d.terms.length < 1 || d.terms.length > 4) return null;
+    out.terms = [];
+    for (const t of d.terms) { if (!t || !/^[0-9a-z]{1,4}$/.test(t.id) || !limpio(t.label, 30) || !YMD.test(t.from) || !YMD.test(t.to) || t.from > t.to) return null; out.terms.push({ id: t.id, label: t.label, from: t.from, to: t.to }); }
+  }
+  if (d.reglas != null) {
+    const r = d.reglas, T = ['todas', 'sin', 'dos'], A = ['trimestre', 'curso', 'ra'], RT = ['no', '1', '2', '3'];
+    if (!r || T.indexOf(r.tipo) < 0 || A.indexOf(r.ambito) < 0 || RT.indexOf(String(r.retrasos)) < 0) return null; // «No lo sé» no se comparte
+    const pc = (x) => { const v = +x; return v > 0 && v <= 100 ? Math.round(v * 10) / 10 : null; };
+    const o = { tipo: r.tipo, ambito: r.ambito, retrasos: String(r.retrasos) };
+    if (r.tipo === 'dos') { o.pctSin = pc(r.pctSin); o.pctJust = pc(r.pctJust); o.segundo = r.segundo === 'todas' ? 'todas' : 'aparte'; if (!o.pctSin || !o.pctJust) return null; }
+    else { o.pct = pc(r.pct); o.cuenta = r.cuenta === 'sin' ? 'sin' : 'todas'; if (!o.pct) return null; }
+    out.reglas = o;
+  }
+  return Object.keys(out).length ? out : null;
+}
+const publica = (v) => ({ h: v.h, conf: v.conf, t: v.t, data: v.data });
+
+async function plantillas(req, env, url) {
+  const kv = env.CUENTAS;
+  if (!kv) return J(500, { error: 'sin-kv' });
+  try {
+    if (req.method === 'GET') {
+      const out = {};
+      for (const tipo of ['grupo', 'centro']) {
+        const k = url.searchParams.get(tipo === 'grupo' ? 'g' : 'c');
+        if (!k) continue;
+        if (!KEYTXT.test(k)) return J(400, { error: 'clave' });
+        const doc = await kv.get('tpl:' + tipo + ':' + (await sha(k)), { type: 'json' });
+        const vs = doc ? doc.versiones.slice().sort((a, b) => b.conf - a.conf || b.t - a.t).map(publica) : [];
+        out[tipo] = tipo === 'grupo' ? vs.slice(0, 3) : vs[0] || null;
+      }
+      return J(200, out, { 'cache-control': 'no-store' });
+    }
+    if (req.method !== 'POST') return J(405, { error: 'method' });
+    let b; try { b = await req.json(); } catch (e) { return J(400, { error: 'json' }); }
+    const tipo = b.tipo === 'grupo' || b.tipo === 'centro' ? b.tipo : null;
+    if (!tipo || !KEYTXT.test(String(b.k || '')) || !HEX.test(String(b.dev || ''))) return J(400, { error: 'bad' });
+    if (JSON.stringify(b.data || null).length > TPL_MAX_BYTES) return J(413, { error: 'grande' });
+    const data = tipo === 'grupo' ? validaGrupo(b.data) : validaCentro(b.data);
+    if (!data) return J(400, { error: 'datos' });
+    // límite de escrituras por IP y día (la capa gratuita de KV da 1.000 escrituras al día)
+    const ip = req.headers.get('cf-connecting-ip') || 'local', rk = 'rl:' + (await sha(ip)) + ':' + today();
+    const n = +((await kv.get(rk)) || 0);
+    if (n >= TPL_ESCRITURAS_IP_DIA) return J(429, { error: 'demasiadas' });
+    const key = 'tpl:' + tipo + ':' + (await sha(b.k)), h = await sha(canon(data)), dev = await sha('dev|' + b.dev);
+    const doc = (await kv.get(key, { type: 'json' })) || { versiones: [] };
+    let v = doc.versiones.find((x) => x.h === h);
+    if (v) { if (v.dev.indexOf(dev) < 0) { v.conf++; v.dev = v.dev.concat(dev).slice(-60); v.t = Date.now(); } }
+    else {
+      v = { h, data, conf: 1, dev: [dev], t: Date.now() };
+      doc.versiones.push(v);
+      if (doc.versiones.length > TPL_MAX_VERSIONES) { doc.versiones.sort((a, c) => c.conf - a.conf || c.t - a.t); doc.versiones = doc.versiones.slice(0, TPL_MAX_VERSIONES); if (doc.versiones.indexOf(v) < 0) doc.versiones[TPL_MAX_VERSIONES - 1] = v; }
+    }
+    await kv.put(key, JSON.stringify(doc));
+    await kv.put(rk, String(n + 1), { expirationTtl: 60 * 60 * 26 });
+    return J(200, { ok: 1, h, conf: v.conf });
+  } catch (e) { return J(502, { error: 'almacen-caido' }); }
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (url.pathname === '/api/acct' || url.pathname === '/api/notice') return api(req, env, url);
+    if (url.pathname === '/api/plantilla') return plantillas(req, env, url);
     return env.ASSETS.fetch(req);
   }
 };
