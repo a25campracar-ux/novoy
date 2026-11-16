@@ -1,5 +1,5 @@
 const assert = require('assert'); const C = require('../site/core.js'), S = require('../site/setup.js');
-const seed = require('../private/estado-camilo.json');
+const seed = require('./fixtures/estado-ejemplo.json');
 const st = Object.assign({}, seed.config, { settings: seed.settings, faltas: seed.faltas });
 // ida y vuelta: exportar → pegar (con texto alrededor y vallas ```json) → mismo resumen
 const exp = S.toExport(st), pasted = 'Claro, aquí tienes:\n```json\n' + exp + '\n```\n¿Algo más?';

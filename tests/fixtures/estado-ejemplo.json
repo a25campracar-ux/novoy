@@ -1,0 +1,56 @@
+{
+  "_nota": "Datos inventados para las pruebas. No son de ningún alumno real.",
+  "config": {
+    "center": "Institut de Prova",
+    "terms": [
+      { "id": "1r", "label": "1r trimestre", "from": "2026-09-14", "to": "2026-11-27" },
+      { "id": "2n", "label": "2n trimestre", "from": "2026-11-30", "to": "2027-03-05" },
+      { "id": "3r", "label": "3r trimestre", "from": "2027-03-08", "to": "2027-05-26" }
+    ],
+    "holidays": [
+      { "from": "2026-09-24", "label": "La Mercè" },
+      { "from": "2026-10-12", "label": "El Pilar" },
+      { "from": "2026-12-08", "label": "La Immaculada" },
+      { "from": "2026-12-22", "to": "2027-01-07", "label": "Nadal" },
+      { "from": "2027-03-20", "to": "2027-03-29", "label": "Setmana Santa" }
+    ],
+    "schedule": {
+      "1": [
+        { "start": "15:00", "end": "17:00", "subject": "Programació", "hours": 2 },
+        { "start": "17:00", "end": "18:00", "subject": "Bases de dades", "hours": 1 },
+        { "start": "18:20", "end": "19:20", "subject": "Tutoria", "hours": 1 }
+      ],
+      "2": [
+        { "start": "15:00", "end": "17:00", "subject": "Bases de dades", "hours": 2 },
+        { "start": "17:00", "end": "18:00", "subject": "Llenguatges", "hours": 1 }
+      ],
+      "3": [
+        { "start": "15:00", "end": "17:00", "subject": "Programació", "hours": 2 },
+        { "start": "17:00", "end": "18:00", "subject": "FOL", "hours": 1 }
+      ],
+      "4": [
+        { "start": "15:00", "end": "16:00", "subject": "Llenguatges", "hours": 1 },
+        { "start": "16:00", "end": "17:00", "subject": "PROJ", "hours": 1 }
+      ],
+      "5": [
+        { "start": "15:00", "end": "17:00", "subject": "FOL", "hours": 2 }
+      ]
+    },
+    "periods": [],
+    "alias": { "PROJ": "Programació" },
+    "nocount": ["Tutoria"],
+    "totals": {},
+    "totalsUnified": {}
+  },
+  "settings": { "unificar": true, "limite": 25, "justModo": "juntas" },
+  "faltas": [
+    { "id": "f1", "date": "2026-09-21", "subject": "Programació", "hours": 2, "type": "falta", "justified": false },
+    { "id": "f2", "date": "2026-10-07", "subject": "Programació", "hours": 1, "type": "falta", "justified": true },
+    { "id": "f3", "date": "2026-10-15", "subject": "PROJ", "hours": 1, "type": "falta", "justified": false },
+    { "id": "f4", "date": "2026-10-20", "subject": "Bases de dades", "hours": 2, "type": "falta", "justified": false },
+    { "id": "f5", "date": "2026-10-27", "subject": "Llenguatges", "hours": 0, "type": "retraso", "justified": false },
+    { "id": "f6", "date": "2026-11-03", "subject": "Llenguatges", "hours": 0, "type": "retraso", "justified": false },
+    { "id": "f7", "date": "2026-11-10", "subject": "Llenguatges", "hours": 0, "type": "retraso", "justified": false },
+    { "id": "f8", "date": "2026-11-13", "subject": "FOL", "hours": 2, "type": "falta", "justified": true }
+  ]
+}
