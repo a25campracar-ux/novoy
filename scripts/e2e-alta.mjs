@@ -142,6 +142,7 @@ console.log('B · compañero con plantilla');
 console.log('C · ramas, oscuro y pantalla pequeña');
 {
   const { c, p } = await ctx({ colorScheme: 'dark', viewport: { width: 320, height: 640 } });
+  await p.route('**/analisi.transparenciacatalunya.cat/**', (r) => r.abort()); // simula que no hay red
   await p.goto(BASE + '/alta.html?hoy=2026-11-16');
   await p.getByRole('button', { name: 'No está mi instituto' }).click();
   await p.fill('#cn', 'Institut de Prova'); await p.fill('#cc', 'Lleida'); await tap(p, 'Siguiente');
@@ -151,7 +152,7 @@ console.log('C · ramas, oscuro y pantalla pequeña');
   await p.locator('#tt [data-v="1:0"]').click();
   await shot(p, 'oscuro-320-editor');
   await tap(p, 'Siguiente');
-  await p.waitForTimeout(6500); // festivos locales: sin red en la prueba
+  await p.locator('.list', { hasText: 'No los he encontrado' }).waitFor({ timeout: 8000 }).catch(() => {});
   ok((await p.locator('.list').innerText()).includes('No los he encontrado'), 'sin red: pide añadir los festivos locales');
   await tap(p, 'Siguiente');
   await radio(p, /Todas cuentan igual/); await tap(p, 'Siguiente');
