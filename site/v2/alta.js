@@ -401,6 +401,8 @@
       const extra = [];
       if (ret) extra.push(ret + (ret === 1 ? ' retraso' : ' retrasos') + ' aparte.');
       if (d.tutoria) extra.push(d.tutoria + (d.tutoria === 1 ? ' de tutoría, que no cuenta.' : ' de tutoría, que no cuentan.'));
+      const ph = F.filter((f) => f.porHora).length;
+      if (ph) extra.push(ph + (ph === 1 ? ' venía con otro nombre (p. ej. PROJ): la he puesto' : ' venían con otro nombre (p. ej. PROJ): las he puesto') + ' en la clase que tienes a esa hora.');
       h += '<p class="lead">' + esc(extra.join(' ') + ' Revisa que esté bien antes de guardar.') + '</p><div class="list">' + Object.keys(T).map((x) => {
         const t = T[x], partes = [];
         if (t.sin) partes.push(num(t.sin) + ' h sin justificante'); if (t.just) partes.push(num(t.just) + ' h justificadas'); if (t.vaga) partes.push(num(t.vaga) + ' h de vaga' + (d.sinVaga ? ' (no cuentan)' : ''));
@@ -657,7 +659,9 @@
     const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
     return { curso: { inicio: (d.cal && d.cal.inicio) || K.CURSO_2627.inicio, fin: K.CURSO_2627.fin }, hoy: HOY, subs, alias,
       horasDia: (date, sub) => blocks(date, sub).reduce((a, b) => a + (+b.hours || 0), 0),
-      bloquesDia: (date, sub) => blocks(date, sub).map((b) => ({ a: mins(b.start), b: mins(b.end), hours: +b.hours || 0 })) };
+      bloquesDia: (date, sub) => blocks(date, sub).map((b) => ({ a: mins(b.start), b: mins(b.end), hours: +b.hours || 0 })),
+      // la clase que hay ese día a esa hora según el horario (para listas que ponen otro nombre, p. ej. PROJ)
+      claseA: (date, m) => { const b = (S ? C.dayClasses(S, date) : []).find((x) => mins(x.start) <= m && m < mins(x.end)); return b ? b.subject : null; } };
   }
   function leerTexto(t) {
     const r = NVImportar.leer(t, optsLector());

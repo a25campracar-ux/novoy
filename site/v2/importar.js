@@ -73,6 +73,12 @@
     if (m) { const t = (h, mi, ap) => ((+h % 12) + (ap === 'pm' ? 12 : 0)) * 60 + (+mi || 0); return { a: t(m[1], m[2], m[3]), b: t(m[4], m[5], m[6]) }; }
     return null;
   }
+  /** Hora de inicio de la línea en minutos («08:00», «8.00», «8h00» o el principio de un tramo), sin contar la fecha. */
+  function horaInicio(line) {
+    const t = tramo(line); if (t) return t.a;
+    const m = /(?:^|[^\d])(\d{1,2})[:h](\d{2})(?!\d)/.exec(fold(line).replace(/\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}/g, ' '));
+    return m && +m[1] < 24 && +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
+  }
   /** Horas escritas en la línea («2 h», «2 hores», «2 horas»), o null. */
   function horasEscritas(line) {
     const m = /(\d+(?:[.,]\d+)?)\s*(?:h\b|hores|horas|hours|sesiones|sessions)/.exec(fold(line));
@@ -127,7 +133,16 @@
       if (st === 'presente') { ignoradas++; return; }
       // la tutoría no cuenta para el límite: se dice cuántas había, sin pedir que se revisen
       if (!sub && words(linea).split(' ').some((w) => TUT.test(w))) { tutoria++; return; }
-      const subject = sub || ctxSub;
+      let subject = sub || ctxSub, porHora = false;
+      // Con fecha y hora, manda el horario: «16/11 08:00» es la clase que tienes el lunes a las 8:00.
+      // Así se entienden las faltas puestas en otro nombre (p. ej. en PROJ) o en una asignatura que ya no se llama así.
+      const ini = date && opts.claseA ? horaInicio(linea) : null;
+      // Solo si la asignatura viene en la propia línea (o no viene ninguna): si sale de la cabecera de la lista y ese día no la
+      // tienes, mejor enseñarla como dudosa que adivinar.
+      const deLinea = !!sub || !ctxSub;
+      if (ini != null && deLinea && !(subject && opts.bloquesDia && opts.bloquesDia(date, subject).some((x) => x.a <= ini && ini < x.b))) {
+        const c = opts.claseA(date, ini); if (c && c !== subject) { subject = c; porHora = true; }
+      }
       if (!date) return dudosas.push({ linea, motivo: 'No veo la fecha' });
       if (!subject) return dudosas.push({ linea, motivo: 'No sé de qué asignatura es' });
       if (date < curso.inicio || date > hoy) return dudosas.push({ linea, motivo: 'La fecha no es de este curso' });
@@ -145,7 +160,7 @@
       if (hours == null && !tr && /(^|\D)\d{1,2}:\d{2}(\D|$)/.test(linea.replace(/\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}/g, ''))) hours = Math.min(1, enHorario || 1);
       const type = st.indexOf('retraso') === 0 ? 'retraso' : 'falta';
       if (hours == null) hours = type === 'retraso' ? 0 : enHorario || 1; // sin horas: la clase entera (lo seguro)
-      brutas.push({ date, subject, hours: type === 'retraso' ? 0 : hours, type, justified: st === 'just' || st === 'retraso-just', vaga: st === 'vaga', tope: enHorario });
+      brutas.push({ date, subject, hours: type === 'retraso' ? 0 : hours, type, justified: st === 'just' || st === 'retraso-just', vaga: st === 'vaga', tope: enHorario, porHora });
     });
     // mismo día, asignatura y tipo: se suman (una plataforma lista una fila por hora), con tope en las horas de clase
     const map = new Map();
@@ -153,10 +168,11 @@
       const k = x.date + '|' + x.subject + '|' + x.type + '|' + x.justified + '|' + x.vaga;
       const y = map.get(k);
       if (!y) return map.set(k, Object.assign({}, x));
+      if (x.porHora) y.porHora = true;
       if (x.type === 'retraso') return; // un retraso por clase
       y.hours = Math.min(y.hours + x.hours, x.tope || Infinity);
     });
-    const faltas = Array.from(map.values()).map((x) => Object.assign({ date: x.date, subject: x.subject, hours: Math.round(x.hours * 100) / 100, type: x.type, justified: x.justified }, x.vaga ? { vaga: true } : {}))
+    const faltas = Array.from(map.values()).map((x) => Object.assign({ date: x.date, subject: x.subject, hours: Math.round(x.hours * 100) / 100, type: x.type, justified: x.justified }, x.vaga ? { vaga: true } : {}, x.porHora ? { porHora: true } : {}))
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.subject < b.subject ? -1 : 1));
     return { faltas, dudosas, ignoradas, tutoria };
   }
@@ -191,6 +207,6 @@
       'Ejemplo: 2026-10-19 ; ' + (subs[0] || 'Programació') + ' ; 2 ; falta\n\nMi lista:\n';
   }
 
-  const api = { fecha, estado, tramo, horasEscritas, asignatura, desdeJSON, leer, unir, totales, promptIA };
+  const api = { horaInicio, fecha, estado, tramo, horasEscritas, asignatura, desdeJSON, leer, unir, totales, promptIA };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.NVImportar = api;
 })(this);

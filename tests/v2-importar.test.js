@@ -99,3 +99,23 @@ const juntas = I.unir(vieja, buena);
 assert.deepStrictEqual(I.totales(juntas), { 'Programació': { sin: 2, just: 0, retrasos: 1, vaga: 0 } });
 assert.ok(I.promptIA(subs).includes('Programació, Bases de dades'));
 console.log('v2 importar OK');
+
+// ---------- con fecha y hora manda el horario (faltas apuntadas en PROJ u otro nombre) ----------
+{
+  const I2 = require('../site/v2/importar.js');
+  const horario = { 1: [['08:00', '10:00', 'IPO II'], ['10:00', '11:00', 'DAW']], 5: [['08:00', '09:00', 'E.CLI']] };
+  const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
+  const dia = (iso) => new Date(iso + 'T12:00:00').getDay();
+  const bl = (date) => (horario[dia(date)] || []).map((x) => ({ a: mins(x[0]), b: mins(x[1]), hours: (mins(x[1]) - mins(x[0])) / 60, subject: x[2] }));
+  const o = { curso: { inicio: '2026-09-14', fin: '2027-06-18' }, hoy: '2026-11-17', subs: ['IPO II', 'DAW', 'E.CLI'],
+    horasDia: (d, s) => bl(d).filter((x) => x.subject === s).reduce((a, x) => a + x.hours, 0),
+    bloquesDia: (d, s) => bl(d).filter((x) => x.subject === s),
+    claseA: (d, m) => { const x = bl(d).find((y) => y.a <= m && m < y.b); return x ? x.subject : null; } };
+  const r = I2.leer('16/11/2026 08:00 PROJ No justificada\n16/11/2026 09:00 PROJ No justificada\n13/11/2026 08:00 PROJ Retard\n16/11/2026 10:00 DAW No justificada\n16/11/2026 08:00 DAW No justificada', o);
+  assert.deepStrictEqual(r.dudosas.map((x) => x.linea), [], 'ninguna línea sin entender');
+  const k = (f) => f.date + ' ' + f.subject + ' ' + f.type + ' ' + f.hours + (f.porHora ? ' *' : '');
+  assert.deepStrictEqual(r.faltas.map(k), ['2026-11-13 E.CLI retraso 0 *', '2026-11-16 DAW falta 1', '2026-11-16 IPO II falta 2 *'],
+    'PROJ del lunes a las 8 y a las 9 → IPO II; del viernes a las 8 → E.CLI; «DAW a las 8» del lunes → IPO II (la clase de esa hora)');
+  assert.strictEqual(I2.horaInicio('9/10/2026 09:00 PROJ'), 540);
+  assert.strictEqual(I2.horaInicio('9/10/2026 PROJ'), null, 'sin hora, se queda como estaba');
+}
