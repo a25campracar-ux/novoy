@@ -127,4 +127,42 @@ assert.deepStrictEqual(ida(mix), mix, 'días que empiezan a horas distintas');
   const z2 = Hd2.ordenar(A.renombrar(z, { 'Bases de dades': 'BD' }), '2026-11-16');
   assert.strictEqual(z2.faltas[0].subject, 'BD');
 }
+// ---------- faltas de una asignatura que ya no está (p. ej. «PROJ Álvaro») → a la clase de esa hora ----------
+{
+  const o = Hd.ordenar(F.estado({ faltas: [
+    { id: 'a', date: '2026-11-16', start: '15:00', subject: 'PROJ Álvaro', hours: 1, type: 'falta', justified: false },
+    { id: 'b', date: '2026-11-13', start: '17:00', subject: 'PROJ Álvaro', hours: 0, type: 'retraso', justified: false },
+    { id: 'c', date: '', subject: 'PROJ Álvaro', hours: 2, type: 'falta', justified: false, note: 'previas' }] }), LUNES);
+  const g = L.asignaturas(o, '1r', LUNES).find((x) => x.name === 'PROJ Álvaro');
+  assert.ok(g && g.sinHoras, 'sale aparte, como «ya no está en tu horario»');
+  const r = L.reubicar(o, ['a', 'b', 'c']);
+  assert.deepStrictEqual([r.movidas, r.sinHora], [2, 1]);
+  const u2 = Hd.ordenar(r.user, LUNES);
+  assert.deepStrictEqual(u2.faltas.filter((f) => f.date).map((f) => f.subject), ['Programació', 'Sistemes'], 'lunes 15:00 → Programació; viernes 17:00 → Sistemes');
+}
+// ---------- semanas de proyecto: un toque, y las faltas de esa semana van al proyecto ----------
+{
+  let x = Hd.ordenar(F.estado({ faltas: [
+    { id: 'p1', date: '2026-11-17', start: '15:00', subject: 'Bases de dades', hours: 1, type: 'falta', justified: false },
+    { id: 'p2', date: '2026-11-24', start: '15:00', subject: 'Bases de dades', hours: 1, type: 'falta', justified: false }] }), LUNES);
+  assert.ok(A.marcarProyecto(x, LUNES, true).error, 'antes hay que activar el proyecto');
+  x.config = A.ponerProyecto(x.config, 'PROJ');
+  const sem = A.semanasCurso(x.config, LUNES);
+  assert.strictEqual(sem[0].lunes, '2026-09-14'); assert.ok(sem.find((w) => w.actual).lunes === LUNES);
+  assert.ok(!sem.some((w) => w.lunes === '2026-12-28'), 'sin las semanas de vacaciones');
+  let r = A.marcarProyecto(x, '2026-11-18', true);
+  assert.strictEqual(r.movidas, 1, 'la falta del martes 17 pasa a PROJ; la del 24 no');
+  let y = Hd.ordenar(r.user, LUNES);
+  assert.deepStrictEqual(y.faltas.map((f) => f.subject), ['PROJ', 'Bases de dades']);
+  assert.ok(C.dayClasses(Hd.calc(y), '2026-11-19').every((c) => c.subject === 'PROJ'), 'esa semana todo es PROJ');
+  assert.ok(A.semanasCurso(y.config, LUNES).find((w) => w.lunes === LUNES).proyecto);
+  const R = Object.fromEntries(C.summary(Hd.calc(y), '1r').map((z) => [z.name, z]));
+  assert.ok(R.PROJ && R.PROJ.absent === 1, 'PROJ tiene sus horas y su falta');
+  const R0 = Object.fromEntries(C.summary(Hd.calc(x), '1r').map((z) => [z.name, z]));
+  assert.ok(R['Bases de dades'].total < R0['Bases de dades'].total, 'Bases de dades pierde las horas de esa semana');
+  r = A.marcarProyecto(y, LUNES, false);
+  y = Hd.ordenar(r.user, LUNES);
+  assert.deepStrictEqual(y.faltas.map((f) => f.subject), ['Bases de dades', 'Bases de dades'], 'al desmarcar vuelve a su módulo');
+  assert.deepStrictEqual(y.config.periods, []);
+}
 console.log('v2-ajustes: todo correcto');

@@ -23,10 +23,18 @@ Nadie aparte de ti ha probado la v2, y el aviso legal espera tu visto bueno.
 | Probado con datos reales | Tu lista de iEduca y tu captura del horario: 6 fallos encontrados y arreglados. Festivos de 5 municipios | — |
 | Probado con personas | Nadie aparte de ti | — |
 
+### Hecho el 17/11: semanas de proyecto
+
+- **Método:** fuera de las semanas de proyecto, una falta puesta en PROJ es del módulo de esa hora (el lector usa la fecha y la hora). En las semanas de proyecto, todas las clases son de PROJ y sus faltas cuentan en PROJ.
+- **Activar:** Ajustes → Horario → «Mi centro hace semanas de proyecto» → nombre (PROJ) → Activar.
+- **Marcar semanas sin saberse las fechas:** una lista con todas las semanas del curso; un toque marca o desmarca. Las faltas con hora de esa semana se mueven solas (al proyecto, o de vuelta a su módulo).
+- **Botón en Hoy:** «Esta semana es de PROJ» (un toque, con «Deshacer»). Cuando está activa, sale «Semana de proyecto» debajo del semáforo, con «No es de proyecto».
+- **PROJ ya no se añade como asignatura.** La opción «cuenta dentro de» por hora ya no se ofrece (solo se ve si ya estaba puesta). En Faltas, una asignatura que ya no está en el horario (p. ej. «PROJ Álvaro») sale aparte con «Pasarlas a su clase» o «Borrar».
+- **Riesgo:** el total de PROJ y de los demás módulos se calcula con las semanas marcadas. Mientras falten semanas futuras por marcar, PROJ sale con menos margen (lado seguro) y los demás módulos con algo más (unas 5–6 semanas de 33, lado peligroso). Si sabes cuántas semanas habrá, márcalas aunque sea aproximado.
+
 ### Hecho el 17/11: el lector usa la fecha y la hora
 
 - **«16/11/2026 08:00 PROJ No justificada» va a la clase que tienes el lunes a las 8:00**, aunque la plataforma la apunte en PROJ o con otro nombre. Solo cuando la asignatura viene en la línea o no viene ninguna: si sale de la cabecera de la lista y ese día no la tienes, sigue como dudosa. La revisión dice cuántas se han colocado así.
-- **Proyectos (PROJ): en rediseño.** Propuesta enviada al autor el 17/11; falta que conteste tres preguntas (ver «Decisiones pendientes», punto 8).
 
 ### Hecho el 17/11: rejilla del horario (lo que pediste)
 
@@ -111,7 +119,7 @@ Decidido el 15–16/11: sin acuerdos con centros, sin servidor de pago y sin lee
 | 1.2 | «Falté a…» y «Todo el día» (más «Fui» por clase, pedido el 16/11) | Claude | ✅ 16/11 | Solo las clases de hoy (o de un día pasado), un toque por clase, retraso, deshacer | 3 toques como máximo para un día entero; no deja apuntar en festivos ni fuera de curso (fallo 5) |
 | 1.3 | Faltas: lista, corregir y justificar | Claude | ✅ 16/11 | Agrupadas por asignatura; pasar a justificada con un toque; borrar con deshacer | Encontrar y justificar una falta concreta en ≤ 3 toques |
 | 1.4 | Ajustes v2 | Claude | ✅ 16/11 | Cambiar reglas (mismo flujo de ramas), días de libre disposición, festivos, trimestres, horario («¿desde cuándo vale?»), módulos que no cursas, pasar más faltas | Cambiar una regla sin rehacer el alta; una prueba demuestra que el horario no se rompe al guardar sin tocar (fallo 7) |
-| 1.5 | Repartir PROJ entre módulos | Claude + Tú | 🟡 Hecho; falta que pongas tu reparto | En Ajustes y en el alta: «Esta clase cuenta dentro de…» por bloque del horario. Tu caso: PROJ de Álvaro → E.CLI; PROJ de Pol → 1 h E.CLI y 1 h CTR; PROJ de Ermengol → DAW | Tus totales coinciden con tu hoja de Notion |
+| 1.5 | Repartir PROJ entre módulos | Claude + Tú | ✅ 17/11 rehecho como «semanas de proyecto»; falta que marques las tuyas | En Ajustes y en el alta: «Esta clase cuenta dentro de…» por bloque del horario. Tu caso: PROJ de Álvaro → E.CLI; PROJ de Pol → 1 h E.CLI y 1 h CTR; PROJ de Ermengol → DAW | Tus totales coinciden con tu hoja de Notion |
 | 1.6 | Simulador dentro de Hoy | Claude | ✅ 16/11 | Selector de fecha y «Tendré justificante» | Decisión del autor: se conserva |
 | 1.7 | Enlace de clase nuevo | Claude | ✅ 16/11 | «Pásalo a tu clase» lleva centro, ciclo y turno: el compañero cae directo en «¿Es este tu horario?». Nunca toca las faltas de nadie | Sustituye al enlace de la v1 que borra faltas (fallo 1) |
 | 1.8 | Cuentas y copia en la v2 | Claude | ✅ 16/11 | Reutilizar `acct.js`; aviso para guardar la cuenta tras una semana de uso | Restaurar en otro móvil con usuario y contraseña |
@@ -212,7 +220,7 @@ Decidido el 15–16/11: sin acuerdos con centros, sin servidor de pago y sin lee
 5. Para la 1.11: en tu centro, ¿hay algún módulo de 2º que empiece en el 2º o 3º trimestre, o semanas de proyecto sin horario normal? ¿Y el PROJ tiene una norma de faltas propia? (La app ya lo admite: dime o ponlo tú en Ajustes.)
 6. **Aviso legal (1.9):** lee `legal.html` en la v2 y dime si lo apruebas o qué cambiar.
 7. **Publicar (1.10):** cuando lo hayas probado con tus faltas reales, di «publica».
-8. **Proyectos (17/11):** en las semanas de proyecto, ¿el profesor de cada hora es el del horario normal? ¿Sabéis las fechas de antemano? ¿Fuera de esas semanas hay horas de PROJ en tu horario semanal?
+8. **Proyectos:** resuelto el 17/11 (semanas de proyecto con un toque). Falta saber si en otros centros funciona igual.
 
 ## 5. Cómo trabajamos
 
@@ -231,7 +239,7 @@ Decidido el 15–16/11: sin acuerdos con centros, sin servidor de pago y sin lee
 | Después | Fase 2: probar con 5–8 compañeros con cronómetro | «Fase 2: prueba con la clase» |
 
 **Prueba para tu móvil (unos 15 minutos)** en v2.novoy-72h.pages.dev (entras directo en Hoy):
-1. **Tu PROJ (1.5):** Ajustes → Asignaturas → PROJ → «Sí, elegir en qué cuenta cada hora». Álvaro → E.CLI; Pol → una hora E.CLI y otra CTR; Ermengol → DAW. Luego mira en Faltas si E.CLI, CTR y DAW cuadran con tu Notion.
+1. **Tu PROJ:** quita las fichas «PROJ de cada profe» en Cambiar horario y pinta el módulo normal. En Faltas, las que queden sueltas: «Pasarlas a su clase». Luego Ajustes → Horario → activa las semanas de proyecto y toca las que lo han sido. Mira en Faltas si cuadra con tu Notion.
 2. **Faltas:** toca una asignatura, justifica una falta y deshazlo.
 3. **Simular:** en Hoy, «Simular», elige un día y activa «Tendré justificante».
 4. **Cambiar horario:** Ajustes → Horario → Cambiar horario → Siguiente → «Desde siempre» → Guardar. No debe cambiar nada.

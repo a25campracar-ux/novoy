@@ -214,7 +214,7 @@
   // casos especiales (1.5 y 1.11): una pregunta de un toque; si hay, se ponen en Ajustes al acabar
   V.especial = () => top() + h1('¿Tu horario cambia durante el curso?') + '<div class="stack" role="radiogroup">' +
     radio('especial', 'no', d.especial === false, 'No, es igual todo el curso') +
-    radio('especial', 'si', d.especial === true, 'Sí, tiene casos especiales', 'El proyecto cuenta dentro de otros módulos, una asignatura empieza más tarde o hay semanas con otro horario. Lo pones al acabar, en un minuto.') + '</div>' +
+    radio('especial', 'si', d.especial === true, 'Sí, tiene casos especiales', 'Semanas de proyecto, o una asignatura que empieza más tarde o acaba antes. Lo pones al acabar, en un minuto.') + '</div>' +
     foot(next('especialOk', 'Siguiente', d.especial == null));
   // «¿desde cuándo vale este horario?» (al cambiarlo desde Ajustes)
   V.desde = () => top() + h1('¿Desde cuándo vale este horario?') + '<p class="lead">Así las faltas de antes siguen contando con el horario de antes.</p><div class="stack" role="radiogroup">' +
@@ -402,7 +402,7 @@
       if (ret) extra.push(ret + (ret === 1 ? ' retraso' : ' retrasos') + ' aparte.');
       if (d.tutoria) extra.push(d.tutoria + (d.tutoria === 1 ? ' de tutoría, que no cuenta.' : ' de tutoría, que no cuentan.'));
       const ph = F.filter((f) => f.porHora).length;
-      if (ph) extra.push(ph + (ph === 1 ? ' venía con otro nombre (p. ej. PROJ): la he puesto' : ' venían con otro nombre (p. ej. PROJ): las he puesto') + ' en la clase que tienes a esa hora.');
+      if (ph) extra.push(ph + (ph === 1 ? ' venía con otro nombre (p. ej. PROJ): la he puesto' : ' venían con otro nombre (p. ej. PROJ): las he puesto') + ' en la clase que tienes a esa hora. Si eran de una semana de proyecto, márcala luego en Ajustes → Horario y se moverán solas.');
       h += '<p class="lead">' + esc(extra.join(' ') + ' Revisa que esté bien antes de guardar.') + '</p><div class="list">' + Object.keys(T).map((x) => {
         const t = T[x], partes = [];
         if (t.sin) partes.push(num(t.sin) + ' h sin justificante'); if (t.just) partes.push(num(t.just) + ' h justificadas'); if (t.vaga) partes.push(num(t.vaga) + ' h de vaga' + (d.sinVaga ? ' (no cuentan)' : ''));

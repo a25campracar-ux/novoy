@@ -73,6 +73,13 @@
     if (ios && !inst && !dormido('instalar')) return '<section class="card consejo"><p><b>Ponla en tu pantalla de inicio</b></p><p class="sub">En iPhone, si no la instalas, Safari puede borrar tus faltas.</p><div class="bts"><button class="bfui" data-ir="ajustes/instalar">Cómo</button><button class="bfal" data-a="dormir" data-v="instalar">Ahora no</button></div></section>';
     return '';
   }
+  /** Semana de proyecto: un toque para activarla o quitarla (si el centro las hace). */
+  function proyecto() {
+    const cfg = NV.user.config; if (!cfg.proyecto || !window.NVAjustes) return '';
+    const w = window.NVAjustes.semanasCurso(cfg, HOY).find((x) => x.actual), n = esc(cfg.proyecto.nombre);
+    if (w && w.proyecto) return '<section class="card proj"><p><b>Semana de proyecto</b></p><p class="sub">Esta semana todas tus clases cuentan en ' + n + '.</p><button class="link" data-a="proyecto" data-v="0">No es de proyecto</button></section>';
+    return '<button class="btn2" data-a="proyecto" data-v="1">Esta semana es de ' + n + '</button>';
+  }
   function luego() {
     const l = Hd.empiezanLuego(NV.user, HOY); if (!l.length) return '';
     return '<p class="nota center">Empiezan más tarde: ' + l.map((x) => esc(x.name) + ' (' + fecha(x.desde) + ')').join(' · ') + '.</p>';
@@ -83,11 +90,14 @@
     const d = Hd.dia(NV.user, HOY);
     let h = '<header class="hd"><div><h1 tabindex="-1">Hoy</h1><span class="sub">' + cap(largo(HOY)) + (d.trimestre ? ' · ' + esc(d.trimestre) : '') + '</span></div><button class="btn2 auto ico" data-ir="simular">' + ICON.sim + 'Simular</button></header>';
     h += preguntaDia() + semaforo(d);
+    const pj = d.libre ? '' : proyecto();
+    if (pj.indexOf('card proj') >= 0) h += pj; // semana de proyecto activa: se ve antes que las tarjetas
     if (!d.libre) {
       h += d.pendientes.length ? '<div class="acc"><button class="btn2" data-a="todo">Falté todo el día</button><button class="btn2" data-a="falte">Falté a…</button></div>'
         : '<div class="acc uno"><button class="btn2" data-a="falte">Cambiar lo de hoy</button></div>';
       h += '<p class="cap">Hoy tienes</p><div class="stack">' + d.grupos.map((g) => tarjeta(g)).join('') + '</div>';
       if (d.grupos.filter((g) => g.hPend > 0).length > 1) h += '<button class="link" data-a="fuitodo">Fui a todas</button>';
+      if (pj.indexOf('card proj') < 0) h += pj;
     } else if (d.proximo) {
       h += '<p class="cap">Si faltas el ' + largo(d.proximo.date) + '</p><div class="stack">' + d.proximo.grupos.map((g) => tarjeta(g, true)).join('') + '</div>';
     }
@@ -105,6 +115,7 @@
       fuitodo: () => NV.aplicar(Hd.fuiATodo(NV.user, HOY), 'Apuntado: fuiste a todas'),
       diafui: (el) => NV.aplicar(Hd.fuiATodo(NV.user, el.dataset.d), 'Apuntado: el ' + largo(el.dataset.d) + ' fuiste a todo'),
       falte: (el) => abrirFalte(el.dataset.d || HOY),
+      proyecto: (el) => { const on = el.dataset.v === '1', r = window.NVAjustes.marcarProyecto(NV.user, HOY, on); NV.aplicar(r, on ? 'Semana de proyecto: todo cuenta en ' + NV.user.config.proyecto.nombre : 'Semana normal otra vez'); },
       dormir: (el) => { const x = NV.ls.get('nv.consejo') || {}; x[el.dataset.v] = Date.now(); NV.ls.set('nv.consejo', x); NV.render(); }
     }
   };

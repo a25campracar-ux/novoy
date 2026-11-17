@@ -242,3 +242,17 @@ Las decisiones nuevas se añaden al final con fecha.
   configuración simple y un método bien pensado. Le parece bien la función de módulo que
   empieza más tarde.
 
+## 17/11/2026 · Proyectos: cómo funcionan en su centro
+
+- En las semanas de proyecto, el profesor de cada hora es el mismo que en el horario
+  normal (al menos en su centro; no sabe en otros).
+- Las fechas de las semanas de proyecto se saben, pero nadie se las aprende: ir a
+  buscarlas daría pereza al 99 % de la gente.
+- Fuera de esas semanas no hay horas de PROJ en su horario, pero a veces apuntan las
+  faltas en PROJ a esas horas; no cuentan para PROJ sino para el módulo de esa hora.
+- En las semanas de proyecto, en cambio, las faltas sí cuentan para el módulo de PROJ.
+- Hecho: «Semanas de proyecto» en Ajustes → Horario (activar con el nombre, un toque por
+  semana, las faltas de esa semana se mueven solas) y botón «Esta semana es de PROJ» en
+  Hoy. PROJ ya no se añade como asignatura; la opción «cuenta dentro de» por hora deja
+  de ofrecerse (solo se ve si ya estaba puesta).
+

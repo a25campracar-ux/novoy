@@ -82,15 +82,24 @@ console.log('F · Faltas');
   ok(/no tienes clase/.test(await p.locator('#aviso').innerText()), 'un festivo de otro día: no deja');
   await p.fill('#otrodia', '2026-10-14');
   ok(/miércoles 14 oct/i.test(await p.locator('#app .sub').first().innerText()), 'otro día cualquiera del curso');
-  sinErrores(p);
+  // faltas de una asignatura que ya no está (un «PROJ de un profesor»): pasarlas a su clase
   await c.close();
+  const v = conFaltas(); v.faltas.push({ id: 'pj', date: '2026-11-13', start: '17:00', subject: 'PROJ Pol', hours: 1, type: 'falta', justified: false });
+  const x = await abrir(v, null, '/?hoy=' + LUNES + '#faltas');
+  await x.p.getByRole('button', { name: /^PROJ Pol/ }).click().catch(() => {});
+  ok(/Ya no está en tu horario/.test(await x.p.locator('#app').innerText()), 'una asignatura que ya no está sale aparte');
+  await x.p.getByRole('button', { name: 'Pasarlas a su clase' }).click();
+  ok((await estado(x.p)).faltas.find((f) => f.id === 'pj').subject === 'Sistemes', '«Pasarlas a su clase»: el viernes a las 17:00 es Sistemes');
+  await shot(x.p, 'faltas-reubicar');
+  sinErrores(x.p);
+  await x.c.close();
 }
 
 // ---------- G · Ajustes: PROJ, fechas, semanas, regla propia, contar ----------
 console.log('G · Ajustes de asignaturas');
 {
   const u = F.estado();
-  u.config.schedule['2'] = [{ start: '15:00', end: '17:00', subject: 'PROJ', hours: 2 }, { start: '17:00', end: '18:00', subject: 'Entorns', hours: 1 }];
+  u.config.schedule['2'] = [{ start: '15:00', end: '17:00', subject: 'PROJ', hours: 2, cuenta: 'Entorns' }, { start: '17:00', end: '18:00', subject: 'Entorns', hours: 1 }];
   const { c, p } = await abrir(u, null, '/?hoy=2026-11-17');
   await tab(p, 'Ajustes');
   ok((await titulo(p, 'Ajustes')) === 'Ajustes', 'abre Ajustes');
@@ -98,7 +107,6 @@ console.log('G · Ajustes de asignaturas');
   await p.getByRole('button', { name: /^Asignaturas/ }).click();
   await p.getByRole('button', { name: /^PROJ/ }).click();
   ok((await titulo(p, 'PROJ')) === 'PROJ', 'ficha de la asignatura');
-  await p.getByRole('button', { name: 'Sí, elegir en qué cuenta cada hora' }).click();
   await p.selectOption('#cu21500', 'Entorns');
   await p.selectOption('#cu21600', 'Bases de dades');
   let st = await estado(p);
@@ -107,6 +115,7 @@ console.log('G · Ajustes de asignaturas');
   // fechas: Sistemes empieza en enero
   await p.locator('.top .back').click(); await titulo(p, 'Asignaturas');
   ok(/Cuenta en Entorns y Bases de dades/.test(await p.locator('#app').innerText()), 'la lista lo resume');
+  ok(/¿Proyecto \(PROJ\)\? No lo añadas como asignatura/.test(await p.locator('#app').innerText()), 'Asignaturas lleva a las semanas de proyecto');
   await p.getByRole('button', { name: /^Sistemes/ }).click();
   await p.getByRole('button', { name: 'Poner fechas' }).click();
   await p.fill('#fd', '2027-01-08');
@@ -137,6 +146,20 @@ console.log('G · Ajustes de asignaturas');
   await shot(p, 'horario-semanas');
   await p.goto(BASE + '/?hoy=2026-11-24#hoy'); await titulo(p, 'Hoy');
   ok(JSON.stringify(await p.locator('article.tj .nm').allInnerTexts()) === '["Projecte"]', 'esa semana Hoy solo tiene Projecte');
+  // semanas de proyecto: activar, un toque por semana, y las faltas de esa semana van al proyecto
+  await p.goto(BASE + '/?hoy=' + LUNES + '#ajustes/horario'); await titulo(p, 'Tu horario');
+  await p.getByRole('button', { name: 'Mi centro hace semanas de proyecto' }).click();
+  await p.getByRole('button', { name: 'Activar' }).click();
+  await p.getByRole('button', { name: 'Semana del 9 nov' }).click();
+  st = await estado(p);
+  ok(st.config.proyecto && st.config.proyecto.nombre === 'PROJ' && st.config.periods.some((x) => x.proyecto && x.from === '2026-11-09'), 'semana del 9 nov marcada de proyecto con un toque');
+  await shot(p, 'semanas-proyecto');
+  await p.goto(BASE + '/?hoy=' + LUNES + '#hoy'); await titulo(p, 'Hoy');
+  await p.getByRole('button', { name: 'Esta semana es de PROJ' }).click();
+  ok(JSON.stringify(await p.locator('article.tj .nm').allInnerTexts()) === '["PROJ"]' && /Semana de proyecto/.test(await p.locator('#app').innerText()), 'Hoy: un toque y esta semana todo es PROJ');
+  await shot(p, 'hoy-proyecto');
+  await p.getByRole('button', { name: 'No es de proyecto' }).click();
+  ok(!/Semana de proyecto/.test(await p.locator('#app').innerText()), '«No es de proyecto» lo quita');
   // contar: una asignatura que no cursas deja de salir
   await p.goto(BASE + '/?hoy=' + LUNES + '#ajustes/asig/Llenguatges de marques'); await titulo(p, 'Llenguatges');
   await p.getByText('Contar sus faltas').click();

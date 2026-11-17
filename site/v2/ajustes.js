@@ -203,6 +203,50 @@
     return u;
   }
 
-  const api = { renombrar, claves, datosGrupo, conEspeciales, resumenEspeciales, asignaturas, horasDe, asignarCuenta, cuentas, reponerCuentas, ponerFechas, ponerSemanas, quitarSemanas, reglaPropia, contar, respuestasDe, enlaceClase, leerEnlace, paraCuenta, deCuenta, FORMATO };
+  // ---------- semanas de proyecto: un toque por semana ----------
+  // Fuera de esas semanas, una falta puesta en PROJ es del módulo de esa hora (lo hace el lector de la lista).
+  // En esas semanas todas las clases son del proyecto y sus faltas cuentan en él.
+  const isoD = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  function lunesDe(iso) { const d = C.parse(iso), w = (d.getDay() + 6) % 7; d.setDate(d.getDate() - w); return isoD(d); }
+  const masDias = (iso, n) => { const d = C.parse(iso); d.setDate(d.getDate() + n); return isoD(d); };
+  const estadoCfg = (cfg) => Object.assign({}, cfg, { settings: C.DEF, faltas: [] });
+  /** Activa el proyecto (nombre de su asignatura) o lo quita (null), sin tocar las semanas ya marcadas. */
+  function ponerProyecto(cfg0, nombre) {
+    const cfg = clon(cfg0), n = String(nombre || '').trim().slice(0, 40);
+    if (n.length >= 2) cfg.proyecto = { nombre: n }; else delete cfg.proyecto;
+    return cfg;
+  }
+  /** Semanas de clase del curso (lunes de cada una) y si son de proyecto. */
+  function semanasCurso(cfg, hoy) {
+    const ts = (cfg.terms || []).slice().sort((a, b) => (a.from < b.from ? -1 : 1)); if (!ts.length) return [];
+    const S = estadoCfg(cfg), out = [];
+    for (let l = lunesDe(ts[0].from); l <= ts[ts.length - 1].to; l = masDias(l, 7)) {
+      let hay = false; for (let i = 0; i < 5 && !hay; i++) { const k = masDias(l, i); hay = !!C.termOf(S, k) && C.dayClasses(S, k).length > 0; }
+      const p = (cfg.periods || []).find((x) => x.proyecto && x.from <= masDias(l, 4) && l <= x.to);
+      if (hay || p) out.push({ lunes: l, viernes: masDias(l, 4), proyecto: !!p, pasada: hoy ? masDias(l, 4) < hoy : false, actual: hoy ? l <= hoy && hoy <= masDias(l, 6) : false });
+    }
+    return out;
+  }
+  /**
+   * Marca (o desmarca) como de proyecto la semana que contiene `iso`. Las faltas de esa semana con hora pasan a la
+   * clase que toca a esa hora (el proyecto, o al desmarcar, el módulo de siempre). → { user, movidas } o { error }.
+   */
+  function marcarProyecto(u0, iso, si) {
+    const cfg0 = u0.config; if (!cfg0.proyecto) return { error: 'Activa antes las semanas de proyecto.' };
+    const l = lunesDe(iso), v = masDias(l, 4), nombre = cfg0.proyecto.nombre;
+    let cfg = clon(cfg0);
+    cfg.periods = (cfg.periods || []).filter((p) => !(p.proyecto && p.from <= v && l <= p.to));
+    if (si) { const r = ponerSemanas(cfg, { from: l, to: v, todo: nombre }); if (r.error) return r; cfg = r.cfg; cfg.periods.forEach((p) => { if (p.from === l && p.to === v && p.todo === nombre) { p.proyecto = true; p.label = 'Semana de proyecto'; } }); }
+    const u = clon(u0); u.config = cfg;
+    const S = estadoCfg(cfg); let movidas = 0;
+    (u.faltas || []).forEach((f) => {
+      if (!f.date || f.date < l || f.date > v || !f.start) return;
+      const b = C.dayClasses(S, f.date).find((x) => mn(x.start) <= mn(f.start) && mn(f.start) < mn(x.end));
+      if (b && b.subject !== f.subject) { f.subject = b.subject; delete f.sid; movidas++; }
+    });
+    return { user: u, movidas };
+  }
+
+  const api = { lunesDe, ponerProyecto, semanasCurso, marcarProyecto, renombrar, claves, datosGrupo, conEspeciales, resumenEspeciales, asignaturas, horasDe, asignarCuenta, cuentas, reponerCuentas, ponerFechas, ponerSemanas, quitarSemanas, reglaPropia, contar, respuestasDe, enlaceClase, leerEnlace, paraCuenta, deCuenta, FORMATO };
   if (isNode) module.exports = api; else root.NVAjustes = api;
 })(this);

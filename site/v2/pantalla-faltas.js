@@ -28,6 +28,10 @@
     const n = a.filas.length;
     let h = '<article class="tj' + (a.sinHoras ? ' hecha' : '') + '"><button class="cab" aria-expanded="' + open + '" aria-controls="' + id + '" data-a="abrir" data-v="' + esc(a.name) + '"><span class="t"><h3 class="nm">' + esc(a.name) + '</h3><span class="meta">' + (n ? n + (n === 1 ? ' día con faltas' : ' días con faltas') : 'Sin faltas') + (a.propia ? ' · regla propia' : '') + '</span></span><span class="der">' + cab + '</span></button>';
     if (!a.sinHoras) h += NV.barras({ limites: a.limites.map((l) => Object.assign({ coste: 0 }, l)) });
+    else {
+      const todas = esc(JSON.stringify([].concat.apply([], a.filas.map((x) => x.ids))));
+      h += '<p class="sub">Ya no está en tu horario. Si son faltas puestas en PROJ u otro nombre, pásalas a la clase que tenías a esa hora.</p><div class="bts"><button class="solo" data-a="reubicar" data-k="' + todas + '">Pasarlas a su clase</button><button class="solo" data-a="borrar" data-k="' + todas + '" aria-label="Borrar todas las faltas de ' + esc(a.name) + '">Borrar</button></div>';
+    }
     if (open) h += '<ul class="fls" id="' + id + '">' + (n ? a.filas.map(fila).join('') : '<li class="nota">Ninguna falta en este periodo.</li>') + '</ul>';
     return h + '</article>';
   }
@@ -51,7 +55,8 @@
       periodo: (el) => { periodo = el.dataset.v; abierta = null; NV.render(false); },
       abrir: (el) => { abierta = abierta === el.dataset.v ? null : el.dataset.v; NV.render(false); },
       just: (el) => { const v = el.dataset.v === '1'; NV.aplicar(L.justificar(NV.user, ids(el), v), v ? 'Justificada' : 'Quitado el justificante'); },
-      borrar: (el) => NV.aplicar(L.borrar(NV.user, ids(el)), 'Falta borrada'),
+      borrar: (el) => NV.aplicar(L.borrar(NV.user, ids(el)), ids(el).length > 1 ? 'Faltas borradas' : 'Falta borrada'),
+      reubicar: (el) => { const r = L.reubicar(NV.user, ids(el)); NV.aplicar(r, r.movidas + (r.movidas === 1 ? ' falta pasada a su clase' : ' faltas pasadas a su clase') + (r.sinHora ? ' · ' + r.sinHora + ' sin hora: bórralas o déjalas' : '')); },
       otro: () => NV.abrirFalte(Hd.diasRecientes(NV.user, HOY, 1)[0] || HOY)
     }
   };

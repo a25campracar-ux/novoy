@@ -47,12 +47,28 @@
     const cfg = NV.user.config, ps = cfg.periods || [];
     let h = top() + '<h1 tabindex="-1">Tu horario</h1><div class="card">' + rejilla(cfg) + '</div>';
     h += '<a class="btn" href="' + conHoy('alta.html?editar=horario') + '">Cambiar horario</a>';
-    h += '<h2>Semanas con otro horario</h2><p class="sub">Por ejemplo, semanas de proyecto en las que no hay clase normal.</p>';
-    if (ps.length) h += '<div class="list">' + ps.map((p, i) => '<div class="li"><span class="t"><b>' + esc(p.todo || p.label || 'Otro horario') + '</b><small>Del ' + fecha(p.from) + ' al ' + fecha(p.to) + (p.todo ? ': todas las clases' : '') + '</small></span><button class="link" data-a="quitarSem" data-v="' + i + '" aria-label="Quitar las semanas de ' + esc(p.todo || '') + '">Quitar</button></div>').join('') + '</div>';
+    h += proyecto(cfg);
+    h += '<h2>Otras semanas con otro horario</h2><p class="sub">Si alguna semana todas las clases son de una sola asignatura.</p>';
+    if (ps.some((p) => !p.proyecto)) h += '<div class="list">' + ps.map((p, i) => p.proyecto ? '' : '<div class="li"><span class="t"><b>' + esc(p.todo || p.label || 'Otro horario') + '</b><small>Del ' + fecha(p.from) + ' al ' + fecha(p.to) + (p.todo ? ': todas las clases' : '') + '</small></span><button class="link" data-a="quitarSem" data-v="' + i + '" aria-label="Quitar las semanas de ' + esc(p.todo || '') + '">Quitar</button></div>').join('') + '</div>';
     if (ui.abierto.sem) h += '<form class="card stack" data-f="semanas"><div class="grid2"><div class="field"><label for="sf">Primer día</label><input id="sf" name="from" class="input" type="date" required></div><div class="field"><label for="st">Último día</label><input id="st" name="to" class="input" type="date" required></div></div>' +
       '<div class="field"><label for="sx">Esos días todo es de</label><input id="sx" name="todo" class="input" list="subs" placeholder="Ej.: Proyecto" autocomplete="off" required><datalist id="subs">' + todas(cfg).map((s) => '<option value="' + esc(s) + '">').join('') + '</datalist></div>' + err() + '<button class="btn2">Añadir</button></form>';
     else h += '<button class="btn2" data-a="abre" data-v="sem">Añadir semanas con otro horario</button>';
     return h;
+  }
+
+  // ---------- semanas de proyecto: un toque por semana ----------
+  function proyecto(cfg) {
+    let h = '<h2 id="proyecto">Semanas de proyecto</h2>';
+    if (!cfg.proyecto) {
+      h += '<p class="sub">Si tu centro hace semanas de proyecto, esas semanas todas tus clases cuentan en el proyecto. Las faltas que pongan en PROJ el resto del curso van al módulo de esa hora.</p>';
+      if (ui.abierto.proj) h += '<form class="card stack" data-f="proyecto"><div class="field"><label for="pn">¿Cómo se llama en tu centro?</label><input id="pn" name="nombre" class="input" value="PROJ" autocomplete="off" maxlength="40"></div>' + err() + '<button class="btn2">Activar</button></form>';
+      else h += '<button class="btn2" data-a="abre" data-v="proj">Mi centro hace semanas de proyecto</button>';
+      return h;
+    }
+    const sem = AJ.semanasCurso(cfg, HOY), n = sem.filter((w) => w.proyecto).length;
+    h += '<p class="sub">Toca las semanas que han sido (o serán) de <b>' + esc(cfg.proyecto.nombre) + '</b>. Sus faltas se mueven solas. ' + (n ? n + (n === 1 ? ' semana marcada.' : ' semanas marcadas.') : 'Ninguna marcada.') + '</p>';
+    h += '<div class="semanas" role="group" aria-label="Semanas del curso">' + sem.map((w) => '<button class="seg" aria-pressed="' + w.proyecto + '" data-a="semProj" data-d="' + w.lunes + '" aria-label="Semana del ' + fecha(w.lunes) + (w.actual ? ', esta semana' : '') + '">' + fecha(w.lunes) + (w.actual ? '<small>esta</small>' : '') + '</button>').join('') + '</div>';
+    return h + '<button class="link" data-a="sinProj">Mi centro no hace semanas de proyecto</button>';
   }
 
   // ---------- asignaturas ----------
@@ -67,7 +83,7 @@
       if (own[s]) x.push('Regla propia: ' + own[s].limites.map((l) => l.pct + ' %').join(' y '));
       return li(s, esc(x.join(' · ') || 'Normal'), 'ajustes/asig/' + s);
     }).join('');
-    return h + '</div><p class="nota">¿Te sobra o te falta una asignatura? Cámbialo en «Horario».</p>';
+    return h + '</div><div class="card stack"><p class="sub" style="color:var(--tx2)"><b>¿Proyecto (PROJ)?</b> No lo añadas como asignatura. Marca sus semanas en Horario, con un toque por semana.</p><button class="btn2" data-ir="ajustes/horario">Semanas de proyecto</button></div><p class="nota">¿Te sobra o te falta una asignatura? Cámbialo en «Horario».</p>';
   }
   function asignatura(s) {
     const u = NV.user, cfg = u.config, otras = todas(cfg).filter((x) => x !== s), cuenta = (cfg.nocount || []).indexOf(s) < 0;
@@ -75,9 +91,10 @@
     let h = top('asig') + '<p class="sub">Asignatura</p><h1 tabindex="-1">' + esc(s) + '</h1>';
     // contar o no
     h += '<label class="toggle card"><input type="checkbox" data-a="contar"' + (cuenta ? ' checked' : '') + '><span class="t"><b>Contar sus faltas</b><br><small class="sub">Quítalo si no la cursas, la tienes convalidada o no cuenta faltas, como la tutoría.</small></span></label>';
-    // 1.5: cada clase cuenta dentro de…
-    if (hs.length) {
-      const algun = hs.some((x) => x.cuenta);
+    // «cuenta dentro de» por hora: ya no se ofrece (el proyecto no se configura: sus faltas van al módulo de esa hora);
+    // solo se enseña a quien ya lo tenía puesto, para que pueda quitarlo
+    if (hs.some((x) => x.cuenta)) {
+      const algun = true;
       h += '<section class="card stack"><p><b>¿Sus clases cuentan dentro de otra asignatura?</b></p><p class="sub">Pasa con el proyecto: cada hora cuenta en el módulo del profesor que la da.</p>';
       if (algun || ui.abierto.cuenta) h += hs.map((x) => '<div class="row"><label class="grow" for="cu' + x.dia + x.start.replace(':', '') + '">' + DIA[x.dia] + ' ' + x.start + '</label><select id="cu' + x.dia + x.start.replace(':', '') + '" class="input sel" data-a="cuenta" data-d="' + x.dia + '" data-v="' + x.start + '"><option value="">' + esc(s) + ' (aparte)</option>' + otras.map((o) => '<option' + (x.cuenta === o ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select></div>').join('');
       else h += '<button class="btn2" data-a="abre" data-v="cuenta">Sí, elegir en qué cuenta cada hora</button>';
@@ -183,6 +200,8 @@
       atras: (el) => NV.atras(el.dataset.v ? 'ajustes/' + el.dataset.v : 'ajustes'),
       abre: (el) => { ui.abierto[el.dataset.v] = true; ui.err = ''; NV.render(false); },
       quitarSem: (el) => cfgA(AJ.quitarSemanas(NV.user.config, +el.dataset.v), 'Semanas quitadas'),
+      semProj: (el) => { const on = el.getAttribute('aria-pressed') !== 'true', r = AJ.marcarProyecto(NV.user, el.dataset.d, on); NV.aplicar(r, (on ? 'Semana del ' + fecha(el.dataset.d) + ': de proyecto' : 'Semana del ' + fecha(el.dataset.d) + ': normal') + (r.movidas ? ' · ' + r.movidas + (r.movidas === 1 ? ' falta movida' : ' faltas movidas') : '')); },
+      sinProj: () => { let u = NV.user; AJ.semanasCurso(u.config).filter((w) => w.proyecto).forEach((w) => { const r = AJ.marcarProyecto(u, w.lunes, false); if (r.user) u = r.user; }); u = Object.assign({}, u, { config: AJ.ponerProyecto(u.config, null) }); NV.aplicar(u, 'Semanas de proyecto quitadas'); },
       sinFechas: () => { const s = sub().slice(1).join('/'), r = AJ.ponerFechas(NV.user.config, s, {}); ui.abierto.fechas = false; cfgA(r.cfg, 'Fechas quitadas'); },
       pct: (el) => { ui.pct = +el.dataset.v; NV.render(false); },
       cu: (el) => { ui.cu = el.dataset.v; NV.render(false); },
@@ -221,6 +240,7 @@
     },
     entradas: { pass: (el) => { const c = document.getElementById('checks'); if (c) c.outerHTML = checks(el.value); } },
     envios: {
+      proyecto: (f) => { const n = f.nombre.value.trim(); if (n.length < 2) { ui.err = 'Escribe su nombre.'; return NV.render(false); } ui.err = ''; ui.abierto.proj = false; cfgA(AJ.ponerProyecto(NV.user.config, n), 'Semanas de proyecto activadas: toca las que lo son'); },
       semanas: (f) => { const r = AJ.ponerSemanas(NV.user.config, { from: f.from.value, to: f.to.value, todo: f.todo.value }); if (r.error) { ui.err = r.error; return NV.render(false); } ui.abierto.sem = false; ui.err = ''; cfgA(r.cfg, 'Semanas añadidas'); },
       fechas: (f) => { const s = sub().slice(1).join('/'), r = AJ.ponerFechas(NV.user.config, s, { desde: f.desde.value, hasta: f.hasta.value, antes: f.antes.value }); if (r.error) { ui.err = r.error; return NV.render(false); } ui.err = ''; ui.abierto.fechas = false; cfgA(r.cfg, 'Fechas guardadas'); },
       crear: async (f) => {

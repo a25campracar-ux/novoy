@@ -56,6 +56,21 @@
     return out;
   }
 
-  const api = { periodos, asignaturas, justificar, borrar };
+  /**
+   * Faltas de una asignatura que ya no está en el horario (p. ej. un «PROJ de un profesor»): cada una con día y hora
+   * pasa a la clase que hay a esa hora. Devuelve { user, movidas, sinHora }.
+   */
+  function reubicar(u, ids) {
+    const s = new Set(ids), S = Hd.calc(u), out = JSON.parse(JSON.stringify(u)), mn = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
+    let movidas = 0, sinHora = 0;
+    out.faltas.forEach((f) => {
+      if (!s.has(f.id)) return;
+      const c = f.date && f.start ? C.dayClasses(S, f.date).find((b) => mn(b.start) <= mn(f.start) && mn(f.start) < mn(b.end)) : null;
+      if (c) { f.subject = c.subject; delete f.sid; movidas++; } else sinHora++;
+    });
+    return { user: out, movidas, sinHora };
+  }
+
+  const api = { periodos, asignaturas, justificar, borrar, reubicar };
   if (isNode) module.exports = api; else root.NVLista = api;
 })(this);
