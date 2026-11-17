@@ -103,6 +103,21 @@
     return cat.modules.map((m) => m.name).filter((n) => !usados.has(n) && !fuera.has(n));
   }
   const paleta = () => propias().concat(delCiclo());
+  /** Cambia el nombre de una asignatura en el borrador (casillas, color, añadidas). Si ya existe otra con ese nombre, se unen. */
+  function renombrar(viejo, nuevo) {
+    const n = String(nuevo || '').trim().replace(/\s+/g, ' ').slice(0, 40), hz = d.horario;
+    if (!viejo || n.length < 2) { aviso('Escribe un nombre de al menos 2 letras.'); return; }
+    if (n === viejo) { ui.ren = null; return render(false); }
+    const une = paleta().indexOf(n) >= 0;
+    Object.keys(hz.grid || {}).forEach((x) => Object.keys(hz.grid[x]).forEach((r) => { if (hz.grid[x][r] === viejo) hz.grid[x][r] = n; }));
+    hz.extra = (hz.extra || []).filter((x) => x !== viejo); if (!une) hz.extra.push(n);
+    const m = hz.col || (hz.col = {}); if (m[n] == null && m[viejo] != null) m[n] = m[viejo]; delete m[viejo];
+    const mv = modDe(viejo) || viejo, mn2 = modDe(n) || n;
+    hz.ocultas = (hz.ocultas || []).filter((x) => x !== mn2); if (mv !== mn2 && hz.ocultas.indexOf(mv) < 0) hz.ocultas.push(mv);
+    const r = hz.renombres || (hz.renombres = {}); Object.keys(r).forEach((k) => { if (r[k] === viejo) r[k] = n; }); if (!r[viejo]) r[viejo] = n; delete r[n];
+    ui.paint = n; ui.ren = null; save(); render(false);
+    aviso(une ? 'Unida con ' + n : 'Ahora se llama ' + n);
+  }
 
   // ---------- piezas ----------
   const PASOS = { entrar: 1, yaTienes: 1, uniendo: 2, especial: 2, desde: 2, centro: 1, centroOtro: 1, ciclo: 1, plantilla: 2, fuente: 2, leyendo: 2, editor: 2, calendario: 3, reglas1: 4, reglas2a: 4, reglas2b: 4, reglas2c: 4, reglas2m: 4, reglas3: 4, reglas4: 4, previas: 5, previasMano: 5, impPegar: 5, impFoto: 5, impLeyendo: 5, impIA: 5, impRevisar: 5, listo: 5 };
@@ -244,8 +259,9 @@
     const pal = '<div class="pal" role="radiogroup" aria-label="Asignatura para pintar">' + mias.concat(resto).map(ficha).join('') +
       '<div class="ficha"><button class="fi erase" role="radio" aria-checked="' + (ui.paint === '') + '" aria-pressed="' + (ui.paint === '') + '" data-a="paint" data-v=""><b>Borrar</b><small>casillas</small></button></div>' +
       (ui.add ? '' : '<div class="ficha"><button class="fi add" data-a="addSub"><b>+ Otra</b><small>asignatura</small></button></div>') + '</div>' +
-      (ui.add ? '<div class="row"><label class="sr" for="ns">Nueva asignatura</label><input id="ns" class="input grow" data-f="ns" placeholder="Nombre de la asignatura" autocomplete="off"><button class="seg" data-a="addSubOk" style="min-width:88px">Añadir</button></div>' : '');
-    const nombre = ui.paint ? '<p class="sub" aria-live="polite">Pintando: <b style="color:var(--tx)">' + esc(ui.paint) + '</b></p>' : ui.paint === '' ? '<p class="sub" aria-live="polite">Toca una casilla para borrarla.</p>' : '<p class="sub">Elige una asignatura y toca sus horas. Puedes arrastrar el dedo.</p>';
+      (ui.add ? '<div class="stack"><div class="row"><label class="sr" for="ns">Nueva asignatura</label><input id="ns" class="input grow" data-f="ns" placeholder="Nombre y pulsa Intro" autocomplete="off" enterkeyhint="done"><button class="seg" data-a="addSubOk" style="min-width:88px">Añadir</button></div><button class="link" data-a="addSubFin">Ya están todas</button></div>' : '');
+    const ren = ui.ren && paleta().indexOf(ui.ren) >= 0 ? '<div class="card stack"><label for="rn"><b>Nombre de la asignatura</b></label><input id="rn" class="input" data-f="rn" value="' + esc(ui.ren) + '" autocomplete="off" maxlength="40"><div class="grid2"><button class="seg" data-a="renOk">Guardar nombre</button><button class="seg" data-a="renNo">Cancelar</button></div></div>' : '';
+    const nombre = ren || (ui.paint ? '<p class="sub" aria-live="polite">Pintando: <b style="color:var(--tx)">' + esc(ui.paint) + '</b>. Toca sus horas en la rejilla. Para cambiarle el nombre, toca su tarjeta otra vez.</p>' : ui.paint === '' ? '<p class="sub" aria-live="polite">Toca una casilla para borrarla.</p>' : '<p class="sub">Toca una asignatura y después sus horas en la rejilla.</p>');
     return top() + h1(d.fuente === 'captura' ? 'Revisa tu horario' : 'Pinta tu horario') +
       (d.fuente === 'captura' ? '<p class="lead">He leído esto de tu captura. Corrige lo que no esté bien.</p>' : '') +
       formH + (rows.length ? pal + nombre + rejilla(rows, hz.grid, true) : '') + errBox() +
@@ -480,7 +496,7 @@
       const grid = H.vacia(); H.DIAS.forEach((x) => Object.keys(d.horario.grid[x] || {}).forEach((r) => { if (+r < rows.length) grid[x][r] = d.horario.grid[x][r]; }));
       d.horario.rows = rows; d.horario.grid = grid; d.horario.cfg = f; ui.horas = false; ui.err = ''; if (ui.paint == null) ui.paint = paleta()[0] || null; save(); render(false);
     },
-    paint: (s) => { ui.paint = s; render(false); },
+    paint: (s) => { if (s && ui.paint === s) { ui.ren = s; render(false); focusSoon('rn'); return; } ui.paint = s; ui.ren = null; render(false); },
     quitarSub: (s) => {
       const hz = d.horario, antes = JSON.stringify({ grid: hz.grid, extra: hz.extra || [], ocultas: hz.ocultas || [] }), paintAntes = ui.paint;
       const m = modDe(s) || s, mismo = (x) => x === s || modDe(x) === m;
@@ -491,8 +507,15 @@
       aviso('Quitada ' + corto(s), () => { Object.assign(d.horario, JSON.parse(antes)); ui.paint = paintAntes; save(); render(false); });
     },
     addSub: () => { ui.add = true; render(false); focusSoon('ns'); },
-    addSubOk: () => { const n = (val('ns') || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (n.length < 2) return; d.horario.extra = (d.horario.extra || []).concat(n); d.horario.ocultas = (d.horario.ocultas || []).filter((x) => x !== (modDe(n) || n)); ui.paint = n; ui.add = false; save(); render(false); },
-    cell: (v, el, ev) => { if (ev && ev.detail > 0 && Date.now() - lastPtr < 600) return; pintaCelda(v, null); },
+    addSubOk: () => {
+      const n = (val('ns') || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (n.length < 2) { focusSoon('ns'); return; }
+      if (paleta().indexOf(n) < 0) { d.horario.extra = (d.horario.extra || []).concat(n); d.horario.ocultas = (d.horario.ocultas || []).filter((x) => x !== (modDe(n) || n)); }
+      ui.paint = n; save(); render(false); aviso('Añadida ' + n); focusSoon('ns'); // el campo sigue abierto para la siguiente
+    },
+    addSubFin: () => { ui.add = false; render(false); },
+    renOk: () => renombrar(ui.ren, val('rn')),
+    renNo: () => { ui.ren = null; render(false); },
+    cell: (v) => pintaCelda(v),
     editorOk: () => { if (!pintadas().length) return; if (d.editar) return go('desde'); d.plantilla = null; go('especial'); },
     'cal-fechas': () => { ui.cambiarFechas = !ui.cambiarFechas; render(false); },
     'cal-local': () => { ui.localForm = !ui.localForm; render(false); focusSoon('ld'); },
@@ -560,7 +583,7 @@
 
   /** Guarda solo la parte cambiada (modo editar desde Ajustes) y vuelve a la app. Nunca toca las faltas salvo en «faltas». */
   async function guardarEdicion() {
-    const old = existente(), out = JSON.parse(JSON.stringify(old)), cfg0 = old.config;
+    const old = d.editar === 'horario' ? AJ.renombrar(existente(), (d.horario && d.horario.renombres) || {}) : existente(), out = JSON.parse(JSON.stringify(old)), cfg0 = old.config;
     if (d.editar === 'horario') {
       let desde = d.desde === 'siempre' ? null : d.desde === 'otro' ? val('dd') : HOY;
       if (d.desde === 'otro' && !/^\d{4}-\d{2}-\d{2}$/.test(desde || '')) { ui.err = 'Pon el día desde el que vale.'; return render(false); }
@@ -659,29 +682,13 @@
     }
   }
 
-  // ---------- pintar con el dedo ----------
-  let lastPtr = 0, drag = null;
-  function pintaCelda(v, modo) {
+  // ---------- pintar: tocar una ficha y luego cada casilla (sin arrastrar: así hacer scroll no pinta) ----------
+  function pintaCelda(v) {
     const [x, r] = v.split(':'), g = d.horario.grid[x] || (d.horario.grid[x] = {});
-    if (ui.paint == null) { aviso('Elige primero una asignatura.'); return null; }
-    const m = modo || (ui.paint && g[r] === ui.paint ? 'borrar' : ui.paint ? 'pintar' : 'borrar');
-    if (m === 'borrar') delete g[r]; else g[r] = ui.paint;
+    if (ui.paint == null) { aviso('Elige primero una asignatura.'); return; }
+    if (ui.paint && g[r] !== ui.paint) g[r] = ui.paint; else delete g[r];
     save(); render(false, '[data-v="' + v + '"]');
-    return m;
   }
-  app.addEventListener('pointerdown', (e) => {
-    const c = e.target.closest('#tt [data-a="cell"]'); if (!c || e.button > 0) return;
-    lastPtr = Date.now(); drag = { modo: pintaCelda(c.dataset.v, null), last: c.dataset.v };
-    e.preventDefault();
-  });
-  app.addEventListener('pointermove', (e) => {
-    if (!drag || !drag.modo) return;
-    const el = document.elementFromPoint(e.clientX, e.clientY), c = el && el.closest && el.closest('#tt [data-a="cell"]');
-    if (!c || c.dataset.v === drag.last) return;
-    drag.last = c.dataset.v; lastPtr = Date.now(); pintaCelda(c.dataset.v, drag.modo);
-  });
-  const fin = () => { drag = null; };
-  window.addEventListener('pointerup', fin); window.addEventListener('pointercancel', fin);
 
   // ---------- eventos ----------
   app.addEventListener('click', (e) => {
@@ -705,6 +712,7 @@
     const lab = e.target.closest('label[role="button"]');
     if (lab && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); lab.querySelector('input').click(); }
     if (e.key === 'Enter' && e.target.id === 'ns') { e.preventDefault(); A.addSubOk(); }
+    if (e.key === 'Enter' && e.target.id === 'rn') { e.preventDefault(); A.renOk(); }
     if (e.key === 'Enter' && (e.target.id === 'eu' || e.target.id === 'ep')) { e.preventDefault(); A.entrarOk(); }
   });
 

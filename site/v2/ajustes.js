@@ -183,6 +183,26 @@
     return out;
   }
 
-  const api = { claves, datosGrupo, conEspeciales, resumenEspeciales, asignaturas, horasDe, asignarCuenta, cuentas, reponerCuentas, ponerFechas, ponerSemanas, quitarSemanas, reglaPropia, contar, respuestasDe, enlaceClase, leerEnlace, paraCuenta, deCuenta, FORMATO };
+  /**
+   * Cambio de nombre de asignaturas en todo lo guardado: horario (también el de antes y las semanas especiales),
+   * «cuenta dentro de», faltas, «fui», fechas, las que no cuentan y reglas propias. mapa = { viejo: nuevo }.
+   */
+  function renombrar(u0, mapa) {
+    const ks = Object.keys(mapa || {}).filter((k) => mapa[k] && mapa[k] !== k); if (!ks.length) return u0;
+    const u = clon(u0), R = (x) => (x != null && mapa[x] ? mapa[x] : x), cfg = u.config;
+    const sch = (o) => { Object.keys(o || {}).forEach((d) => (o[d] || []).forEach((b) => { b.subject = R(b.subject); if (b.cuenta) b.cuenta = R(b.cuenta); })); };
+    sch(cfg.schedule); (cfg.history || []).forEach((h) => sch(h.schedule)); (cfg.periods || []).forEach((p) => { sch(p.schedule); if (p.todo) p.todo = R(p.todo); });
+    (u.faltas || []).forEach((f) => { f.subject = R(f.subject); });
+    (cfg.subjects || []).forEach((m) => { m.name = R(m.name); }); // registro del motor: las faltas siguen a su asignatura por id
+    Object.keys(u.fui || {}).forEach((d) => { u.fui[d] = u.fui[d].map((k) => { const i = k.lastIndexOf('|'); return R(k.slice(0, i)) + k.slice(i); }); });
+    if (cfg.nocount) cfg.nocount = Array.from(new Set(cfg.nocount.map(R)));
+    const ren = (o, f) => { if (!o) return o; const n = {}; Object.keys(o).forEach((k) => { n[R(k)] = f ? f(o[k]) : o[k]; }); return n; };
+    if (cfg.vigencia) cfg.vigencia = ren(cfg.vigencia, (v) => (v.antes ? Object.assign(v, { antes: R(v.antes) }) : v));
+    if (u.settings && u.settings.porAsignatura) u.settings.porAsignatura = ren(u.settings.porAsignatura);
+    if (cfg.alias) cfg.alias = ren(cfg.alias, R);
+    return u;
+  }
+
+  const api = { renombrar, claves, datosGrupo, conEspeciales, resumenEspeciales, asignaturas, horasDe, asignarCuenta, cuentas, reponerCuentas, ponerFechas, ponerSemanas, quitarSemanas, reglaPropia, contar, respuestasDe, enlaceClase, leerEnlace, paraCuenta, deCuenta, FORMATO };
   if (isNode) module.exports = api; else root.NVAjustes = api;
 })(this);

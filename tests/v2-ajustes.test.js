@@ -109,4 +109,22 @@ const s55 = { 1: [{ start: '08:00', end: '09:50', subject: 'A', hours: 2 }, { st
 assert.deepStrictEqual(ida(s55), s55, 'clases de 55 min');
 const mix = { 1: [{ start: '15:00', end: '17:00', subject: 'A', hours: 2 }], 2: [{ start: '15:30', end: '16:30', subject: 'B', hours: 1 }, { start: '16:30', end: '18:30', subject: 'A', hours: 2 }] };
 assert.deepStrictEqual(ida(mix), mix, 'días que empiezan a horas distintas');
+// ---------- cambiar el nombre de una asignatura en todo lo guardado ----------
+{
+  let x = F.estado({ faltas: F.previas('Bases de dades', 2), settings: { porAsignatura: { 'Bases de dades': { limites: [{ pct: 10, sin: 1, just: 1 }] } } } });
+  x.config.nocount = ['Bases de dades']; x.config.vigencia = { Sistemes: { desde: '2027-01-08', antes: 'Bases de dades' } };
+  x.config.schedule['2'][1].cuenta = 'Bases de dades'; x.fui = { '2026-11-17': ['Bases de dades|15:00'] };
+  x.config.history = [{ from: null, to: '2026-11-01', schedule: { 1: [{ start: '15:00', end: '16:00', subject: 'Bases de dades', hours: 1 }] } }];
+  const y = A.renombrar(x, { 'Bases de dades': 'BD' });
+  assert.ok(!JSON.stringify(y).replace(/"id":"[^"]*"/g, '').includes('Bases de dades'), 'ya no queda el nombre viejo en ningún sitio');
+  assert.strictEqual(y.faltas[0].subject, 'BD'); assert.deepStrictEqual(y.fui['2026-11-17'], ['BD|15:00']);
+  assert.strictEqual(y.config.vigencia.Sistemes.antes, 'BD'); assert.ok(y.settings.porAsignatura.BD);
+  assert.ok(JSON.stringify(x).includes('Bases de dades'), 'no toca el de entrada');
+  assert.strictEqual(A.renombrar(x, {}), x);
+  // con el registro del motor (ids de asignatura), al volver a abrir la app la falta no vuelve al nombre viejo
+  const Hd2 = require('../site/v2/hoy.js');
+  const z = Hd2.ordenar(F.estado({ faltas: [{ id: 'q', date: '2026-11-09', start: '17:00', subject: 'Bases de dades', hours: 1, type: 'falta', justified: false }] }), '2026-11-16');
+  const z2 = Hd2.ordenar(A.renombrar(z, { 'Bases de dades': 'BD' }), '2026-11-16');
+  assert.strictEqual(z2.faltas[0].subject, 'BD');
+}
 console.log('v2-ajustes: todo correcto');

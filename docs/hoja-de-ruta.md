@@ -23,6 +23,12 @@ Nadie aparte de ti ha probado la v2, y el aviso legal espera tu visto bueno.
 | Probado con datos reales | Tu lista de iEduca y tu captura del horario: 6 fallos encontrados y arreglados. Festivos de 5 municipios | — |
 | Probado con personas | Nadie aparte de ti | — |
 
+### Hecho el 17/11: rejilla del horario (lo que pediste)
+
+- **Sin arrastrar:** se toca la ficha y luego cada casilla. Hacer scroll por la rejilla ya no pinta nada.
+- **Nueva asignatura:** Intro la crea y el campo sigue abierto para la siguiente; «Ya están todas» lo cierra.
+- **Cambiar el nombre:** tocar otra vez la ficha elegida. Si el nombre ya existe, se unen. En «Cambiar horario», el nombre nuevo pasa también a las faltas, las fechas, las reglas propias y el horario de antes.
+
 ### Hecho el 16/11 (noche): el resto de la Fase 1
 
 - **Tres pestañas: Hoy · Faltas · Ajustes.** Faltas hace también de Resumen; el simulador está dentro de Hoy.
@@ -88,7 +94,7 @@ Decidido el 15–16/11: sin acuerdos con centros, sin servidor de pago y sin lee
 | # | Tarea | Quién | Estado | Cómo | Hecho cuando |
 | --- | --- | --- | --- | --- | --- |
 | 0.1 | Bloquear publicaciones rotas | Tú | ✅ 16/11 | Comando de compilación en Cloudflare Pages: `( [ ! -f tests/run.js ] \|\| node tests/run.js ) && mkdir -p dist && cp -r site/* dist/ && cp worker/_worker.js dist/ && sed -i "s#__SITE__#https://novoy-72h.pages.dev#g" dist/index.html` (salida: `dist`) | `v2` y `main` compilan en verde |
-| 0.2 | Comprobar que la v2 comparte plantillas | Tú | ⬜ | Haz el alta en el móvil y repítela en una ventana privada | En la segunda sale «¿Es este tu horario?». Si no sale, falta enlazar el KV `CUENTAS` al entorno de vista previa |
+| 0.2 | **Enlazar el KV `CUENTAS` a la vista previa** (sin esto, en la v2 no van ni la cuenta ni las plantillas: «El servidor de cuentas no está listo», visto el 17/11) | Tú | ⬜ | Cloudflare → Workers y Pages → novoy → Configuración → Enlaces → **Vista previa** → Añadir → Espacio de nombres KV: variable `CUENTAS`, el mismo espacio que producción. Después, volver a desplegar la última de `v2` | Crear cuenta funciona en la v2, y al repetir el alta en una ventana privada sale «¿Es este tu horario?» |
 | 0.3 | Repetir tus faltas con el lector arreglado | Tú | 🟡 | Arreglado el 16/11. Tú: pinta el martes a las 9:00 (DAW si lo es), luego en la revisión pulsa «Empezar de nuevo» y vuelve a pegar tu lista de iEduca | Salen 35 h sin justificar, 0 justificadas, 4 h de vaga y 9 retrasos (DAW: 4 h) |
 | 0.4 | Mandar tu horario real pintado | Tú | ✅ 16/11 | Recibido. Hallazgo: el martes a las 9:00 está vacío | — |
 

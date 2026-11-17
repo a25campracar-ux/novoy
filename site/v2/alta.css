@@ -80,7 +80,7 @@ h2 { margin: 0; font-size: 17px; font-weight: 700; }
 .badge.amb { background: var(--amb-bg); color: var(--amb); }
 
 /* rejilla de horario */
-.tt { display: grid; grid-template-columns: 46px repeat(5, minmax(0, 1fr)); gap: 4px; user-select: none; -webkit-user-select: none; touch-action: none; }
+.tt { display: grid; grid-template-columns: 46px repeat(5, minmax(0, 1fr)); gap: 4px; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
 .tt.view { touch-action: auto; }
 .tt .h { font-size: 11px; color: var(--tx3); display: flex; align-items: center; min-height: 44px; font-variant-numeric: tabular-nums; }
 .tt .d { font-size: 12px; font-weight: 700; color: var(--tx3); text-align: center; padding-bottom: 2px; }

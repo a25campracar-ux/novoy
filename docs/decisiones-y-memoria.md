@@ -217,3 +217,16 @@ Las decisiones nuevas se añaden al final con fecha.
   interfaz intuitiva y simple. Hecho todo salvo publicar (1.10), que espera su «publica»,
   y el aviso legal (1.9), que espera su visto bueno.
 
+## 17/11/2026 · Rejilla del horario
+
+- Pidió que la rejilla (alta y «Cambiar horario») no se pinte arrastrando: al hacer
+  scroll se pintaba y era molesto. Ahora: tocar la ficha de la asignatura y luego cada
+  casilla.
+- Pidió que el campo de nueva asignatura no se cierre con Intro: se crea y sigue en el
+  campo para escribir la siguiente.
+- Pidió poder cambiar el nombre tocando la ficha. Hecho: tocar otra vez la ficha elegida
+  abre «Nombre de la asignatura». En «Cambiar horario», el nombre nuevo pasa también a
+  sus faltas, fechas y reglas.
+- Probó crear la cuenta en la v2 y le salió «El servidor de cuentas no está listo»: falta
+  enlazar el KV `CUENTAS` al entorno de vista previa de Cloudflare (tarea 0.2).
+
