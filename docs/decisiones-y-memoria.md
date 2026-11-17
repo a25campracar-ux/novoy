@@ -230,3 +230,15 @@ Las decisiones nuevas se añaden al final con fecha.
 - Probó crear la cuenta en la v2 y le salió «El servidor de cuentas no está listo»: falta
   enlazar el KV `CUENTAS` al entorno de vista previa de Cloudflare (tarea 0.2).
 
+## 17/11/2026 · Proyectos (PROJ)
+
+- Contó que los proyectos son unas 5 o 6 semanas en todo el curso.
+- En su centro, las faltas a veces se apuntan en el módulo PROJ, pero en realidad son del
+  módulo que corresponde al profesor de esa hora.
+- Al crear un módulo distinto para cada profesor de PROJ, el lector de la lista pegada ya
+  no reconocía esas faltas («No sé de qué asignatura es»). Pidió que use la fecha y la
+  hora: 16/11/2026 a las 8:00 es lunes; el lunes a las 8:00 tiene IPO II. Hecho el 17/11.
+- Quiere repensar la función de proyecto: que se active rápido, con un botón, con una
+  configuración simple y un método bien pensado. Le parece bien la función de módulo que
+  empieza más tarde.
+

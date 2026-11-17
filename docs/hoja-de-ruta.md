@@ -23,6 +23,11 @@ Nadie aparte de ti ha probado la v2, y el aviso legal espera tu visto bueno.
 | Probado con datos reales | Tu lista de iEduca y tu captura del horario: 6 fallos encontrados y arreglados. Festivos de 5 municipios | — |
 | Probado con personas | Nadie aparte de ti | — |
 
+### Hecho el 17/11: el lector usa la fecha y la hora
+
+- **«16/11/2026 08:00 PROJ No justificada» va a la clase que tienes el lunes a las 8:00**, aunque la plataforma la apunte en PROJ o con otro nombre. Solo cuando la asignatura viene en la línea o no viene ninguna: si sale de la cabecera de la lista y ese día no la tienes, sigue como dudosa. La revisión dice cuántas se han colocado así.
+- **Proyectos (PROJ): en rediseño.** Propuesta enviada al autor el 17/11; falta que conteste tres preguntas (ver «Decisiones pendientes», punto 8).
+
 ### Hecho el 17/11: rejilla del horario (lo que pediste)
 
 - **Sin arrastrar:** se toca la ficha y luego cada casilla. Hacer scroll por la rejilla ya no pinta nada.
@@ -207,6 +212,7 @@ Decidido el 15–16/11: sin acuerdos con centros, sin servidor de pago y sin lee
 5. Para la 1.11: en tu centro, ¿hay algún módulo de 2º que empiece en el 2º o 3º trimestre, o semanas de proyecto sin horario normal? ¿Y el PROJ tiene una norma de faltas propia? (La app ya lo admite: dime o ponlo tú en Ajustes.)
 6. **Aviso legal (1.9):** lee `legal.html` en la v2 y dime si lo apruebas o qué cambiar.
 7. **Publicar (1.10):** cuando lo hayas probado con tus faltas reales, di «publica».
+8. **Proyectos (17/11):** en las semanas de proyecto, ¿el profesor de cada hora es el del horario normal? ¿Sabéis las fechas de antemano? ¿Fuera de esas semanas hay horas de PROJ en tu horario semanal?
 
 ## 5. Cómo trabajamos
 
