@@ -11,6 +11,10 @@
     const t = tokens.map((w) => (/^[Il1|]{2,3}$/.test(w) ? w.replace(/./g, 'I') : w)).join(' ').replace(/[^A-Za-z0-9À-ÿ.\- ]/g, '').replace(/\s+/g, ' ').trim();
     return t.length > 26 ? t.slice(0, 26).trim() : t;
   }
+  // Nombres de pila frecuentes (catalán y castellano): una línea que empieza por uno y tiene apellido es el profesor, no la asignatura.
+  const NOMS = new Set(('aina alba albert alberto alejandro alex alfonso alfred alicia amparo ana andrea andreu andres angel angela angeles anna antoni antonia antonio arnau aurora beatriz belen berta blanca carla carlos carles carme carmen carol carolina catalina cesar clara cristina cristian daniel david diana diego dolores dolors elena eli elisa elisabet emili emilio enric enrique esther eugeni eulalia eva fatima felip felipe fernando francesc francisco gemma gerard gloria gonzalo guillem guillermo helena hector ignasi ignacio ines irene isaac isabel ismael ivan jaume javier jesus joan joaquim joaquin jordi jorge jose josep juan judit julia julian julio laia laura lidia lluis lola lorena lourdes lucia luis luisa magda manel manuel manuela marc marcos margarita maria mariona marina mario marta marti merce mercedes miguel miquel mireia miriam monica montse montserrat nadia natalia nerea nil nuria oriol oscar pablo pau paula pedro pere pilar pol rafael ramon raquel raul ricard ricardo roberto robert roger rosa rosario ruben salvador samuel sandra santiago sara sergi sergio silvia sofia sonia susana teresa tomas toni victor victoria vicente vicenc xavier xavi yolanda').split(' '));
+  /** ¿La línea es el nombre de una persona? («Carles Narvaez B.», «Marta Puig») */
+  const persona = (t) => { const w = String(t).split(/\s+/).filter(Boolean); return w.length >= 2 && w.length <= 5 && !/\d/.test(t) && /^[A-ZÀ-Þ][a-zß-ÿ]+$/.test(w[0]) && NOMS.has(norm(w[0])); };
   const TIME_RE = /^(\d{1,2})[:.hH](\d{2})(?:[-–—](\d{1,2})[:.hH](\d{2}))?$/;
   const DAY_FULL = /^(dill|dima|dime|dijo|dive|lune|mart|mier|juev|vier|mond|tues|wedn|thur|frid)/;
   const DAY_SHORT = ['lun', 'mar', 'mie', 'jue', 'vie', 'mon', 'tue', 'wed', 'thu', 'fri', 'dl', 'dt', 'dc', 'dj', 'dv'];
@@ -49,7 +53,7 @@
     colLines.forEach((ws, c) => {
       ws.sort((a, b) => (a.y + a.h / 2) - (b.y + b.h / 2)); const lines = [];
       ws.forEach((w) => { const cy = w.y + w.h / 2, l = lines[lines.length - 1]; if (l && Math.abs(cy - l.cy) < Math.max(w.h, l.h) * 0.55) { l.ws.push(w); l.cy = (l.cy * (l.ws.length - 1) + cy) / l.ws.length; l.h = Math.max(l.h, w.h); } else lines.push({ cy, h: w.h, ws: [w] }); });
-      colLines[c] = lines.map((l) => { l.ws.sort((a, b) => a.x - b.x); l.text = clean(l.ws.map((w) => w.t)); l.raw = l.ws.map((w) => w.t).join(' '); l.alnum = (l.text.match(/[A-Za-z0-9À-ÿ]/g) || []).length; l.room = /^(aula|sala|room|lab)?\s*[A-Za-z]{0,5}[-. ]?\d{1,3}[A-Za-z]?$/i.test(l.text); return l; }).filter((l) => l.alnum >= 2 && !isTimeLine(l.raw));
+      colLines[c] = lines.map((l) => { l.ws.sort((a, b) => a.x - b.x); l.text = clean(l.ws.map((w) => w.t)); l.raw = l.ws.map((w) => w.t).join(' '); l.alnum = (l.text.match(/[A-Za-z0-9À-ÿ]/g) || []).length; l.room = /^(aula|sala|room|lab)?\s*[A-Za-z]{0,5}[-. ]?\d{1,3}[A-Za-z]?$/i.test(l.text); l.persona = persona(l.text); return l; }).filter((l) => l.alnum >= 2 && !isTimeLine(l.raw));
     });
     // las líneas pequeñas (profesor, aula) no son títulos: se descartan por altura de letra
     const allH = [].concat.apply([], colLines.map((ls) => ls.map((l) => l.h))).sort((a, b) => a - b), ref = allH[Math.floor(allH.length * 0.8)] || 0;
@@ -82,10 +86,14 @@
         }
         const col2 = isCol;
         if (!col2 && yt <= hb + 2) yt = y0 - l.h;
-        let title = l.text, j = i; // títulos largos en 2 líneas en mayúsculas
-        if (/^[^a-z]*$/.test(l.text) && lines[i + 1] && !cov[i + 1] && lines[i + 1].cy - l.cy < l.h * 1.7 && /^[^a-z]*$/.test(lines[i + 1].text) && Math.abs(lines[i + 1].h - l.h) < l.h * 0.25) { title += ' ' + lines[i + 1].text; }
-        lines.forEach((x, k) => { if (x.cy >= yt - 2 && x.cy <= yb + 2) cov[k] = true; }); cov[i] = true;
-        blocks.push({ c, yt, yb, title: title.length > 26 ? title.slice(0, 26).trim() : title, colored: col2, txt: txtOnly, sec: !!l.room }); edges.push(yt, yb);
+        // el título es la primera línea del bloque que no es el profesor ni el aula (el profesor puede ir encima)
+        const dentro = []; lines.forEach((x, k) => { if (k === i || (!cov[k] && x.cy >= yt - 2 && x.cy <= yb + 2)) dentro.push(k); });
+        const j = dentro.find((k) => !lines[k].persona && !lines[k].room), t0 = lines[j == null ? i : j];
+        let title = t0.text; // títulos largos en 2 líneas en mayúsculas
+        if (j != null && /^[^a-z]*$/.test(t0.text) && lines[j + 1] && !cov[j + 1] && !lines[j + 1].persona && lines[j + 1].cy - t0.cy < t0.h * 1.7 && /^[^a-z]*$/.test(lines[j + 1].text) && Math.abs(lines[j + 1].h - t0.h) < t0.h * 0.25) { title += ' ' + lines[j + 1].text; }
+        dentro.forEach((k) => { cov[k] = true; });
+        // un bloque con solo el profesor o el aula no es una asignatura (como mucho alarga la clase de arriba)
+        blocks.push({ c, yt, yb, title: title.length > 26 ? title.slice(0, 26).trim() : title, colored: col2, txt: txtOnly, sec: j == null }); edges.push(yt, yb);
       }
     }
     if (!blocks.length) return { ok: false, error: 'No he encontrado clases en la tabla.' };
@@ -113,7 +121,7 @@
       if (b.txt) { const cy = (b.yt + b.yb) / 2; let bi = 0, bd = 1e9; rows.forEach((r, i) => { const d = Math.abs((r.top + r.bot) / 2 - cy); if (d < bd) { bd = d; bi = i; } }); const rr = rows[bi]; idx.length = 0; idx.push(bi); const off = cy - (rr.top + rr.bot) / 2; if (Math.abs(off) > (rr.bot - rr.top) * 0.28) idx.push(off > 0 ? bi + 1 : bi - 1); idx.sort((a, b) => a - b); if (idx[0] < 0 || idx[idx.length - 1] >= rows.length) { idx.length = 0; idx.push(bi); } }
       if (!idx.length) { const cy = (b.yt + b.yb) / 2; let bi = 0, bd = 1e9; rows.forEach((r, i) => { const d = Math.abs((r.top + r.bot) / 2 - cy); if (d < bd) { bd = d; bi = i; } }); idx.push(bi); }
       const cl = (claimed[b.c] = claimed[b.c] || {});
-      if (b.sec && !cl[idx[0]]) return; // un código de aula nunca es una asignatura
+      if (b.sec && !cl[idx[0]]) return; // un aula o un profesor nunca es una asignatura
       if (cl[idx[0]]) { // texto secundario (profesor, aula) de un bloque ya contado: solo puede alargarlo
         const pb = cl[idx[0]]; idx.forEach((i) => { if (!cl[i] && i === pb.r0 + pb.n) { cl[i] = pb; pb.n++; } }); return;
       }
@@ -213,6 +221,6 @@
       return out.join('\n');
     } finally { w.terminate(); }
   }
-  const api = { analyze, read, merge, weak, texto };
+  const api = { analyze, read, merge, weak, texto, persona };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.FTShot = api;
 })(typeof window !== 'undefined' ? window : globalThis);
